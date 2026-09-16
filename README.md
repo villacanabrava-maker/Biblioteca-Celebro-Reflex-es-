@@ -1,16 +1,16 @@
 # Cérebro Autoral
 
-Plataforma de **Inteligência Autoral Personalizada** para transformar a produção intelectual de uma pessoa em conhecimento estruturado, inferir padrões de pensamento com evidências e proveniência, construir um Cérebro Autoral versionado e utilizá-lo para apoiar novas reflexões com revisão humana.
+Plataforma de **Inteligência Autoral Personalizada** para preservar a produção intelectual do usuário, transformá-la em conhecimento estruturado, inferir padrões de pensamento com evidências e proveniência e utilizar esse Cérebro Autoral para apoiar novas reflexões com revisão humana.
 
-> Este README é o painel mestre do projeto. Ele deve ser atualizado em toda etapa relevante de implementação, migration, integração, decisão arquitetural ou mudança de status.
+> **Este README é o painel mestre do projeto.** Toda mudança relevante de arquitetura, banco, interface, integração, teste, deploy ou segurança deve atualizar este arquivo no mesmo ciclo de desenvolvimento.
 
 ---
 
 ## 1. Objetivo do produto
 
-O principal ativo do sistema é o **Cérebro Autoral**.
+O principal ativo do aplicativo é o **Cérebro Autoral**.
 
-Ele será construído a partir das obras e produções do usuário para representar, de forma verificável e versionada:
+Ele deverá representar, de forma estruturada, versionada e auditável:
 
 - metodologia de pensamento;
 - metodologia de interpretação;
@@ -28,7 +28,7 @@ Ele será construído a partir das obras e produções do usuário para represen
 - universo conceitual;
 - evolução autoral.
 
-A IA não será tratada como fonte de verdade. Ela poderá interpretar, organizar, propor, relacionar, recuperar contexto e redigir, mas a identidade autoral, a proveniência, as permissões, os estados, as versões e a publicação serão controlados pelo sistema e pelo usuário.
+A IA pode interpretar, organizar, relacionar, recuperar contexto, planejar e redigir. Ela **não** define silenciosamente a identidade do usuário e **não** transforma respostas livres em verdade canônica no banco sem validação.
 
 ---
 
@@ -56,28 +56,76 @@ REVISÃO HUMANA
 APRENDIZADO CONTROLADO
 ```
 
-Uma reflexão aprovada **não entra automaticamente no Cérebro**. Para virar nova evidência autoral, deverá ser incorporada explicitamente e percorrer novamente Biblioteca → Processamento → Documento Processado → Cérebro.
+Aprovar uma reflexão não significa incorporá-la automaticamente ao Cérebro. Uma nova produção só poderá virar evidência autoral por uma ação explícita e deverá percorrer novamente Biblioteca → Processamento → Documento Processado → Cérebro.
 
 ---
 
-## 3. Princípios de engenharia
+## 3. Infraestrutura canônica
 
-- pesquisar antes de supor;
-- validar antes de persistir;
-- testar antes de publicar;
-- versionar antes de substituir;
-- preservar arquivos originais;
-- preservar proveniência;
-- proteger a autoria;
-- separar conteúdo autoral de referências externas;
-- nunca transformar fonte externa silenciosamente em evidência autoral;
-- manter IA estruturada e validada antes da persistência;
-- manter segredos somente no servidor;
-- manter RLS e privilégio mínimo desde o início;
-- construir etapas caras como processos idempotentes e reexecutáveis;
-- registrar decisões arquiteturais importantes;
-- nunca reescrever migration já aplicada para esconder uma correção posterior;
-- manter o README atualizado junto com o código.
+### GitHub
+
+Repositório oficial:
+
+```text
+villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
+```
+
+Fluxo de desenvolvimento:
+
+```text
+main
+  ↑
+feature/<etapa>
+  ↑
+Pull Request + CI
+```
+
+### Supabase
+
+Projeto oficial:
+
+```text
+xzkzdaxxmizcgfkjgzoq
+```
+
+Usado para:
+
+- PostgreSQL;
+- Supabase Auth;
+- Storage privado;
+- RLS;
+- Data API controlada;
+- Full Text Search;
+- pgvector futuramente no retrieval.
+
+### Vercel
+
+**Status atual: configuração externa pendente.**
+
+A inspeção da conta Vercel conectada mostrou projetos antigos, mas **nenhum projeto está ligado ao repositório canônico novo `Biblioteca-Celebro-Reflex-es-`**.
+
+A arquitetura exige um projeto Vercel exclusivo para este aplicativo. O conector disponível nesta sessão permite inspecionar e fazer deploy de projetos existentes, mas não oferece criação de projeto nem gerenciamento de variáveis de ambiente. Portanto essa parte não será marcada como concluída antes de realmente existir.
+
+Projeto recomendado a criar no Vercel:
+
+```text
+cerebro-autoral
+```
+
+Repositório a importar:
+
+```text
+villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
+```
+
+Variáveis públicas necessárias no Vercel:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+```
+
+O Supabase oficial já possui URL e uma publishable key moderna ativa. O valor da chave não é gravado neste README.
 
 ---
 
@@ -85,186 +133,103 @@ Uma reflexão aprovada **não entra automaticamente no Cérebro**. Para virar no
 
 ### Aplicação
 
-- Next.js
-- React
-- TypeScript
+- Next.js `16.3.5`
+- React `19.3.0`
+- TypeScript `6.0.3`
 - App Router
 
-### Banco, autenticação e arquivos
+### Supabase
 
-- Supabase PostgreSQL
-- Supabase Auth
-- Supabase Storage privado
-- PostgreSQL Full Text Search
+- `@supabase/supabase-js` `2.116.0`
+- `@supabase/ssr` `0.12.7`
+- PostgreSQL
+- Auth
+- Storage
+- RLS
+- Full Text Search
 - pgvector
+
+### Upload e integridade
+
+- `tus-js-client` `4.3.1`
+- `hash-wasm` `4.12.0`
+- upload resumível TUS;
+- hash SHA-256 incremental.
 
 ### Inteligência artificial
 
-- OpenAI API
-- respostas estruturadas e validadas antes da persistência
-- modelos centralizados por configuração, nunca espalhados pelo código
-
-### Infraestrutura
-
-- GitHub — código, branches, PRs e CI
-- Vercel — aplicação e ambientes de deploy
-- Supabase — banco, autenticação e Storage
+- `openai` `7.15.0`
+- Zod `4.6.5`
+- modelos centralizados por configuração;
+- Structured Outputs + validação antes da persistência.
 
 ---
 
-## 5. Infraestrutura canônica
+## 5. Estado geral — 16/09/2026
+
+| Bloco | Status |
+|---|---|
+| Fundação técnica | concluída / `main` |
+| Sistema visual inicial | concluído / `main` |
+| Schema `sistema` | concluído / `main` |
+| Taxonomia Mestre | concluída / `main` |
+| Biblioteca — banco | concluída / `main` |
+| Storage privado | concluído / `main` |
+| API segura `aplicacao` | aplicada no Supabase / PR #6 CI verde |
+| Supabase Auth SSR | implementado / PR #6 CI verde |
+| Upload real e resumível | implementado / PR #6 CI verde |
+| Biblioteca lendo dados reais | implementada / PR #6 CI verde |
+| Vercel canônico | **pendente de criação/conexão externa** |
+| Confirmação de e-mail Auth | código pronto / template do Supabase pendente |
+| Pipeline documental | próximo grande bloco após deploy/teste do upload |
+| Cérebro Autoral | pendente |
+| Motor de Reflexões | pendente |
+| OpenAI operacional | pendente de rotação segura da chave |
+
+Branch atual:
 
 ```text
-GitHub
-   ↓
-Vercel
-   ↓
-Aplicação Next.js
-   ↓
-Supabase
+feature/auth-upload-biblioteca
 ```
 
-Repositório canônico:
+Pull Request atual:
 
 ```text
-villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
+#6 — Fase 1: ativar Auth SSR e upload real da Biblioteca
 ```
-
-Projeto Supabase oficial:
-
-```text
-xzkzdaxxmizcgfkjgzoq
-```
-
-O banco novo começou vazio e está sendo construído exclusivamente por migrations versionadas. Projetos, tabelas, funções, migrations ou deploys do aplicativo anterior não são considerados parte desta arquitetura.
 
 ---
 
-## 6. Estado atual — 16/09/2026
-
-### Fundação técnica
-
-**Status: concluída e incorporada à `main`.**
-
-Inclui aplicação Next.js, TypeScript, CI, sistema visual inicial, páginas principais, schemas canônicos, extensões PostgreSQL e documentação arquitetural.
-
-### Schema `sistema`
-
-**Status: concluído e incorporado à `main`.**
-
-Inclui:
-
-- `sistema.modelos_ia`;
-- `sistema.prompts`;
-- `sistema.versoes_prompts`;
-- `sistema.versoes_pipeline`;
-- `sistema.configuracoes_usuario`;
-- RLS e policies para configurações pessoais;
-- schema interno fechado por padrão.
-
-### Taxonomia Mestre
-
-**Status: concluída e incorporada à `main`.**
-
-Inclui:
-
-- `taxonomia.versoes`;
-- `taxonomia.conceitos`;
-- `taxonomia.termos`;
-- `taxonomia.relacoes`;
-- `taxonomia.classificacoes_elementos`;
-- vocabulários controlados;
-- constraints de confiança;
-- índices taxonômicos;
-- RLS nas classificações pessoais;
-- schema interno fechado.
-
-### Biblioteca — banco
-
-**Status: concluída e incorporada à `main`.**
-
-Inclui:
-
-- `biblioteca.obras`;
-- `biblioteca.versoes_obras`;
-- separação obrigatória entre autoria e participação no Cérebro;
-- vocabulário completo de tipos de obra;
-- preservação de versões físicas;
-- hash SHA-256 para integridade/deduplicação;
-- integridade multiusuário por FK composta `(obra_id, usuario_id)`;
-- Full Text Search inicial em título/descrição;
-- RLS nas duas tabelas;
-- oito policies por `auth.uid()`;
-- schema `biblioteca` fechado a `anon` e `authenticated`.
-
-O advisor de performance identificou que a FK composta precisava de índice próprio. Em vez de reescrever a migration já aplicada, foi criada e aplicada `0005_indice_fk_biblioteca`. O alerta específico desapareceu depois da correção.
-
-O PR #4 passou pelo CI e foi incorporado à `main` por squash merge.
-
-### Storage privado da Biblioteca
-
-**Status: implementado no Supabase e na branch `feature/storage-biblioteca`, aguardando PR + CI para incorporação à `main`.**
-
-Entregue:
-
-- bucket `originais-biblioteca`;
-- bucket confirmado com `public = false`;
-- policy de SELECT para o próprio usuário;
-- policy de INSERT para o próprio usuário;
-- policy de UPDATE para o próprio usuário;
-- policy de DELETE para o próprio usuário;
-- isolamento pelo primeiro segmento do caminho do objeto;
-- migration testada transacionalmente antes da aplicação;
-- migration aplicada com sucesso;
-- advisor de segurança sem alertas.
-
-Formato efetivo do nome do objeto:
-
-```text
-{usuario_id}/{obra_id}/{versao_id}/original.ext
-```
-
-A forma com `/` inicial usada nos documentos é apenas uma representação visual do caminho. No Storage o nome do objeto será gerado sem barra inicial.
-
-O bucket ainda não possui limite global de tamanho nem lista fixa de MIME types porque o Dicionário Mestre deixou deliberadamente abertos os formatos finais suportados e a estratégia de OCR. Essas restrições serão endurecidas quando o pipeline de upload/processamento formalizar os formatos aceitos.
-
----
-
-## 7. Migrations aplicadas
+## 6. Migrations aplicadas no Supabase oficial
 
 | Ordem | Migration | Estado | Finalidade |
 |---|---|---|---|
-| 0001 | `0001_fundacao` | aplicada | extensões e schemas canônicos |
-| 0002 | `0002_sistema` | aplicada | modelos, prompts, pipeline e configurações |
+| 0001 | `0001_fundacao` | aplicada | extensões e oito schemas canônicos |
+| 0002 | `0002_sistema` | aplicada | modelos, prompts, pipeline e preferências |
 | 0003 | `0003_taxonomia` | aplicada | Taxonomia Mestre versionada |
 | 0004 | `0004_biblioteca` | aplicada | obras e versões físicas |
-| 0005 | `0005_indice_fk_biblioteca` | aplicada | índice de suporte à FK composta da Biblioteca |
-| 0006 | `0006_storage_biblioteca` | aplicada | bucket privado e RLS de objetos da Biblioteca |
+| 0005 | `0005_indice_fk_biblioteca` | aplicada | índice da FK composta da Biblioteca |
+| 0006 | `0006_storage_biblioteca` | aplicada | bucket privado e policies de Storage |
+| 0007 | `0007_api_aplicacao_biblioteca` | aplicada | API controlada para listar e registrar obras |
 
-Os avisos atuais do advisor de performance são apenas `unused_index`. Eles são informativos neste estágio, pois as tabelas foram recém-criadas e ainda não receberam carga ou consultas reais. Os índices não serão removidos antes de termos dados de uso e avaliações de retrieval.
-
-Referência do linter para `unused_index`:
-
-```text
-https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index
-```
+Nenhuma migration já aplicada é reescrita para esconder uma correção posterior. Mudanças novas geram migrations novas.
 
 ---
 
-## 8. Schemas e extensões
+## 7. Schemas canônicos
 
-### Schemas canônicos
+```text
+biblioteca
+processamento
+taxonomia
+cerebro_autoral
+reflexoes
+auditoria
+sistema
+aplicacao
+```
 
-- `biblioteca`
-- `processamento`
-- `taxonomia`
-- `cerebro_autoral`
-- `reflexoes`
-- `auditoria`
-- `sistema`
-- `aplicacao`
-
-Schemas nativos do Supabase como `auth` e `storage` permanecem nativos.
+Schemas nativos do Supabase, como `auth` e `storage`, continuam nativos.
 
 ### Extensões confirmadas
 
@@ -274,90 +239,105 @@ Schemas nativos do Supabase como `auth` e `storage` permanecem nativos.
 
 ---
 
-## 9. Taxonomia Mestre
+## 8. Schema `sistema`
 
-A Taxonomia impede a proliferação descontrolada de tags e conceitos desconectados.
+Implementado:
 
-Domínios iniciais:
+- `sistema.modelos_ia`;
+- `sistema.prompts`;
+- `sistema.versoes_prompts`;
+- `sistema.versoes_pipeline`;
+- `sistema.configuracoes_usuario`.
 
-1. `intelectual`
-2. `axiologico`
-3. `reflexivo`
-4. `narrativo`
-5. `entidades`
-6. `temporal`
-7. `retorico`
-8. `linguistico`
-9. `estrutural`
-10. `autoral`
-
-A IA deverá procurar, comparar e normalizar conceitos existentes antes de propor novos conceitos.
-
-O Dicionário ainda não enumera os valores de `taxonomia.conceitos.estado`; por isso não foi inventado um CHECK. A FK entre `taxonomia.classificacoes_elementos.elemento_id` e `processamento.elementos` permanece adiada até a criação do Processamento.
+As configurações pessoais têm RLS. Segredos são proibidos em `configuracoes_usuario`.
 
 ---
 
-## 10. Biblioteca
+## 9. Taxonomia Mestre
+
+Implementado:
+
+- `taxonomia.versoes`;
+- `taxonomia.conceitos`;
+- `taxonomia.termos`;
+- `taxonomia.relacoes`;
+- `taxonomia.classificacoes_elementos`.
+
+Domínios iniciais:
+
+```text
+intelectual
+axiologico
+reflexivo
+narrativo
+entidades
+temporal
+retorico
+linguistico
+estrutural
+autoral
+```
+
+A IA deverá procurar, comparar e normalizar conceitos existentes antes de propor conceitos novos.
+
+O Dicionário Mestre ainda não enumera o vocabulário de `taxonomia.conceitos.estado`; por isso a coluna existe sem um CHECK inventado. A FK de `classificacoes_elementos.elemento_id` será adicionada quando `processamento.elementos` existir.
+
+---
+
+## 10. Biblioteca — banco
 
 ### `biblioteca.obras`
 
 Representa a obra intelectual lógica, independentemente do arquivo físico.
 
-Principais dados:
-
-- proprietário;
-- código humano;
-- títulos original/exibição/normalizado;
-- tipo de obra;
-- autoria;
-- participação no Cérebro;
-- autor original externo;
-- idioma;
-- categoria e descrição;
-- datas/período autoral;
-- precisão da data;
-- importância;
-- estado;
-- metadados auxiliares.
-
 ### Autoria
 
-- `autoral`
-- `externa`
+```text
+autoral
+externa
+```
 
 ### Participação no Cérebro
 
-- `autoral_prioritaria`
-- `externa_referencia`
-- `externa_influencia`
-- `excluida_cerebro`
+```text
+autoral_prioritaria
+externa_referencia
+externa_influencia
+excluida_cerebro
+```
 
-`autoral_prioritaria` exige autoria autoral. `externa_influencia` já exige autoria externa; a validação adicional de influência ativa será criada quando `cerebro_autoral.influencias_externas` existir.
+Regras já protegidas no banco:
+
+- `autoral_prioritaria` exige `autoria = autoral`;
+- `externa_influencia` exige `autoria = externa`;
+- a exigência de influência externa ativa será adicionada quando a tabela correspondente do Cérebro existir.
 
 ### Tipos de obra
 
-- `livro`
-- `capitulo`
-- `artigo`
-- `carta`
-- `reflexao`
-- `ensaio`
-- `relato`
-- `mensagem`
-- `anotacao`
-- `transcricao`
-- `documento_profissional`
-- `material_metodologico`
-- `referencia_externa`
-- `outro`
+```text
+livro
+capitulo
+artigo
+carta
+reflexao
+ensaio
+relato
+mensagem
+anotacao
+transcricao
+documento_profissional
+material_metodologico
+referencia_externa
+outro
+```
 
 ### `biblioteca.versoes_obras`
 
 Preserva cada arquivo físico e cada versão sem destruir versões anteriores.
 
-Armazena nome original, caminho no Storage, MIME, extensão, tamanho, hash SHA-256, páginas, palavras, estado de processamento e número da versão.
+Armazena nome original, caminho privado, MIME, extensão, tamanho, SHA-256, páginas, palavras, estado de processamento e número da versão.
 
-A FK composta garante que uma versão de um usuário nunca consiga apontar para obra pertencente a outro usuário.
+A FK composta `(obra_id, usuario_id)` impede uma versão de um usuário de apontar para obra de outro usuário.
 
 ---
 
@@ -369,90 +349,345 @@ Bucket canônico:
 originais-biblioteca
 ```
 
-O bucket é privado. Downloads comuns exigirão sessão autenticada e política RLS; quando necessário, o servidor poderá fornecer URLs assinadas temporárias.
+Estado confirmado:
 
-Caminho canônico efetivo:
+```text
+public = false
+```
+
+Caminho efetivo:
 
 ```text
 {usuario_id}/{obra_id}/{versao_id}/original.ext
 ```
 
-As policies de `storage.objects` exigem simultaneamente:
+Existem quatro policies de `storage.objects`: SELECT, INSERT, UPDATE e DELETE.
+
+Todas exigem simultaneamente:
 
 ```text
 bucket_id = originais-biblioteca
-primeira pasta = auth.uid()
+primeiro segmento da pasta = auth.uid()
 ```
 
-Isso cria uma segunda camada de isolamento além das tabelas da Biblioteca. A aplicação também deverá validar obra, versão, MIME, hash e metadados antes de considerar um upload válido.
+MIME e tamanho máximo ainda não foram congelados porque o conjunto final de formatos e a estratégia de OCR continuam deliberadamente abertos no Dicionário Mestre.
 
 ---
 
-## 12. Próxima etapa — upload real e autenticação da Biblioteca
+## 12. API segura em `aplicacao`
 
-Com banco e Storage preparados, a próxima etapa passa da infraestrutura para o fluxo real da aplicação.
+A migration `0007_api_aplicacao_biblioteca` controla a fronteira da Data API:
 
-Objetivo do próximo bloco:
+```text
+public
+graphql_public
+aplicacao
+```
+
+`biblioteca` continua **fora** da Data API.
+
+Verificação atual no banco:
+
+- `authenticated` possui `USAGE` em `aplicacao`;
+- `authenticated` **não** possui `USAGE` em `biblioteca`;
+- `anon` não executa as RPCs;
+- `authenticated` executa somente as funções liberadas.
+
+### `aplicacao.listar_obras()`
+
+- deriva o usuário de `auth.uid()`;
+- retorna somente obras do usuário autenticado;
+- ignora obras logicamente excluídas;
+- inclui a versão física mais recente.
+
+### `aplicacao.registrar_obra_arquivo(...)`
+
+- não recebe `usuario_id` do navegador;
+- deriva identidade de `auth.uid()`;
+- valida título, idioma, MIME, tamanho e formato SHA-256;
+- valida que o caminho pertence ao usuário, obra e versão informados;
+- exige que o arquivo já exista no bucket privado;
+- registra obra + primeira versão na mesma transação do PostgreSQL;
+- normaliza título com `unaccent`;
+- inicia a versão como `recebido`.
+
+As funções são `SECURITY DEFINER` com `search_path = ''` e grants explícitos.
+
+---
+
+## 13. Supabase Auth SSR
+
+Implementação atual usa o padrão SSR moderno do Supabase para Next.js:
+
+```text
+@supabase/ssr
+createBrowserClient
+createServerClient
+cookies
+proxy.ts
+getClaims()
+```
+
+Arquivos:
+
+```text
+src/infraestrutura/supabase/client.ts
+src/infraestrutura/supabase/server.ts
+src/infraestrutura/supabase/proxy.ts
+src/proxy.ts
+```
+
+### Regra de autorização
+
+No servidor, identidade é validada com:
+
+```text
+supabase.auth.getClaims()
+```
+
+`getSession()` não é usado como fonte de autorização no servidor.
+
+O fluxo TUS no navegador usa a sessão somente para obter o access token que será reenviado ao Storage, que valida o token no servidor.
+
+### Login implementado
+
+- entrar com e-mail e senha;
+- criar conta;
+- confirmação SSR por `/auth/confirm`;
+- logout por `POST /auth/signout`;
+- rotas protegidas via Proxy.
+
+### Configuração externa ainda pendente no Supabase Auth
+
+Para confirmação SSR por e-mail, o template do e-mail do Supabase precisa apontar para:
+
+```text
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email
+```
+
+Também será necessário definir `Site URL` e Redirect URLs com o domínio definitivo do novo projeto Vercel.
+
+O conector Supabase disponível nesta sessão não oferece edição dessa configuração de Auth; portanto esse item permanece explicitamente pendente.
+
+---
+
+## 14. Upload real da Biblioteca
+
+O formulário em:
+
+```text
+/biblioteca/adicionar
+```
+
+agora implementa um fluxo real.
+
+### Sequência
 
 ```text
 usuário autenticado
    ↓
 seleciona arquivo
    ↓
-validação inicial
+validação básica
    ↓
-hash SHA-256
+UUID da obra + UUID da versão
    ↓
-criação de obra
+SHA-256 incremental
    ↓
-criação de versão
+upload TUS resumível para Storage privado
    ↓
-upload privado
+RPC segura confirma que o objeto existe
    ↓
-registro do caminho original
+obra + versão registradas
    ↓
-estado recebido
-   ↓
-preparar disparo futuro do pipeline
+estado = recebido
 ```
 
-O upload não deve destruir versões anteriores e não deve permitir que um arquivo externo seja classificado automaticamente como autoria do usuário.
+### Upload resumível
+
+Configuração atual:
+
+- endpoint direto do Storage;
+- retries progressivos;
+- retomada de upload interrompido;
+- `uploadDataDuringCreation = true`;
+- remoção do fingerprint após sucesso;
+- chunks de exatamente 6 MB;
+- nenhum `x-upsert`, portanto originais não são sobrescritos silenciosamente.
+
+### SHA-256
+
+O arquivo é processado em blocos para não carregar um livro grande inteiro na memória.
+
+O hash será usado para integridade, deduplicação futura e rastreabilidade. O pipeline documental poderá recalcular o hash armazenado como defesa adicional.
+
+### Compensação de falha
+
+Se o upload terminar mas a RPC de registro falhar, o cliente tenta excluir o objeto recém-enviado para evitar arquivo órfão.
 
 ---
 
-## 13. Frontend implementado
+## 15. Biblioteca lendo dados reais
 
-Rotas/telas visualmente preparadas:
+A rota:
 
-- `/` — início/dashboard;
-- `/biblioteca` — Biblioteca;
-- fluxo de adicionar conteúdo;
-- `/cerebro-autoral` — visão do Cérebro Autoral;
-- `/criar-reflexao` — criação de nova reflexão;
-- `/reflexoes` — histórico de reflexões;
-- `/configuracoes` — configurações;
-- login.
+```text
+/biblioteca
+```
 
-Os indicadores permanecem em zero enquanto não existe corpus real. A interface não apresenta dados fictícios como se fossem dados do usuário.
+consulta:
+
+```text
+aplicacao.listar_obras()
+```
+
+A tela apresenta dados reais quando existirem: título, código, tipo, autoria, participação no Cérebro, idioma, versão atual, arquivo original e estado de processamento.
+
+A busca continua visualmente desabilitada porque retrieval e filtros reais ainda não foram implementados. O aplicativo não apresenta um controle falso como se já funcionasse.
+
+### Regra de renderização
+
+`/biblioteca` é explicitamente:
+
+```text
+dynamic = force-dynamic
+```
+
+porque o conteúdo é pessoal, autenticado e depende dos cookies da requisição. Ele não deve ser pré-renderizado estaticamente nem reutilizado entre usuários.
 
 ---
 
-## 14. Design visual
+## 16. Variáveis de ambiente
 
-Diretrizes atuais:
+Arquivo de referência:
 
-- azul-marinho profundo como cor estrutural;
+```text
+.env.example
+```
+
+### Públicas
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+```
+
+### Somente servidor
+
+```text
+SUPABASE_SECRET_KEY
+OPENAI_API_KEY
+```
+
+O fluxo normal do usuário não usa `SUPABASE_SECRET_KEY` no navegador. Nenhuma variável secreta pode possuir prefixo `NEXT_PUBLIC_`.
+
+---
+
+## 17. OpenAI — estado atual
+
+A camada de IA ainda não está ativada operacionalmente.
+
+A aplicação usará:
+
+```text
+OPENAI_API_KEY
+```
+
+somente no servidor.
+
+Uma chave de projeto foi fornecida diretamente na conversa de desenvolvimento em 16/09/2026. Por segurança:
+
+- o valor não foi gravado no GitHub;
+- o valor não foi gravado no README;
+- o valor não foi inserido no frontend;
+- o valor não foi configurado no deploy;
+- essa chave deve ser **rotacionada antes do uso real**.
+
+Depois da rotação, a nova chave deverá ser cadastrada diretamente como secret do ambiente servidor, nunca enviada novamente pelo chat.
+
+Modelos permanecerão centralizados por configuração:
+
+```text
+MODELO_IA_EXTRACAO
+MODELO_IA_ANALISE
+MODELO_IA_CEREBRO
+MODELO_IA_REDACAO
+MODELO_IA_AUDITORIA
+MODELO_IA_EMBEDDING
+```
+
+---
+
+## 18. Segurança aplicada
+
+Princípios já implementados ou formalizados:
+
+- schemas internos fechados;
+- Data API controlada por `aplicacao`;
+- RLS em dados pessoais;
+- isolamento por `usuario_id`;
+- Storage privado;
+- caminho do Storage vinculado ao usuário;
+- `service_role` nunca no browser;
+- secrets nunca no Git;
+- Auth SSR por cookies;
+- autorização server-side por `getClaims()`;
+- RPCs sem `usuario_id` fornecido pelo cliente;
+- `SECURITY DEFINER` com `search_path` vazio;
+- grants explícitos;
+- original nunca sobrescrito silenciosamente;
+- documentos externos tratados como **DADO**, não como instrução;
+- defesa contra prompt injection prevista no pipeline;
+- usuário A não pode acessar dados ou objetos do usuário B.
+
+O advisor de segurança do Supabase permanece sem alertas após a migration `0007`.
+
+---
+
+## 19. Advisors de performance
+
+Um problema real já foi encontrado e corrigido:
+
+- a FK composta da Biblioteca inicialmente não possuía índice específico;
+- `0005_indice_fk_biblioteca` foi criada e aplicada;
+- o alerta desapareceu.
+
+Os avisos atuais são somente `unused_index` em estruturas recém-criadas e ainda sem carga real.
+
+Esses índices não serão removidos prematuramente. A decisão será baseada em uso real e avaliações de retrieval.
+
+---
+
+## 20. Frontend implementado
+
+Rotas principais:
+
+```text
+/
+/biblioteca
+/biblioteca/adicionar
+/cerebro-autoral
+/criar-reflexao
+/reflexoes
+/configuracoes
+/login
+/auth/confirm
+/auth/signout
+```
+
+Design atual:
+
+- azul-marinho profundo;
 - azul luminoso para ações;
 - fundos claros;
 - cartões brancos;
 - hierarquia editorial;
-- títulos com presença serifada;
-- corpo moderno e legível;
-- navegação lateral no desktop;
-- navegação inferior no mobile;
-- sensação de biblioteca pessoal, pensamento e reflexão.
+- títulos serifados;
+- corpo moderno;
+- sidebar no desktop;
+- navegação inferior no mobile.
 
-Documento dedicado:
+Documento visual:
 
 ```text
 docs/DESIGN_VISUAL.md
@@ -460,143 +695,46 @@ docs/DESIGN_VISUAL.md
 
 ---
 
-## 15. Segurança
+## 21. CI e testes
 
-Regras obrigatórias:
-
-- RLS para informações pessoais;
-- isolamento por `usuario_id`;
-- Storage privado;
-- menor privilégio possível;
-- `service_role` nunca no navegador;
-- chaves de IA nunca no frontend;
-- segredos nunca no GitHub ou README;
-- URLs temporárias para arquivos privados;
-- logs sem conteúdo sensível desnecessário;
-- documentos externos tratados como **DADO**, nunca como instrução;
-- defesa contra prompt injection;
-- usuário A nunca acessa dados ou objetos do usuário B.
-
-### OpenAI
-
-A aplicação utilizará a variável servidor-side:
-
-```text
-OPENAI_API_KEY
-```
-
-Nenhum valor de chave será salvo neste repositório.
-
-Em 16/09/2026 uma chave de projeto foi fornecida diretamente na conversa de desenvolvimento. Por segurança, ela **não foi persistida nem ativada**. Antes da integração real, deverá ser utilizada uma chave nova/rotacionada e armazenada exclusivamente como secret do ambiente servidor.
-
----
-
-## 16. Arquitetura da IA
-
-```text
-src/ia/
-  documental/
-  taxonomica/
-  autoral/
-  recuperacao/
-  planejamento/
-  redacao/
-  auditoria/
-  aprendizado/
-```
-
-Dados estruturados de IA deverão seguir:
-
-```text
-OpenAI
-  ↓
-Structured Output
-  ↓
-JSON Schema
-  ↓
-validação
-  ↓
-normalização
-  ↓
-validação de referências
-  ↓
-persistência
-```
-
-Nunca será permitido:
-
-```text
-texto livre do modelo → verdade canônica no banco
-```
-
----
-
-## 17. Regra de autoria
-
-```text
-NÚCLEO AUTORAL
-+
-INFLUÊNCIAS EXTERNAS DELIBERADAMENTE AUTORIZADAS
-=
-CÉREBRO ATIVO
-```
-
-Uma fonte externa nunca poderá se transformar silenciosamente em evidência de autoria.
-
----
-
-## 18. Pipeline documental planejado
-
-```text
-arquivo recebido
-  ↓
-validar
-  ↓
-hash / deduplicação
-  ↓
-preservar original
-  ↓
-registrar obra e versão
-  ↓
-extrair conteúdo
-  ↓
-normalizar
-  ↓
-construir hierarquia
-  ↓
-fragmentar
-  ↓
-sintetizar
-  ↓
-extrair elementos
-  ↓
-normalizar taxonomia
-  ↓
-criar relações
-  ↓
-gerar embeddings
-  ↓
-validar
-  ↓
-publicar Documento Processado
-  ↓
-avaliar participação no Cérebro
-```
-
-Cada etapa cara deverá ser idempotente, versionada, observável e recuperável.
-
----
-
-## 19. Testes e CI
-
-GitHub Actions atualmente valida:
+GitHub Actions executa:
 
 - instalação de dependências;
-- lint;
+- ESLint;
 - TypeScript;
 - build Next.js.
 
-A cobertura será expandida para:
+### Validação do PR #6
+
+Primeira execução:
+
+```text
+Instalação  ✅
+Lint        ✅
+TypeScript  ✅
+Build       ❌
+```
+
+O CI detectou que `/biblioteca` estava sendo pré-renderizada sem variáveis de ambiente e sem contexto autenticado. Isso revelou um problema arquitetural: uma página pessoal não deve ser estática.
+
+Correção aplicada:
+
+```text
+export const dynamic = 'force-dynamic'
+```
+
+Segunda execução:
+
+```text
+Instalação  ✅
+Lint        ✅
+TypeScript  ✅
+Build       ✅
+```
+
+Esse resultado valida o código de Auth SSR, TUS, hashing, RPCs e a compilação de produção no estado do commit de correção. Após esta atualização final do README, o CI será executado novamente antes do merge.
+
+Cobertura futura planejada:
 
 - testes unitários;
 - integração;
@@ -604,50 +742,76 @@ A cobertura será expandida para:
 - migrations;
 - RLS;
 - Storage;
+- Auth;
 - taxonomia;
 - outputs de IA;
 - retrieval;
-- contaminação autoral;
+- testes de contaminação autoral;
 - E2E.
 
-Nenhum PR estrutural deve entrar na `main` com CI falhando.
-
 ---
 
-## 20. Estratégia de branches e migrations
+## 22. Configurações externas necessárias para colocar este bloco online
+
+### 22.1. Criar projeto Vercel novo
+
+No Vercel, importar:
 
 ```text
-main
-  ↑
-feature/<etapa>
+villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
 ```
 
-Cada bloco significativo é desenvolvido em branch própria, validado em PR e incorporado à `main` somente depois dos checks.
+Nome recomendado:
 
-Migrations aplicadas nunca devem ser reescritas para esconder correções posteriores. A correção do índice da FK em `0005` é um exemplo desse princípio.
+```text
+cerebro-autoral
+```
+
+### 22.2. Configurar no Vercel
+
+Adicionar em Production, Preview e Development:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+```
+
+Os valores devem ser obtidos diretamente do projeto Supabase oficial.
+
+A chave publicável pode aparecer no navegador por definição; a segurança continua sendo feita por Auth + RLS + grants + policies.
+
+### 22.3. Configurar Supabase Auth
+
+Depois do primeiro domínio Vercel existir:
+
+- definir Site URL para o domínio oficial;
+- adicionar Redirect URLs necessárias;
+- ajustar template de confirmação de e-mail para o endpoint `/auth/confirm`.
+
+### 22.4. OpenAI
+
+Não configurar a chave fornecida no chat. Primeiro rotacionar; depois cadastrar a nova `OPENAI_API_KEY` apenas no ambiente servidor.
 
 ---
 
-## 21. Documentação mantida
-
-- `README.md` — painel mestre;
-- `docs/DESIGN_VISUAL.md` — sistema visual;
-- `docs/DECISOES.md` — ADRs e justificativas;
-- `supabase/migrations/` — histórico executável do banco.
-
----
-
-## 22. Ordem de construção atual
+## 23. Ordem de construção atual
 
 | Etapa | Status |
 |---|---|
 | Fundação técnica | concluída |
+| Sistema visual | concluído |
 | Schema `sistema` | concluído |
 | Taxonomia Mestre | concluída |
 | Biblioteca — banco | concluída |
-| Storage privado | implementado / aguardando PR + CI |
-| Upload + Auth da Biblioteca | próxima |
-| Pipeline documental | pendente |
+| Storage privado | concluído |
+| API segura da Biblioteca | aplicada / PR #6 CI verde |
+| Supabase Auth SSR | implementado / PR #6 CI verde |
+| Upload real + SHA-256 + TUS | implementado / PR #6 CI verde |
+| Biblioteca com dados reais | implementada / PR #6 CI verde |
+| Vercel canônico | pendente externo |
+| Auth e-mail no ambiente | pendente externo |
+| Teste E2E no deploy | pendente do Vercel |
+| Pipeline documental | próximo grande bloco |
 | Documento Processado | pendente |
 | Busca híbrida | pendente |
 | Cérebro Autoral | pendente |
@@ -659,38 +823,35 @@ Migrations aplicadas nunca devem ser reescritas para esconder correções poster
 
 ---
 
-## 23. Próximas ações imediatas
+## 24. Próximas ações imediatas
 
-1. abrir PR do Storage privado;
-2. validar CI e incorporar `0006` à `main`;
-3. revisar a integração Supabase recomendada para Next.js App Router;
-4. configurar cliente browser e cliente server sem expor chaves secretas;
-5. conectar autenticação real;
-6. implementar upload real para `originais-biblioteca`;
-7. calcular hash SHA-256 e persistir obra/versão;
-8. substituir estados fictícios da Biblioteca por dados reais;
-9. adicionar testes de isolamento de Storage e RLS;
-10. atualizar novamente este README;
-11. depois iniciar o pipeline documental;
-12. preparar a camada OpenAI sem inserir segredo no código;
-13. ativar IA somente após rotação segura da chave.
+1. executar o CI final após esta atualização do README;
+2. incorporar o PR #6 somente se o CI final permanecer verde;
+3. criar o novo projeto Vercel ligado ao repositório canônico;
+4. configurar as duas variáveis públicas do Supabase;
+5. configurar Site URL, Redirect URLs e template de confirmação no Supabase Auth;
+6. executar teste real de cadastro, login, logout e upload no deploy;
+7. registrar os resultados neste README;
+8. iniciar o Pipeline Documental;
+9. manter OpenAI desativada até rotação da chave.
 
 ---
 
-## 24. Histórico de marcos
+## 25. Histórico de marcos
 
 ### 16/09/2026 — Fundação
 
-- aplicação e sistema visual inicial;
+- Next.js/React/TypeScript;
+- sistema visual inicial;
 - CI;
 - `0001_fundacao`;
 - oito schemas canônicos;
-- extensões de busca/vetor.
+- extensões de busca e vetor.
 
 ### 16/09/2026 — Sistema
 
 - `0002_sistema`;
-- modelos/prompts/pipeline/configuração;
+- modelos/prompts/pipeline/configurações;
 - RLS;
 - PR #2 integrado;
 - README transformado em painel mestre.
@@ -705,42 +866,66 @@ Migrations aplicadas nunca devem ser reescritas para esconder correções poster
 
 ### 16/09/2026 — Biblioteca
 
-- `0004_biblioteca` testada e aplicada;
-- obras e versões físicas;
+- `0004_biblioteca`;
+- obras e versões;
 - autoria separada de participação no Cérebro;
 - FK composta multiusuário;
 - FTS inicial;
-- RLS e oito policies;
-- `0005_indice_fk_biblioteca` corrigiu o índice da FK;
-- advisor de segurança limpo;
-- PR #4 aprovado no CI e integrado à `main`.
+- RLS;
+- `0005_indice_fk_biblioteca`;
+- PR #4 integrado.
 
-### 16/09/2026 — Storage privado
+### 16/09/2026 — Storage
 
-- documentação atual do Supabase revisada;
-- branch `feature/storage-biblioteca` criada;
-- `0006_storage_biblioteca` escrita;
-- teste transacional com rollback aprovado;
-- bucket `originais-biblioteca` criado como privado;
-- policies SELECT/INSERT/UPDATE/DELETE aplicadas;
-- isolamento por primeira pasta = `auth.uid()`;
-- advisor de segurança limpo;
-- README e ADRs atualizados.
+- `0006_storage_biblioteca`;
+- bucket privado;
+- policies de objeto por usuário;
+- PR #5 integrado.
+
+### 16/09/2026 — Auth + upload real
+
+- `0007_api_aplicacao_biblioteca` aplicada;
+- Data API limitada a `aplicacao` para o domínio da Biblioteca;
+- RPCs seguras para listar e registrar obras;
+- `@supabase/ssr` integrado;
+- Proxy de autenticação;
+- login/cadastro/logout implementados;
+- confirmação SSR implementada;
+- upload resumível TUS implementado;
+- SHA-256 incremental implementado;
+- Biblioteca conectada a dados reais;
+- CI detectou prerender indevido da Biblioteca;
+- `/biblioteca` corrigida para renderização dinâmica autenticada;
+- segunda execução do CI passou instalação, lint, TypeScript e build;
+- Vercel canônico identificado como ainda inexistente;
+- README atualizado antes do merge.
 
 ---
 
-## 25. Regra de manutenção deste README
+## 26. Documentação mantida
 
-Toda mudança relevante deve atualizar este arquivo no mesmo ciclo de desenvolvimento.
+```text
+README.md
+.env.example
+docs/DESIGN_VISUAL.md
+docs/DECISOES.md
+supabase/migrations/
+```
 
-O README deve sempre permitir responder:
+---
+
+## 27. Regra permanente deste README
+
+O README deve sempre permitir que uma pessoa não técnica descubra:
 
 - o que é o aplicativo;
 - o que já foi construído;
-- o que está funcionando;
-- quais migrations existem;
+- o que está realmente funcionando;
+- o que ainda está apenas em branch;
+- quais migrations foram aplicadas;
 - quais testes passaram;
 - quais decisões foram tomadas;
-- como segurança e autoria estão sendo protegidas;
+- como segurança e autoria estão protegidas;
+- quais configurações externas continuam pendentes;
 - qual é a próxima etapa;
-- o que ainda falta para o produto estar concluído.
+- o que ainda falta para concluir o produto.

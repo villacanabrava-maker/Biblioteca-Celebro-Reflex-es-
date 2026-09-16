@@ -14,7 +14,7 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 
 **Contexto:** Supabase separa privilégios PostgreSQL de RLS. RLS controla linhas; GRANT/REVOKE controla se o objeto pode ser alcançado.
 
-**Decisão:** `sistema`, `taxonomia`, `biblioteca`, `processamento`, `cerebro_autoral`, `reflexoes` e `auditoria` permanecem internos por padrão. A interface receberá somente o acesso mínimo necessário por uma camada controlada em `aplicacao` ou por endpoints do servidor. Tabelas pessoais continuam usando RLS como defesa adicional.
+**Decisão:** `sistema`, `taxonomia`, `biblioteca`, `processamento`, `cerebro_autoral`, `reflexoes` e `auditoria` permanecem internos por padrão. A interface recebe somente o acesso mínimo necessário por uma camada controlada em `aplicacao` ou por endpoints do servidor. Tabelas pessoais continuam usando RLS como defesa adicional.
 
 **Consequência:** nenhuma tabela nova se torna uma API pública apenas por ter sido criada.
 
@@ -129,3 +129,67 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 **Decisão:** `0006_storage_biblioteca` não congela MIME nem limite máximo de arquivo. Essas restrições serão definidas após a fase de upload/processamento validar os formatos suportados e os limites operacionais.
 
 **Consequência:** não bloqueamos prematuramente documentos válidos. A validação inicial será feita pela aplicação e, quando os formatos forem formalizados, o bucket poderá ser endurecido por migration explícita.
+
+## ADR-017 — `aplicacao` é a única fronteira da Biblioteca na Data API
+
+**Contexto:** a interface precisa consultar e registrar obras, mas expor `biblioteca` diretamente pela Data API enfraqueceria a separação entre persistência interna e superfície pública.
+
+**Decisão:** `0007_api_aplicacao_biblioteca` configura `pgrst.db_schemas` como `public, graphql_public, aplicacao`. O schema `biblioteca` permanece fora da Data API. A UI acessa somente funções explicitamente liberadas em `aplicacao`.
+
+**Consequência:** evolução de tabelas internas não amplia automaticamente a superfície HTTP. Qualquer nova operação pública exige uma RPC deliberada e um grant explícito.
+
+## ADR-018 — RPCs públicas não recebem `usuario_id` do navegador
+
+**Contexto:** permitir que o cliente informe o proprietário de uma obra cria risco de troca de identidade e exige confiar em um campo controlado pelo usuário.
+
+**Decisão:** `aplicacao.listar_obras()` e `aplicacao.registrar_obra_arquivo(...)` derivam a identidade exclusivamente de `auth.uid()`. As funções são `SECURITY DEFINER`, usam `set search_path = ''`, validam entradas e recebem grants mínimos.
+
+**Consequência:** a autorização não depende de o navegador enviar o usuário correto. O banco continua sendo a autoridade sobre identidade e propriedade.
+
+## ADR-019 — Códigos humanos iniciais derivados de UUID
+
+**Contexto:** o Dicionário exige códigos humanos e apresenta exemplos como `OBR-000001`, mas não congela uma sequência global. Uma sequência global pode revelar volume, criar contenção e exigir uma política adicional de escopo multiusuário.
+
+**Decisão:** na primeira versão, o código da obra é `OBR-` seguido dos 12 primeiros caracteres hexadecimais do UUID e o código da versão é `VOB-` com o mesmo padrão. Os UUIDs continuam sendo as chaves reais.
+
+**Consequência:** os códigos são estáveis, legíveis e independentes de contador global. Se o produto exigir numeração sequencial humana no futuro, isso será introduzido por migration e decisão própria.
+
+## ADR-020 — Upload resumível TUS desde o primeiro fluxo real
+
+**Contexto:** livros e documentos podem ser grandes. A documentação atual do Supabase recomenda TUS para arquivos acima de 6 MB, redes instáveis e quando progresso/retomada são importantes.
+
+**Decisão:** o frontend usa `tus-js-client`, endpoint direto do Storage, retries progressivos, retomada de uploads anteriores e chunks de exatamente 6 MB. Não é enviado `x-upsert`, evitando sobrescrita silenciosa do original.
+
+**Consequência:** upload de livros grandes é mais resiliente e pode continuar após interrupções sem modificar a regra de preservação do original.
+
+## ADR-021 — SHA-256 incremental no navegador e futura revalidação no pipeline
+
+**Contexto:** o Dicionário exige SHA-256 para integridade e deduplicação. Ler um livro grande inteiro em memória só para calcular hash aumenta uso de RAM desnecessariamente.
+
+**Decisão:** o frontend calcula SHA-256 incrementalmente com `hash-wasm`, em blocos. O hash é enviado para o registro da versão. O pipeline documental poderá recalcular/verificar o hash do objeto armazenado como defesa adicional antes do processamento.
+
+**Consequência:** o primeiro upload já possui identidade de conteúdo sem sacrificar memória do navegador, e a segurança futura não precisa confiar cegamente em um hash informado pelo cliente.
+
+## ADR-022 — `externa_influencia` não aparece no upload inicial
+
+**Contexto:** uma influência externa deliberada exige escopo, intensidade e registro explícito no Cérebro Autoral, estruturas que ainda não foram implementadas.
+
+**Decisão:** ao adicionar uma fonte externa agora, a interface oferece `externa_referencia` ou `excluida_cerebro`. A opção `externa_influencia` só será habilitada no painel próprio de influências quando suas entidades e regras existirem.
+
+**Consequência:** uma referência externa não pode virar influência metodológica apenas por uma seleção prematura no formulário de upload.
+
+## ADR-023 — Auth SSR usa `getClaims()` para autorização
+
+**Contexto:** no padrão atual do Supabase para Next.js SSR, cookies podem precisar ser renovados no Proxy e `getSession()` não deve ser usado no servidor como prova de autorização.
+
+**Decisão:** o projeto usa `@supabase/ssr`, clientes separados para browser/servidor, cookies, `proxy.ts` e `supabase.auth.getClaims()` para validar identidade server-side. `getSession()` é usado apenas no navegador durante TUS para obter o access token que é validado pelo Storage remoto.
+
+**Consequência:** rotas protegidas e operações server-side não confiam em sessão não verificada, enquanto o upload resumível continua compatível com o mecanismo TUS.
+
+## ADR-024 — Deploy novo não reutiliza projeto Vercel antigo
+
+**Contexto:** a inspeção da conta Vercel conectada mostrou apenas projetos antigos e nenhum ligado ao repositório canônico novo. Os documentos do projeto proíbem reutilizar automaticamente o deploy anterior.
+
+**Decisão:** será criado um projeto Vercel exclusivo, recomendado como `cerebro-autoral`, importando `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`. O projeto receberá apenas as variáveis necessárias ao novo aplicativo.
+
+**Consequência:** o histórico e a configuração do aplicativo anterior não contaminam o novo produto. Como o conector Vercel disponível não permite criar projeto nem editar variáveis de ambiente, essa configuração permanece uma ação externa explícita e documentada.
