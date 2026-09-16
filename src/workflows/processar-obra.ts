@@ -31,7 +31,12 @@ export async function processarObraWorkflow(
 ): Promise<ResultadoValidacao> {
   'use workflow'
 
-  return validarOriginal(execucaoId)
+  try {
+    return await validarOriginal(execucaoId)
+  } catch (error) {
+    await registrarFalhaFinalValidacao(execucaoId, error)
+    throw error
+  }
 }
 
 async function validarOriginal(execucaoId: string): Promise<ResultadoValidacao> {
@@ -69,43 +74,44 @@ async function validarOriginal(execucaoId: string): Promise<ResultadoValidacao> 
     throw new Error('Execução de processamento não encontrada.')
   }
 
-  try {
-    const { data: urlAssinada, error: urlError } = await backend.storage
-      .from('originais-biblioteca')
-      .createSignedUrl(contexto.caminho_arquivo, 300)
+  const { data: urlAssinada, error: urlError } = await backend.storage
+    .from('originais-biblioteca')
+    .createSignedUrl(contexto.caminho_arquivo, 300)
 
-    if (urlError || !urlAssinada?.signedUrl) {
-      throw new Error('Não foi possível gerar URL temporária do original.')
-    }
+  if (urlError || !urlAssinada?.signedUrl) {
+    throw new Error('Não foi possível gerar URL temporária do original.')
+  }
 
-    const resposta = await fetch(urlAssinada.signedUrl, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(120_000),
-    })
+  const resposta = await fetch(urlAssinada.signedUrl, {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(120_000),
+  })
 
-    if (!resposta.ok || !resposta.body) {
-      throw new Error(`Falha ao ler original privado (${resposta.status}).`)
-    }
+  if (!resposta.ok || !resposta.body) {
+    throw new Error(`Falha ao ler original privado (${resposta.status}).`)
+  }
 
-    const hash = createHash('sha256')
-    const leitor = resposta.body.getReader()
-    let tamanhoVerificado = 0
+  const hash = createHash('sha256')
+  const leitor = resposta.body.getReader()
+  let tamanhoVerificado = 0
 
-    while (true) {
-      const { done, value } = await leitor.read()
-      if (done) break
-      hash.update(value)
-      tamanhoVerificado += value.byteLength
-    }
+  while (true) {
+    const { done, value } = await leitor.read()
+    if (done) break
+    hash.update(value)
+    tamanhoVerificado += value.byteLength
+  }
 
-    const hashVerificado = hash.digest('hex')
-    const hashEsperado = contexto.hash_sha256.toLowerCase()
+  const hashVerificado = hash.digest('hex')
+  const hashEsperado = contexto.hash_sha256.toLowerCase()
 
-    if (
-      hashVerificado !== hashEsperado ||
-      tamanhoVerificado !== Number(contexto.tamanho_bytes)
-    ) {
-      await backend.schema('aplicacao').rpc('backend_falhar_execucao', {
+  if (
+    hashVerificado !== hashEsperado ||
+    tamanhoVerificado !== Number(contexto.tamanho_bytes)
+  ) {
+    const { error: falhaError } = await backend
+      .schema('aplicacao')
+      .rpc('backend_falhar_execucao', {
         p_execucao_id: execucaoId,
         p_nome_etapa: 'validar_arquivo',
         p_codigo_erro: 'ORIGINAL_INTEGRIDADE_DIVERGENTE',
@@ -118,50 +124,58 @@ async function validarOriginal(execucaoId: string): Promise<ResultadoValidacao> 
         },
       })
 
-      return {
-        ok: false,
-        execucaoId,
-        motivo: 'integridade_divergente',
-        hashVerificado,
-        tamanhoVerificado,
-      }
-    }
-
-    const { error: concluirError } = await backend
-      .schema('aplicacao')
-      .rpc('backend_concluir_etapa', {
-        p_execucao_id: execucaoId,
-        p_nome_etapa: 'validar_arquivo',
-        p_percentual: 5,
-        p_proximo_estado: 'validando',
-        p_proxima_etapa: 'identificar_formato',
-        p_detalhes: {
-          hash_verificado: true,
-          tamanho_verificado: tamanhoVerificado,
-          tipo_mime_registrado: contexto.tipo_mime,
-        },
-      })
-
-    if (concluirError) throw concluirError
+    if (falhaError) throw falhaError
 
     return {
-      ok: true,
+      ok: false,
       execucaoId,
+      motivo: 'integridade_divergente',
       hashVerificado,
       tamanhoVerificado,
     }
-  } catch (error) {
-    await backend.schema('aplicacao').rpc('backend_falhar_execucao', {
+  }
+
+  const { error: concluirError } = await backend
+    .schema('aplicacao')
+    .rpc('backend_concluir_etapa', {
       p_execucao_id: execucaoId,
       p_nome_etapa: 'validar_arquivo',
-      p_codigo_erro: 'VALIDACAO_ORIGINAL_FALHOU',
+      p_percentual: 5,
+      p_proximo_estado: 'validando',
+      p_proxima_etapa: 'identificar_formato',
+      p_detalhes: {
+        hash_verificado: true,
+        tamanho_verificado: tamanhoVerificado,
+        tipo_mime_registrado: contexto.tipo_mime,
+      },
+    })
+
+  if (concluirError) throw concluirError
+
+  return {
+    ok: true,
+    execucaoId,
+    hashVerificado,
+    tamanhoVerificado,
+  }
+}
+
+async function registrarFalhaFinalValidacao(execucaoId: string, error: unknown) {
+  'use step'
+
+  const backend = createBackendClient()
+  const { error: falhaError } = await backend
+    .schema('aplicacao')
+    .rpc('backend_falhar_execucao', {
+      p_execucao_id: execucaoId,
+      p_nome_etapa: 'validar_arquivo',
+      p_codigo_erro: 'VALIDACAO_ORIGINAL_ESGOTOU_RETRIES',
       p_mensagem_erro:
-        'Não foi possível validar o arquivo original nesta tentativa.',
+        'A validação do arquivo original falhou após as tentativas automáticas do workflow.',
       p_detalhes: {
         tipo_erro: error instanceof Error ? error.name : 'erro_desconhecido',
       },
     })
 
-    throw error
-  }
+  if (falhaError) throw falhaError
 }
