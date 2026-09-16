@@ -65,6 +65,84 @@ const pdfSchema = z
 
 const artefatoExtraidoSchema = z.union([textoSchema, markdownSchema, pdfSchema])
 
+const fonteNormalizadaSchema = fonteSchema
+  .extend({
+    hash_sha256_artefato_extraido: z.string().regex(HASH_SHA256),
+  })
+  .strict()
+
+const normalizacaoSchema = z
+  .object({
+    unicode: z.literal('NFC'),
+    quebras_linha: z.literal('LF'),
+    preserva_espacos_internos: z.literal(true),
+    alteracoes: z
+      .object({
+        quebras_crlf_convertidas: z.number().int().nonnegative(),
+        quebras_cr_isoladas_convertidas: z.number().int().nonnegative(),
+        segmentos_alterados_nfc: z.number().int().nonnegative(),
+        caracteres_antes: z.number().int().nonnegative(),
+        caracteres_depois: z.number().int().nonnegative(),
+      })
+      .strict(),
+  })
+  .strict()
+
+const textoNormalizadoSchema = z
+  .object({
+    schema_version: z.literal(1),
+    formato: z.literal('texto'),
+    encoding: z.literal('utf-8'),
+    metodo: z.literal('normalizacao_tecnica_nfc_v1'),
+    fonte: fonteNormalizadaSchema,
+    total_paginas: z.null(),
+    conteudo: z.string(),
+    normalizacao: normalizacaoSchema,
+  })
+  .strict()
+
+const markdownNormalizadoSchema = textoNormalizadoSchema
+  .extend({ formato: z.literal('markdown') })
+  .strict()
+
+const pdfNormalizadoSchema = z
+  .object({
+    schema_version: z.literal(1),
+    formato: z.literal('pdf'),
+    encoding: z.literal('utf-8'),
+    metodo: z.literal('normalizacao_tecnica_nfc_v1'),
+    fonte: fonteNormalizadaSchema,
+    total_paginas: z.number().int().positive(),
+    paginas: z.array(paginaSchema).min(1),
+    normalizacao: normalizacaoSchema,
+  })
+  .strict()
+  .superRefine((valor, ctx) => {
+    if (valor.paginas.length !== valor.total_paginas) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'A quantidade de páginas normalizadas não corresponde ao total declarado.',
+      })
+    }
+
+    for (let indice = 0; indice < valor.paginas.length; indice += 1) {
+      if (valor.paginas[indice]?.numero !== indice + 1) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'As páginas normalizadas devem ser sequenciais e começar em 1.',
+          path: ['paginas', indice, 'numero'],
+        })
+        break
+      }
+    }
+  })
+
+const artefatoNormalizadoSchema = z.union([
+  textoNormalizadoSchema,
+  markdownNormalizadoSchema,
+  pdfNormalizadoSchema,
+])
+
 export type ArtefatoConteudoNormalizado = {
   schema_version: 1
   formato: FormatoConteudoExtraivel
@@ -105,6 +183,19 @@ export type ResultadoNormalizacao =
         | 'ARTEFATO_EXTRAIDO_JSON_INVALIDO'
         | 'ARTEFATO_EXTRAIDO_SCHEMA_INVALIDO'
         | 'ARTEFATO_EXTRAIDO_ORIGINAL_DIVERGENTE'
+      motivo: string
+      detalhes?: Record<string, string | number | boolean | null>
+    }
+
+export type ResultadoValidacaoArtefatoNormalizado =
+  | { ok: true; artefato: ArtefatoConteudoNormalizado }
+  | {
+      ok: false
+      codigo:
+        | 'ARTEFATO_NORMALIZADO_NAO_UTF8'
+        | 'ARTEFATO_NORMALIZADO_JSON_INVALIDO'
+        | 'ARTEFATO_NORMALIZADO_SCHEMA_INVALIDO'
+        | 'ARTEFATO_NORMALIZADO_ORIGEM_DIVERGENTE'
       motivo: string
       detalhes?: Record<string, string | number | boolean | null>
     }
@@ -249,4 +340,68 @@ export function normalizarArtefatoExtraido({
       },
     },
   }
+}
+
+export function validarArtefatoNormalizado({
+  bytes,
+  hashOriginalEsperado,
+  hashArtefatoExtraidoEsperado,
+}: {
+  bytes: Uint8Array
+  hashOriginalEsperado: string
+  hashArtefatoExtraidoEsperado: string
+}): ResultadoValidacaoArtefatoNormalizado {
+  let textoJson: string
+
+  try {
+    textoJson = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    return {
+      ok: false,
+      codigo: 'ARTEFATO_NORMALIZADO_NAO_UTF8',
+      motivo: 'O artefato normalizado não é UTF-8 válido.',
+    }
+  }
+
+  let bruto: unknown
+  try {
+    bruto = JSON.parse(textoJson)
+  } catch {
+    return {
+      ok: false,
+      codigo: 'ARTEFATO_NORMALIZADO_JSON_INVALIDO',
+      motivo: 'O artefato normalizado não contém JSON válido.',
+    }
+  }
+
+  const validacao = artefatoNormalizadoSchema.safeParse(bruto)
+  if (!validacao.success) {
+    return {
+      ok: false,
+      codigo: 'ARTEFATO_NORMALIZADO_SCHEMA_INVALIDO',
+      motivo: 'O artefato normalizado não corresponde ao schema v1 esperado.',
+      detalhes: { quantidade_erros: validacao.error.issues.length },
+    }
+  }
+
+  const artefato = validacao.data
+  const originalCorresponde =
+    artefato.fonte.hash_sha256_original.toLowerCase() === hashOriginalEsperado.toLowerCase()
+  const extraidoCorresponde =
+    artefato.fonte.hash_sha256_artefato_extraido.toLowerCase() ===
+    hashArtefatoExtraidoEsperado.toLowerCase()
+
+  if (!originalCorresponde || !extraidoCorresponde) {
+    return {
+      ok: false,
+      codigo: 'ARTEFATO_NORMALIZADO_ORIGEM_DIVERGENTE',
+      motivo: 'O artefato normalizado não pertence à cadeia de proveniência desta execução.',
+      detalhes: {
+        hash_original_corresponde: originalCorresponde,
+        hash_artefato_extraido_corresponde: extraidoCorresponde,
+      },
+    }
+  }
+
+  return { ok: true, artefato: artefato as ArtefatoConteudoNormalizado }
 }
