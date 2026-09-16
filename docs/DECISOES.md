@@ -411,3 +411,35 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 **Decisão:** antes de conteúdo intelectual real, tornar o repositório privado quando operacionalmente viável e criar Ruleset para `main` exigindo os jobs de CI. Avaliar CodeQL default setup conforme disponibilidade da conta.
 
 **Consequência:** o processo que hoje é seguido disciplinarmente passa a ser também imposto pela plataforma.
+
+## ADR-052 — Artefatos intermediários são separados de Documento Processado
+
+**Contexto:** os documentos canônicos definem Documento Processado como representação computacional integral/publicável e proíbem processamento parcial de alimentar o Cérebro. Extração e normalização precisam persistir resultados idempotentes entre retries sem guardar livros inteiros em `jsonb`.
+
+**Decisão:** `0020` cria `processamento.artefatos_execucao` e o bucket privado `artefatos-processamento`. PostgreSQL guarda identidade, hash, tamanho, MIME, metadados e proveniência; o conteúdo intermediário fica no Storage privado. Tipos iniciais: `conteudo_extraido` e `conteudo_normalizado`. `0021` explicita negação de acesso a `anon`/`authenticated` sem abrir grants.
+
+**Consequência:** retries podem reutilizar artefatos por execução/tipo, conteúdo grande não polui metadados e nenhum resultado parcial é confundido com Documento Processado ativo.
+
+## ADR-053 — Formatos v1 usam allowlist pequena e defesa em profundidade
+
+**Contexto:** extensão e MIME fornecidos pelo cliente não provam o formato real. O Dicionário deixa a lista final de formatos e a estratégia de OCR deliberadamente abertas.
+
+**Decisão:** a primeira allowlist processável contém PDF com camada textual, TXT UTF-8 e Markdown UTF-8. Identificação combina extensão, MIME e conteúdo/amostra. PDF exige assinatura `%PDF-`; texto rejeita NUL/controles incompatíveis. DOCX permanece explicitamente não suportado até validação segura do container OOXML. PDF sem texto retorna caso de OCR pendente, sem atalho por IA.
+
+**Consequência:** a Biblioteca continua podendo preservar fontes mais amplas, mas o Pipeline só processa aquilo que sabe identificar/extrair com segurança e de forma explicável.
+
+## ADR-054 — Extração PDF é determinística, sequencial e limitada
+
+**Contexto:** PDFs são entrada não confiável e podem causar consumo excessivo de CPU/memória. APIs convenientes que extraem todas as páginas em paralelo ampliam o risco para livros grandes.
+
+**Decisão:** usar `unpdf@1.8.1`/PDF.js serverless e percorrer páginas sequencialmente. Guardrails v1: TXT/Markdown até 20 MiB; PDF até 50 MiB/1.000 páginas; até 12 milhões de caracteres extraídos; artefato JSON até 30 MiB; `maxImageSize` 16.777.216 pixels; timeout de parsing PDF de 90 s. O original é novamente validado por SHA-256/tamanho imediatamente antes da extração.
+
+**Consequência:** o parser tem limites operacionais claros, mantém proveniência por página e detecta mudança do original entre etapas. Os limites são versionados e poderão ser ajustados por evidência, não são promessa permanente do produto.
+
+## ADR-055 — Testes unitários do processamento são portão obrigatório do CI
+
+**Contexto:** lint, TypeScript e build não provam comportamento de segurança do detector/extrator. Node 22.18+ consegue executar módulos TypeScript erasáveis sem framework adicional.
+
+**Decisão:** usar o test runner nativo do Node e executar `npm test` no CI. A suíte cobre PDF verdadeiro/falso, TXT/Markdown UTF-8, binário disfarçado, DOCX fora do escopo, BOM/UTF-8 inválido/conteúdo vazio e extração real de um PDF textual mínimo preservando página.
+
+**Consequência:** regras determinísticas críticas passam a ser protegidas contra regressão sem adicionar um framework de testes desnecessário nesta fase.
