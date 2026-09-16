@@ -96,9 +96,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    await start(processarObraWorkflow, [execucao.execucao_id], {
-      region: 'sfo1',
-    })
+    // A região do Workflow será configurada somente após validarmos a API estável
+    // da versão fixada do SDK. Primeiro preservamos compatibilidade e reprodutibilidade.
+    await start(processarObraWorkflow, [execucao.execucao_id])
   } catch {
     await backend.schema('aplicacao').rpc('backend_falhar_execucao', {
       p_execucao_id: execucao.execucao_id,
