@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validar:
@@ -15,8 +15,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Node.js 22
         uses: actions/setup-node@v7
@@ -27,28 +25,11 @@ jobs:
       - name: npm 11.19.1
         run: npm install --global npm@11.19.1
 
-      - name: Regenerar árvore e lockfile em ambiente limpo
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
+      - name: Instalar dependências reproduzíveis
+        run: npm ci
 
-      - name: Commitar lockfile quando necessário
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-        run: |
-          if git diff --quiet -- package-lock.json; then
-            echo "package-lock já sincronizado"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add package-lock.json
-            git commit -m "build: regenerar lockfile com npm 11"
-            git push origin HEAD:${{ github.head_ref }}
-          fi
-
-      - name: Validar instalação reproduzível
-        run: |
-          rm -rf node_modules
-          npm ci
+      - name: Auditar dependências de produção
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Lint
         run: npm run lint
