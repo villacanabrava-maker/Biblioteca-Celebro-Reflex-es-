@@ -58,10 +58,10 @@ function contemControleBinario(texto: string) {
   for (const caractere of texto) {
     const codigo = caractere.codePointAt(0) ?? 0
     const permitido =
-      codigo === 9 || // tab
-      codigo === 10 || // LF
-      codigo === 12 || // form feed
-      codigo === 13 // CR
+      codigo === 9 ||
+      codigo === 10 ||
+      codigo === 12 ||
+      codigo === 13
 
     if (codigo < 32 && !permitido) return true
   }
@@ -138,10 +138,6 @@ export function extrairTextoUtf8({
     quantidadePaginas: null,
     paginasComTexto: null,
   }
-}
-
-function textoDaPagina(itens: Awaited<ReturnType<Awaited<ReturnType<typeof getDocumentProxy>>['getPage']>>['getTextContent']> extends never ? never : never) {
-  return itens
 }
 
 async function extrairPaginasPdf(
