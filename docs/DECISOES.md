@@ -41,3 +41,35 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 **Decisão:** idioma, recuperação, nível de detalhamento e aprovação manual ficam em colunas próprias. Apenas preferências visuais flexíveis ficam em `jsonb`. Chaves de API, senhas, tokens e segredos são proibidos nessa tabela.
 
 **Consequência:** configurações importantes continuam pesquisáveis e validáveis, enquanto metadados puramente visuais podem evoluir sem alterar o schema a cada detalhe de interface.
+
+## ADR-006 — Estado de conceito ainda sem CHECK
+
+**Contexto:** o Dicionário Mestre exige `taxonomia.conceitos.estado`, mas não enumera quais valores são canônicos para esse campo. Ao mesmo tempo, a regra geral do projeto determina que estados técnicos estáveis usem `text + CHECK`.
+
+**Decisão:** em `0003_taxonomia`, `estado` é `text not null`, mas ainda sem `CHECK`. Não será inventado um vocabulário que os documentos não definiram.
+
+**Consequência:** antes de a Taxonomia Mestre entrar em operação real, o vocabulário de estado de conceito deverá ser formalizado no Dicionário e endurecido por migration explícita.
+
+## ADR-007 — FK de classificação para elemento processado é adiada
+
+**Contexto:** o Dicionário ordena a criação de Taxonomia antes de Processamento, mas `taxonomia.classificacoes_elementos.elemento_id` deverá apontar para `processamento.elementos`, tabela que ainda não existe nessa etapa.
+
+**Decisão:** criar `elemento_id uuid not null` em `0003_taxonomia`, documentando a referência lógica, e adicionar a FK somente na migration em que `processamento.elementos` existir.
+
+**Consequência:** a ordem canônica das migrations é preservada sem criar dependência impossível. A integridade referencial completa será adicionada antes de classificações reais entrarem em produção.
+
+## ADR-008 — Bloqueio de duplicações exatas na Taxonomia
+
+**Contexto:** o Dicionário define vocabulários controlados e uma Taxonomia Mestre reutilizável, mas não especifica todas as constraints de duplicidade.
+
+**Decisão:** impedir duplicações exatamente equivalentes dentro do mesmo escopo, incluindo código de conceito na mesma versão, termo normalizado repetido no mesmo conceito/tipo/idioma, relação idêntica com a mesma origem e classificação idêntica do mesmo usuário/elemento/conceito/papel.
+
+**Consequência:** reexecuções e processamento repetido não geram linhas semanticamente idênticas. Se no futuro houver necessidade de registrar ocorrências múltiplas como evidências separadas, isso será modelado em tabela própria de evidência/proveniência, e não por duplicação da entidade canônica.
+
+## ADR-009 — Chave da OpenAI somente em secret servidor-side
+
+**Contexto:** a aplicação precisará chamar a OpenAI API, mas qualquer chave colocada em código, README, browser ou repositório compromete a segurança e pode gerar uso e cobrança indevidos.
+
+**Decisão:** a aplicação usará apenas a variável servidor-side `OPENAI_API_KEY`. O valor nunca será persistido no repositório. Uma chave fornecida diretamente em conversa de desenvolvimento será considerada exposta e deverá ser rotacionada antes de ser ativada no ambiente real.
+
+**Consequência:** a integração da OpenAI pode ser preparada no código sem depender do segredo. A ativação efetiva só ocorrerá quando uma chave nova estiver armazenada no mecanismo de secrets do ambiente servidor.
