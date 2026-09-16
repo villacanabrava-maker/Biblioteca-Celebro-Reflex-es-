@@ -154,21 +154,21 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 
 **Consequência:** os códigos são estáveis, legíveis e independentes de contador global. Se o produto exigir numeração sequencial humana no futuro, isso será introduzido por migration e decisão própria.
 
-## ADR-020 — Upload resumível TUS desde o primeiro fluxo real
+## ADR-020 — TUS com retries; retomada entre tentativas exige IDs persistentes
 
-**Contexto:** livros e documentos podem ser grandes. A documentação atual do Supabase recomenda TUS para arquivos acima de 6 MB, redes instáveis e quando progresso/retomada são importantes.
+**Contexto:** livros e documentos podem ser grandes e o Supabase recomenda TUS. A primeira implementação também usava `findPreviousUploads()`, porém cada nova submissão criava novos `obraId` e `versaoId`. Uma retomada automática podia concluir um upload anterior num caminho diferente daquele que a RPC atual esperava.
 
-**Decisão:** o frontend usa `tus-js-client`, endpoint direto do Storage, retries progressivos, retomada de uploads anteriores e chunks de exatamente 6 MB. Não é enviado `x-upsert`, evitando sobrescrita silenciosa do original.
+**Decisão:** manter `tus-js-client`, endpoint direto, chunks de 6 MB e retries progressivos, mas não usar retomada implícita entre tentativas/reloads enquanto os identificadores da operação não forem persistidos. Não é enviado `x-upsert`.
 
-**Consequência:** upload de livros grandes é mais resiliente e pode continuar após interrupções sem modificar a regra de preservação do original.
+**Consequência:** preservamos resiliência da operação atual sem risco de associar arquivo antigo a UUIDs novos. Retomada entre reloads será implementada quando existir uma operação de upload persistente com IDs estáveis.
 
 ## ADR-021 — SHA-256 incremental no navegador e futura revalidação no pipeline
 
 **Contexto:** o Dicionário exige SHA-256 para integridade e deduplicação. Ler um livro grande inteiro em memória só para calcular hash aumenta uso de RAM desnecessariamente.
 
-**Decisão:** o frontend calcula SHA-256 incrementalmente com `hash-wasm`, em blocos. O hash é enviado para o registro da versão. O pipeline documental poderá recalcular/verificar o hash do objeto armazenado como defesa adicional antes do processamento.
+**Decisão:** o frontend calcula SHA-256 incrementalmente com `hash-wasm`, em blocos. O hash é enviado para o registro da versão. O pipeline documental recalculará/verificará o hash do objeto armazenado como defesa adicional antes do processamento.
 
-**Consequência:** o primeiro upload já possui identidade de conteúdo sem sacrificar memória do navegador, e a segurança futura não precisa confiar cegamente em um hash informado pelo cliente.
+**Consequência:** o primeiro upload já possui identidade de conteúdo sem sacrificar memória do navegador, e a segurança futura não confia definitivamente em um hash informado pelo cliente.
 
 ## ADR-022 — `externa_influencia` não aparece no upload inicial
 
@@ -184,12 +184,52 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 
 **Decisão:** o projeto usa `@supabase/ssr`, clientes separados para browser/servidor, cookies, `proxy.ts` e `supabase.auth.getClaims()` para validar identidade server-side. `getSession()` é usado apenas no navegador durante TUS para obter o access token que é validado pelo Storage remoto.
 
-**Consequência:** rotas protegidas e operações server-side não confiam em sessão não verificada, enquanto o upload resumível continua compatível com o mecanismo TUS.
+**Consequência:** rotas protegidas e operações server-side não confiam em sessão não verificada, enquanto o upload TUS continua compatível com o mecanismo de autenticação.
 
 ## ADR-024 — Deploy novo não reutiliza projeto Vercel antigo
 
-**Contexto:** a inspeção da conta Vercel conectada mostrou apenas projetos antigos e nenhum ligado ao repositório canônico novo. Os documentos do projeto proíbem reutilizar automaticamente o deploy anterior.
+**Contexto:** os documentos do projeto proíbem reutilizar automaticamente o deploy anterior.
 
-**Decisão:** será criado um projeto Vercel exclusivo, recomendado como `cerebro-autoral`, importando `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`. O projeto receberá apenas as variáveis necessárias ao novo aplicativo.
+**Decisão:** usar um projeto Vercel exclusivo chamado `cerebro-autoral`, importando `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`.
 
-**Consequência:** o histórico e a configuração do aplicativo anterior não contaminam o novo produto. Como o conector Vercel disponível não permite criar projeto nem editar variáveis de ambiente, essa configuração permanece uma ação externa explícita e documentada.
+**Consequência:** o histórico/configuração dos aplicativos anteriores não contaminam o novo produto. Em 16/09/2026 essa decisão foi concretizada e o projeto novo foi confirmado em produção.
+
+## ADR-025 — Nomes de migrations no Git devem coincidir com o histórico real do Supabase
+
+**Contexto:** a auditoria encontrou timestamps de arquivos no GitHub diferentes das versões registradas pelo Supabase e dois arquivos com o mesmo prefixo de timestamp. O banco estava correto, mas um replay por arquivos poderia executar uma ordem diferente.
+
+**Decisão:** renomear os arquivos `0001`–`0009`, sem alterar seu conteúdo SQL nem reexecutá-los, para usar exatamente os números de versão registrados em `supabase_migrations.schema_migrations`.
+
+**Consequência:** GitHub e banco passam a descrever a mesma sequência histórica, melhorando reconstrução, CLI, auditoria e recuperação de desastre.
+
+## ADR-026 — Pipeline 1.0 e Taxonomia 1.0 precisam existir antes da primeira execução
+
+**Contexto:** `processamento.execucoes` exige `versao_pipeline_id` e `versao_taxonomia_id`, mas as duas tabelas de versão estavam vazias após a criação estrutural.
+
+**Decisão:** `0010_seeds_versoes_base` registra e ativa `Pipeline 1.0` e `Taxonomia 1.0`. A seed de Taxonomia cria somente a versão, não conceitos inventados. Modelos de IA continuam sem seed até decisão/evaluação específica.
+
+**Consequência:** o primeiro documento pode iniciar execução com proveniência/versionamento válidos, sem antecipar decisões de conteúdo taxonômico ou modelo de IA.
+
+## ADR-027 — Runtime Node deve ser o mesmo em CI e Vercel
+
+**Contexto:** `engines.node = >=22` permitiu que o Vercel usasse Node 24 enquanto o GitHub Actions validava Node 22.
+
+**Decisão:** fixar `engines.node = 22.x` e manter o CI em Node `22.x`.
+
+**Consequência:** build, SSR e dependências são validados na mesma major usada em produção. Upgrade de major passa a ser uma decisão explícita e testada.
+
+## ADR-028 — Dependências precisam de lockfile e CI deve usar `npm ci`
+
+**Contexto:** o repositório não possuía `package-lock.json`, e CI/Vercel executavam resolução aberta com `npm install`.
+
+**Decisão:** gerar e versionar `package-lock.json`. Após sua incorporação, CI deve usar `npm ci`. `packageManager` é fixado em `npm@10.9.8`; versões críticas como ESLint deixam de usar `latest`.
+
+**Consequência:** builds passam a resolver a mesma árvore de dependências e ficam menos sujeitos a mudanças externas sem commit. A migração para `npm ci` só será concluída após o lockfile gerado ser validado pelo CI.
+
+## ADR-029 — Repositório público é risco operacional para arquitetura proprietária
+
+**Contexto:** a auditoria confirmou que o repositório canônico está público. Não foram localizados segredos conhecidos nas buscas realizadas, mas código, ADRs e arquitetura do Cérebro Autoral ficam acessíveis publicamente.
+
+**Decisão:** recomendar que o repositório seja privado antes de receber operação produtiva com conteúdo intelectual real. O código continua proibido de conter segredos independentemente da visibilidade.
+
+**Consequência:** a mudança de visibilidade requer permissão administrativa que o conector atual não oferece e permanece uma ação externa explícita. A segurança do aplicativo não deve depender apenas da privacidade do repositório.
