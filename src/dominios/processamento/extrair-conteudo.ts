@@ -45,6 +45,7 @@ export const LIMITES_EXTRACAO = {
   originalTextoBytes: 20 * 1024 * 1024,
   originalPdfBytes: 50 * 1024 * 1024,
   caracteresExtraidos: 12_000_000,
+  artefatoJsonBytes: 30 * 1024 * 1024,
   paginasPdf: 1_000,
   imagemPdfPixels: 16_777_216,
   tempoPdfMs: 90_000,
