@@ -6,7 +6,10 @@ import {
   extrairTextoPdf,
   extrairTextoUtf8,
 } from '../../src/dominios/processamento/extrair-conteudo.ts'
-import { normalizarArtefatoExtraido } from '../../src/dominios/processamento/normalizar-conteudo.ts'
+import {
+  normalizarArtefatoExtraido,
+  validarArtefatoNormalizado,
+} from '../../src/dominios/processamento/normalizar-conteudo.ts'
 
 const encoder = new TextEncoder()
 
@@ -259,4 +262,46 @@ test('normalização rejeita artefato ligado a outro original', () => {
 
   assert.equal(resultado.ok, false)
   if (!resultado.ok) assert.equal(resultado.codigo, 'ARTEFATO_EXTRAIDO_ORIGINAL_DIVERGENTE')
+})
+
+test('artefato normalizado válido mantém cadeia de proveniência do original e da extração', () => {
+  const entrada = artefatoTexto('Cafe\u0301\r\nTexto autoral')
+  const normalizado = normalizarArtefatoExtraido({
+    bytes: bytes(JSON.stringify(entrada)),
+    hashArtefatoExtraido: '5'.repeat(64),
+    hashOriginalEsperado: 'e'.repeat(64),
+  })
+
+  assert.equal(normalizado.ok, true)
+  if (!normalizado.ok) return
+
+  const validacao = validarArtefatoNormalizado({
+    bytes: bytes(JSON.stringify(normalizado.artefato)),
+    hashOriginalEsperado: 'e'.repeat(64),
+    hashArtefatoExtraidoEsperado: '5'.repeat(64),
+  })
+
+  assert.equal(validacao.ok, true)
+  if (validacao.ok) assert.equal(validacao.artefato.conteudo, 'Café\nTexto autoral')
+})
+
+test('artefato normalizado é rejeitado se apontar para outra extração', () => {
+  const entrada = artefatoTexto('Conteúdo')
+  const normalizado = normalizarArtefatoExtraido({
+    bytes: bytes(JSON.stringify(entrada)),
+    hashArtefatoExtraido: '6'.repeat(64),
+    hashOriginalEsperado: 'e'.repeat(64),
+  })
+
+  assert.equal(normalizado.ok, true)
+  if (!normalizado.ok) return
+
+  const validacao = validarArtefatoNormalizado({
+    bytes: bytes(JSON.stringify(normalizado.artefato)),
+    hashOriginalEsperado: 'e'.repeat(64),
+    hashArtefatoExtraidoEsperado: '7'.repeat(64),
+  })
+
+  assert.equal(validacao.ok, false)
+  if (!validacao.ok) assert.equal(validacao.codigo, 'ARTEFATO_NORMALIZADO_ORIGEM_DIVERGENTE')
 })
