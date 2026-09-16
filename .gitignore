@@ -8,10 +8,9 @@
 # production
 /build
 
-# local environment
-.env
-.env.local
-.env.*.local
+# local environment / secrets
+.env*
+!.env.example
 
 # logs
 npm-debug.log*
