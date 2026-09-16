@@ -105,3 +105,27 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 **Decisão:** a coluna nasce com `default now()`, mas o trigger reutilizável de atualização automática será criado em uma migration de funções/triggers compartilhados, em vez de duplicar função técnica dentro de `0004_biblioteca`.
 
 **Consequência:** até essa migration utilitária existir, qualquer atualização de obra feita pelo backend deverá também atualizar `atualizado_em` explicitamente.
+
+## ADR-014 — Bucket de originais é privado e versionado por migration
+
+**Contexto:** os documentos canônicos definem o bucket `originais-biblioteca` como privado. A documentação atual do Supabase suporta criação de buckets por SQL e informa que buckets privados submetem operações e downloads às políticas RLS.
+
+**Decisão:** `0006_storage_biblioteca` cria/garante o bucket `originais-biblioteca` com `public = false` e versiona as políticas de `storage.objects` no mesmo histórico de migrations do projeto.
+
+**Consequência:** a infraestrutura de arquivos pode ser reproduzida junto com o banco, e um deploy novo não depende de configuração manual silenciosa no Dashboard.
+
+## ADR-015 — Isolamento de objetos pelo primeiro segmento do caminho
+
+**Contexto:** o caminho canônico é representado como `/{usuario_id}/{obra_id}/{versao_id}/original.ext`. No Supabase Storage, nomes de objetos não precisam de barra inicial e a função `storage.foldername(name)` permite controlar pastas via RLS.
+
+**Decisão:** o nome efetivo do objeto será `{usuario_id}/{obra_id}/{versao_id}/original.ext`. As quatro policies de SELECT/INSERT/UPDATE/DELETE exigem que o primeiro segmento seja exatamente `auth.uid()::text` e que o bucket seja `originais-biblioteca`.
+
+**Consequência:** um usuário autenticado não pode usar a API normal do Storage para acessar ou gravar arquivos na pasta de outro usuário. O backend deverá sempre gerar caminhos nesse formato.
+
+## ADR-016 — MIME e tamanho de arquivo ainda não congelados no bucket
+
+**Contexto:** o Dicionário Mestre deixa deliberadamente em aberto o conjunto completo de tipos de arquivo e a estratégia final de OCR. O Supabase permite configurar `allowed_mime_types` e limite de tamanho diretamente no bucket.
+
+**Decisão:** `0006_storage_biblioteca` não congela MIME nem limite máximo de arquivo. Essas restrições serão definidas após a fase de upload/processamento validar os formatos suportados e os limites operacionais.
+
+**Consequência:** não bloqueamos prematuramente documentos válidos. A validação inicial será feita pela aplicação e, quando os formatos forem formalizados, o bucket poderá ser endurecido por migration explícita.
