@@ -85,20 +85,24 @@ export async function POST(request: Request) {
     )
   }
 
-  if (!execucao.criada) {
+  if (!execucao.deve_iniciar_workflow) {
     return NextResponse.json({
       execucaoId: execucao.execucao_id,
       codigo: execucao.execucao_codigo,
       estado: execucao.estado,
-      criada: false,
+      criada: Boolean(execucao.criada),
       workflowIniciado: false,
     })
   }
 
   try {
-    // A região do Workflow será configurada somente após validarmos a API estável
-    // da versão fixada do SDK. Primeiro preservamos compatibilidade e reprodutibilidade.
-    await start(processarObraWorkflow, [execucao.execucao_id])
+    await start(processarObraWorkflow, [execucao.execucao_id], { region: 'sfo1' })
+
+    // Se esta confirmação falhar depois de o Vercel aceitar a execução, não iniciamos
+    // um segundo workflow. A própria primeira etapa também registra/recupera esse estado.
+    await backend.schema('aplicacao').rpc('backend_registrar_workflow_iniciado', {
+      p_execucao_id: execucao.execucao_id,
+    })
   } catch {
     await backend.schema('aplicacao').rpc('backend_falhar_execucao', {
       p_execucao_id: execucao.execucao_id,
@@ -122,7 +126,7 @@ export async function POST(request: Request) {
       execucaoId: execucao.execucao_id,
       codigo: execucao.execucao_codigo,
       estado: execucao.estado,
-      criada: true,
+      criada: Boolean(execucao.criada),
       workflowIniciado: true,
     },
     { status: 202 }
