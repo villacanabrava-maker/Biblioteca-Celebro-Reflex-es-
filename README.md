@@ -104,7 +104,7 @@ Usado para:
 
 A inspeção da conta Vercel conectada mostrou projetos antigos, mas **nenhum projeto está ligado ao repositório canônico novo `Biblioteca-Celebro-Reflex-es-`**.
 
-A arquitetura exige um projeto Vercel exclusivo para este aplicativo. O conector disponível nesta sessão permite inspecionar e fazer deploy de projetos existentes, mas não oferece criação de projeto nem gerenciamento de variáveis de ambiente. Portanto essa parte não será fingida como concluída.
+A arquitetura exige um projeto Vercel exclusivo para este aplicativo. O conector disponível nesta sessão permite inspecionar e fazer deploy de projetos existentes, mas não oferece criação de projeto nem gerenciamento de variáveis de ambiente. Portanto essa parte não será marcada como concluída antes de realmente existir.
 
 Projeto recomendado a criar no Vercel:
 
@@ -175,13 +175,13 @@ O Supabase oficial já possui URL e uma publishable key moderna ativa. O valor d
 | Taxonomia Mestre | concluída / `main` |
 | Biblioteca — banco | concluída / `main` |
 | Storage privado | concluído / `main` |
-| API segura `aplicacao` | aplicada no Supabase / branch em validação |
-| Supabase Auth SSR | implementado / branch em validação |
-| Upload real e resumível | implementado / branch em validação |
-| Biblioteca lendo dados reais | implementado / branch em validação |
+| API segura `aplicacao` | aplicada no Supabase / PR #6 CI verde |
+| Supabase Auth SSR | implementado / PR #6 CI verde |
+| Upload real e resumível | implementado / PR #6 CI verde |
+| Biblioteca lendo dados reais | implementada / PR #6 CI verde |
 | Vercel canônico | **pendente de criação/conexão externa** |
 | Confirmação de e-mail Auth | código pronto / template do Supabase pendente |
-| Pipeline documental | próximo grande bloco após integração |
+| Pipeline documental | próximo grande bloco após deploy/teste do upload |
 | Cérebro Autoral | pendente |
 | Motor de Reflexões | pendente |
 | OpenAI operacional | pendente de rotação segura da chave |
@@ -190,6 +190,12 @@ Branch atual:
 
 ```text
 feature/auth-upload-biblioteca
+```
+
+Pull Request atual:
+
+```text
+#6 — Fase 1: ativar Auth SSR e upload real da Biblioteca
 ```
 
 ---
@@ -329,18 +335,7 @@ outro
 
 Preserva cada arquivo físico e cada versão sem destruir versões anteriores.
 
-Armazena:
-
-- nome original;
-- caminho privado;
-- MIME;
-- extensão;
-- tamanho;
-- SHA-256;
-- páginas;
-- palavras;
-- estado de processamento;
-- número da versão.
+Armazena nome original, caminho privado, MIME, extensão, tamanho, SHA-256, páginas, palavras, estado de processamento e número da versão.
 
 A FK composta `(obra_id, usuario_id)` impede uma versão de um usuário de apontar para obra de outro usuário.
 
@@ -366,12 +361,7 @@ Caminho efetivo:
 {usuario_id}/{obra_id}/{versao_id}/original.ext
 ```
 
-Existem quatro policies de `storage.objects`:
-
-- SELECT;
-- INSERT;
-- UPDATE;
-- DELETE.
+Existem quatro policies de `storage.objects`: SELECT, INSERT, UPDATE e DELETE.
 
 Todas exigem simultaneamente:
 
@@ -386,7 +376,7 @@ MIME e tamanho máximo ainda não foram congelados porque o conjunto final de fo
 
 ## 12. API segura em `aplicacao`
 
-A migration `0007_api_aplicacao_biblioteca` mudou a fronteira da Data API para:
+A migration `0007_api_aplicacao_biblioteca` controla a fronteira da Data API:
 
 ```text
 public
@@ -515,8 +505,6 @@ estado = recebido
 
 ### Upload resumível
 
-Foi adotado TUS desde o primeiro fluxo porque livros e documentos podem ultrapassar 6 MB.
-
 Configuração atual:
 
 - endpoint direto do Storage;
@@ -531,11 +519,7 @@ Configuração atual:
 
 O arquivo é processado em blocos para não carregar um livro grande inteiro na memória.
 
-O hash será usado para:
-
-- integridade;
-- deduplicação futura;
-- rastreabilidade.
+O hash será usado para integridade, deduplicação futura e rastreabilidade. O pipeline documental poderá recalcular o hash armazenado como defesa adicional.
 
 ### Compensação de falha
 
@@ -551,25 +535,25 @@ A rota:
 /biblioteca
 ```
 
-agora consulta:
+consulta:
 
 ```text
 aplicacao.listar_obras()
 ```
 
-A tela apresenta dados reais quando existirem:
-
-- título;
-- código;
-- tipo;
-- autoria;
-- participação no Cérebro;
-- idioma;
-- versão atual;
-- arquivo original;
-- estado de processamento.
+A tela apresenta dados reais quando existirem: título, código, tipo, autoria, participação no Cérebro, idioma, versão atual, arquivo original e estado de processamento.
 
 A busca continua visualmente desabilitada porque retrieval e filtros reais ainda não foram implementados. O aplicativo não apresenta um controle falso como se já funcionasse.
+
+### Regra de renderização
+
+`/biblioteca` é explicitamente:
+
+```text
+dynamic = force-dynamic
+```
+
+porque o conteúdo é pessoal, autenticado e depende dos cookies da requisição. Ele não deve ser pré-renderizado estaticamente nem reutilizado entre usuários.
 
 ---
 
@@ -595,9 +579,7 @@ SUPABASE_SECRET_KEY
 OPENAI_API_KEY
 ```
 
-O fluxo normal do usuário não usa `SUPABASE_SECRET_KEY` no navegador.
-
-Nenhuma variável secreta pode possuir prefixo `NEXT_PUBLIC_`.
+O fluxo normal do usuário não usa `SUPABASE_SECRET_KEY` no navegador. Nenhuma variável secreta pode possuir prefixo `NEXT_PUBLIC_`.
 
 ---
 
@@ -715,14 +697,42 @@ docs/DESIGN_VISUAL.md
 
 ## 21. CI e testes
 
-GitHub Actions atualmente executa:
+GitHub Actions executa:
 
 - instalação de dependências;
 - ESLint;
 - TypeScript;
 - build Next.js.
 
-O próximo PR deste bloco só poderá entrar na `main` após todos esses checks passarem.
+### Validação do PR #6
+
+Primeira execução:
+
+```text
+Instalação  ✅
+Lint        ✅
+TypeScript  ✅
+Build       ❌
+```
+
+O CI detectou que `/biblioteca` estava sendo pré-renderizada sem variáveis de ambiente e sem contexto autenticado. Isso revelou um problema arquitetural: uma página pessoal não deve ser estática.
+
+Correção aplicada:
+
+```text
+export const dynamic = 'force-dynamic'
+```
+
+Segunda execução:
+
+```text
+Instalação  ✅
+Lint        ✅
+TypeScript  ✅
+Build       ✅
+```
+
+Esse resultado valida o código de Auth SSR, TUS, hashing, RPCs e a compilação de produção no estado do commit de correção. Após esta atualização final do README, o CI será executado novamente antes do merge.
 
 Cobertura futura planejada:
 
@@ -794,12 +804,13 @@ Não configurar a chave fornecida no chat. Primeiro rotacionar; depois cadastrar
 | Taxonomia Mestre | concluída |
 | Biblioteca — banco | concluída |
 | Storage privado | concluído |
-| API segura da Biblioteca | aplicada / aguardando PR |
-| Supabase Auth SSR | implementado / aguardando CI |
-| Upload real + SHA-256 + TUS | implementado / aguardando CI |
-| Biblioteca com dados reais | implementada / aguardando CI |
+| API segura da Biblioteca | aplicada / PR #6 CI verde |
+| Supabase Auth SSR | implementado / PR #6 CI verde |
+| Upload real + SHA-256 + TUS | implementado / PR #6 CI verde |
+| Biblioteca com dados reais | implementada / PR #6 CI verde |
 | Vercel canônico | pendente externo |
 | Auth e-mail no ambiente | pendente externo |
+| Teste E2E no deploy | pendente do Vercel |
 | Pipeline documental | próximo grande bloco |
 | Documento Processado | pendente |
 | Busca híbrida | pendente |
@@ -814,18 +825,15 @@ Não configurar a chave fornecida no chat. Primeiro rotacionar; depois cadastrar
 
 ## 24. Próximas ações imediatas
 
-1. registrar ADRs deste bloco;
-2. abrir PR de `feature/auth-upload-biblioteca`;
-3. executar CI;
-4. corrigir qualquer falha de lint, TypeScript ou build;
-5. incorporar o PR somente com CI verde;
-6. criar o novo projeto Vercel ligado ao repositório canônico;
-7. configurar as duas variáveis públicas do Supabase;
-8. configurar Site URL/template de confirmação no Supabase Auth;
-9. testar cadastro, login, logout e upload real no deploy;
-10. registrar os testes neste README;
-11. iniciar o Pipeline Documental;
-12. manter OpenAI desativada até rotação da chave.
+1. executar o CI final após esta atualização do README;
+2. incorporar o PR #6 somente se o CI final permanecer verde;
+3. criar o novo projeto Vercel ligado ao repositório canônico;
+4. configurar as duas variáveis públicas do Supabase;
+5. configurar Site URL, Redirect URLs e template de confirmação no Supabase Auth;
+6. executar teste real de cadastro, login, logout e upload no deploy;
+7. registrar os resultados neste README;
+8. iniciar o Pipeline Documental;
+9. manter OpenAI desativada até rotação da chave.
 
 ---
 
@@ -886,8 +894,11 @@ Não configurar a chave fornecida no chat. Primeiro rotacionar; depois cadastrar
 - upload resumível TUS implementado;
 - SHA-256 incremental implementado;
 - Biblioteca conectada a dados reais;
+- CI detectou prerender indevido da Biblioteca;
+- `/biblioteca` corrigida para renderização dinâmica autenticada;
+- segunda execução do CI passou instalação, lint, TypeScript e build;
 - Vercel canônico identificado como ainda inexistente;
-- README atualizado antes do PR.
+- README atualizado antes do merge.
 
 ---
 
