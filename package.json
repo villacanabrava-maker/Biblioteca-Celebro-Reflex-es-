@@ -22,8 +22,11 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "tus-js-client": "4.3.1",
-    "workflow": "4.8.8",
+    "workflow": "4.8.9",
     "zod": "4.6.5"
+  },
+  "overrides": {
+    "undici": "7.29.0"
   },
   "devDependencies": {
     "@types/node": "latest",
