@@ -72,11 +72,11 @@ Os documentos canônicos completos ainda não foram copiados integralmente para 
 villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
 ```
 
-- branch principal: `main`;
-- branch atual: `feature/processamento`;
-- PR atual: **#7 — Fase 2: auditar base e iniciar Pipeline Documental**.
+- branch oficial: `main`;
+- PR #7 — **Fase 2: auditoria completa e modelo de dados do Pipeline** — incorporado por squash merge em 16/09/2026;
+- commit de produção da Fase 2: `326286036566ccc46addfc4b071fd224cd1a5c09`.
 
-Fluxo:
+Fluxo oficial:
 
 ```text
 feature/<etapa>
@@ -106,7 +106,7 @@ Usado para PostgreSQL, Auth, Storage privado, RLS, Data API controlada, Full Tex
 
 ### Vercel
 
-Projeto oficial confirmado:
+Projeto oficial:
 
 ```text
 cerebro-autoral
@@ -118,13 +118,13 @@ Repositório conectado:
 villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
 ```
 
-Domínio principal verificado:
+Produção:
 
 ```text
 https://cerebro-autoral.vercel.app
 ```
 
-O deploy de produção inspecionado está `READY`, originado da `main`. A página pública responde HTTP 200 e rotas protegidas como `/biblioteca` redirecionam para login sem sessão. A inspeção de runtime dos últimos 7 dias não encontrou clusters de erro.
+Após o merge do PR #7, o Vercel recebeu exatamente o commit `3262860…`, concluiu o deployment com estado **READY** e atualizou o domínio principal. O domínio responde HTTP 200, apresenta o login real e `/biblioteca` sem sessão continua redirecionando corretamente para o login. A consulta de erros de runtime após o deploy não encontrou erros.
 
 ---
 
@@ -177,7 +177,7 @@ O deploy de produção inspecionado está `READY`, originado da `main`. A págin
 
 ---
 
-## 6. Estado geral — auditoria de 16/09/2026
+## 6. Estado geral — 16/09/2026
 
 | Bloco | Estado real |
 |---|---|
@@ -188,17 +188,17 @@ O deploy de produção inspecionado está `READY`, originado da `main`. A págin
 | Biblioteca — banco | concluída / `main` |
 | Storage privado | concluído / `main` |
 | API segura `aplicacao` | concluída / `main` |
-| Supabase Auth SSR | concluído / `main`; hardening no PR #7 |
-| Upload real + SHA-256 + TUS | concluído / `main`; correções de retomada/deduplicação no PR #7 |
+| Supabase Auth SSR | concluído / `main` |
+| Upload real + SHA-256 + TUS | concluído / `main` |
+| Deduplicação por hash | concluída / `main` |
 | Biblioteca com dados reais | concluída / `main` |
-| Vercel canônico | concluído e verificado online |
-| Pipeline — execuções/idempotência | `0008`–`0009` aplicadas |
-| Versões base Pipeline/Taxonomia | `0010` aplicada |
-| Documento Processado/hierarquia | `0011`–`0012` aplicadas |
-| Vetores/elementos/evidências/grafo | `0013`–`0014` aplicadas |
-| Integridade de proveniência/publicação | `0015` aplicada |
-| Deduplicação real por SHA-256 | `0016` aplicada |
-| Workflow real de processamento | próxima etapa |
+| Vercel canônico | concluído e validado pós-merge |
+| Pipeline — execuções/idempotência | concluído / `main` |
+| Versões base Pipeline/Taxonomia | concluídas / `main` |
+| Documento Processado/hierarquia | concluído / `main` |
+| Vetores/elementos/evidências/grafo | concluídos / `main` |
+| Integridade de proveniência/publicação | concluída / `main` |
+| Workflow real de processamento | **próxima etapa** |
 | Cérebro Autoral | pendente |
 | Motor de Reflexões | pendente |
 | OpenAI operacional | bloqueada até rotação segura da chave exposta no chat |
@@ -269,10 +269,10 @@ Confirmado no banco real:
 - RLS ativo nas tabelas pessoais implementadas;
 - Storage privado com policies por `auth.uid()`;
 - RPCs públicas com `SECURITY DEFINER`, `search_path = ''` e grants explícitos;
-- funções internas de trigger não são executáveis por navegador;
+- funções internas de trigger não são executáveis pelo navegador;
 - não existem constraints pendentes `NOT VALID`;
-- após `0014`, o advisor de performance não acusa FKs sem índice;
-- avisos de performance restantes são `unused_index`, esperados enquanto as tabelas estão vazias.
+- advisor de performance não acusa FKs sem índice;
+- avisos restantes de performance são `unused_index`, esperados enquanto as tabelas estão vazias.
 
 ### Alerta de segurança ainda aberto — Auth
 
@@ -290,96 +290,30 @@ Antes de abrir o aplicativo para usuários reais:
 2. confirmar política de senha mínima/forte;
 3. considerar MFA em etapa posterior de endurecimento.
 
-Referência: `https://supabase.com/docs/guides/auth/password-security`.
-
 ---
 
-## 10. Schema `sistema`
+## 10. Taxonomia, Biblioteca e API
 
-Implementado:
+### Taxonomia
 
-- `sistema.modelos_ia`;
-- `sistema.prompts`;
-- `sistema.versoes_prompts`;
-- `sistema.versoes_pipeline`;
-- `sistema.configuracoes_usuario`.
-
-`0010` criou `Pipeline 1.0` ativo. `sistema.modelos_ia` continua vazio propositalmente porque os documentos canônicos deixam a escolha exata de modelos deliberadamente aberta.
-
----
-
-## 11. Taxonomia Mestre
-
-Implementado:
-
-- `taxonomia.versoes`;
-- `taxonomia.conceitos`;
-- `taxonomia.termos`;
-- `taxonomia.relacoes`;
-- `taxonomia.classificacoes_elementos`.
-
-`0010` criou `Taxonomia 1.0` ativa sem inventar conceitos.
-
-A FK que estava formalmente adiada em `0003` já foi fechada em `0013`:
+`Taxonomia 1.0` está ativa. A FK que estava adiada desde `0003` foi fechada em `0013`:
 
 ```text
 classificacoes_elementos (elemento_id, usuario_id)
     → processamento.elementos (id, usuario_id)
 ```
 
-`0014` adicionou o índice dedicado exigido pelo advisor.
+`0014` adicionou o índice dedicado da FK. O vocabulário de `taxonomia.conceitos.estado` continua sem CHECK até formalização no Dicionário Mestre.
 
-O vocabulário de `taxonomia.conceitos.estado` continua deliberadamente sem CHECK até formalização no Dicionário Mestre.
+### Biblioteca e Storage
 
----
-
-## 12. Biblioteca, Storage e autoria
-
-`biblioteca.obras` representa a obra lógica. `biblioteca.versoes_obras` preserva cada arquivo físico e cada versão.
-
-Autoria:
-
-```text
-autoral
-externa
-```
-
-Participação no Cérebro:
-
-```text
-autoral_prioritaria
-externa_referencia
-externa_influencia
-excluida_cerebro
-```
-
-`autoral_prioritaria` exige autoria autoral. `externa_influencia` exige autoria externa; a validação contra uma influência ativa será adicionada quando `cerebro_autoral.influencias_externas` existir.
-
-Bucket privado:
-
-```text
-originais-biblioteca
-```
-
-Caminho:
+`biblioteca.obras` representa a obra lógica; `biblioteca.versoes_obras` preserva arquivos/versões. O bucket `originais-biblioteca` é privado e usa o caminho:
 
 ```text
 {usuario_id}/{obra_id}/{versao_id}/original.ext
 ```
 
-Confirmado no banco:
-
-```text
-public = false
-file_size_limit = null
-allowed_mime_types = null
-```
-
-MIME e tamanho máximo permanecem abertos porque formatos finais e OCR ainda não estão congelados nos documentos canônicos.
-
----
-
-## 13. API segura `aplicacao`
+### API segura
 
 `aplicacao.listar_obras()` e `aplicacao.registrar_obra_arquivo(...)`:
 
@@ -390,67 +324,24 @@ MIME e tamanho máximo permanecem abertos porque formatos finais e OCR ainda nã
 - `authenticated` recebe somente os grants previstos;
 - `biblioteca` não é exposta diretamente pela Data API.
 
-`registrar_obra_arquivo` valida título, idioma, MIME, tamanho, SHA-256, caminho exato e existência do objeto no Storage antes de inserir obra + primeira versão.
-
-### Deduplicação real (`0016`)
-
-O Dicionário define `hash_sha256` para integridade e deduplicação, mas não exige `UNIQUE (usuario_id, hash_sha256)`. Para respeitar essa semântica e ainda evitar corrida concorrente, a RPC agora:
-
-1. normaliza o SHA-256;
-2. adquire `pg_advisory_xact_lock` derivado de usuário + hash;
-3. consulta se o mesmo usuário já possui aquele hash;
-4. se já existir, retorna `arquivo_duplicado_por_hash`;
-5. o frontend remove o upload redundante e informa que o arquivo já existe.
-
-O Pipeline continuará responsável por recalcular/verificar SHA-256 no servidor antes de processar, para não confiar definitivamente no hash informado pelo navegador.
+A deduplicação usa lock transacional por usuário + SHA-256, evitando corrida concorrente sem inventar uma constraint `UNIQUE` que o Dicionário não exige.
 
 ---
 
-## 14. Supabase Auth SSR
+## 11. Auth e upload
 
-Padrão implementado:
+Auth SSR usa:
 
 ```text
 @supabase/ssr
-createBrowserClient
-createServerClient
 cookies
 proxy.ts
 getClaims()
 ```
 
-No servidor, autorização usa `supabase.auth.getClaims()`. `getSession()` não é usado como prova de identidade server-side; no navegador é usado somente para obter o access token que o Storage valida remotamente.
+Rotas públicas do Proxy são limitadas a `/login` e `/auth/*`. O `.gitignore` bloqueia todo `.env*`, exceto `.env.example`.
 
-Login, cadastro, confirmação SSR e logout estão implementados.
-
-### Hardening do PR #7
-
-A identificação de rotas públicas no Proxy foi estreitada para:
-
-```text
-/login
-/auth/*
-```
-
-Isso evita que um caminho apenas começando com texto parecido com `/login` ou `/auth` seja considerado público por engano.
-
-O `.gitignore` passou a ignorar qualquer `.env*`, liberando apenas `.env.example`, reduzindo risco de commit acidental de `.env.production` ou arquivos equivalentes.
-
-### Configurações ainda a confirmar no Dashboard
-
-O conector atual não expõe Site URL, Redirect URLs nem templates de e-mail. Deve ser confirmado:
-
-```text
-Site URL = https://cerebro-autoral.vercel.app
-```
-
-O template de confirmação SSR deve direcionar para `/auth/confirm` usando `token_hash`, conforme a documentação atual do Supabase para fluxo PKCE/SSR.
-
----
-
-## 15. Upload real — estado após auditoria
-
-Fluxo:
+Upload:
 
 ```text
 sessão validada
@@ -461,77 +352,43 @@ SHA-256 incremental
   ↓
 TUS / Storage privado
   ↓
-RPC valida objeto/caminho/hash
+RPC valida caminho/hash
   ↓
 deduplicação transacional
   ↓
 obra + versão
-  ↓
-estado recebido
 ```
 
-Configuração:
+TUS mantém retries da operação atual. Retomada entre reloads só voltará quando os IDs da operação forem persistentes, evitando associação de fingerprint antigo com UUID novo.
 
-- endpoint direto do Storage;
-- retries progressivos na operação;
-- chunks de 6 MB;
-- sem `x-upsert`;
-- SHA-256 em blocos;
-- tentativa de compensação/remover objeto se o registro falhar.
+Configurações externas ainda a confirmar no Supabase Dashboard:
 
-### Correção de auditoria — retomada entre reloads
-
-A versão anterior chamava `findPreviousUploads()` mesmo criando novos `obraId` e `versaoId` por submissão. Isso podia retomar um upload antigo em caminho com UUIDs anteriores e tentar registrar um caminho novo.
-
-No PR #7, a retomada implícita foi removida. TUS mantém retries na operação atual. Retomada entre reloads/tentativas só será reintroduzida quando os IDs da operação de upload forem persistidos explicitamente.
+- Site URL `https://cerebro-autoral.vercel.app`;
+- Redirect URLs de produção/preview quando necessário;
+- template de confirmação SSR com `/auth/confirm` + `token_hash`;
+- Leaked Password Protection, se o plano permitir.
 
 ---
 
-## 16. Pipeline Documental — estrutura implementada
+## 12. Pipeline Documental — modelo de dados concluído
 
-### Execução e idempotência (`0008`–`0009`)
+### Execução e idempotência
 
-`processamento.execucoes` registra versão da obra, pipeline, taxonomia, estado, etapa, progresso, timestamps e erro seguro.
+- `processamento.execucoes`;
+- `processamento.etapas_execucao`.
 
-Estados:
+Cada etapa poderá registrar chave de idempotência, ordem, tentativas, duração, estado e metadados operacionais.
 
-```text
-recebido
-validando
-extraindo
-normalizando
-estruturando
-segmentando
-sintetizando
-analisando
-classificando
-vetorizando
-relacionando
-validando_resultado
-finalizando
-concluido
-falhou
-cancelado
-```
-
-`processamento.etapas_execucao` possui chave de idempotência única, ordem, tentativas, duração e metadados operacionais.
-
-### Documento Processado e hierarquia (`0011`–`0012`)
-
-Criados:
+### Documento Processado e hierarquia
 
 - `processamento.documentos_processados`;
 - `processamento.secoes`;
 - `processamento.fragmentos`;
 - `processamento.sinteses`.
 
-A estrutura preserva hierarquia editorial e não reduz um livro a chunks planos. `fragmentos.vetor_textual` é gerado automaticamente de `conteudo_contextualizado` e indexado com GIN.
+A estrutura preserva obra → parte → capítulo → seção → fragmento. `fragmentos.vetor_textual` é gerado de `conteudo_contextualizado` e possui índice GIN.
 
-Somente um Documento Processado `ativo` por usuário/obra pode existir ao mesmo tempo.
-
-### Vetores e grafo intelectual (`0013`–`0014`)
-
-Criados:
+### Representação intelectual
 
 - `processamento.vetores`;
 - `processamento.elementos`;
@@ -546,32 +403,23 @@ HNSW
 vector_cosine_ops
 ```
 
-A dimensionalidade 1536 vem do Dicionário Mestre v1; qualquer mudança exige migration/versionamento explícito.
+Elementos possuem tipo controlado, importância/confiança 0–1, revisão e proveniência de modelo/prompt. Evidências só podem apontar para fragmentos do mesmo Documento Processado. Relações podem conectar elementos de documentos diferentes do mesmo usuário.
 
-Elementos possuem tipo controlado, importância 0–1, confiança 0–1, estado de revisão e referências ao modelo/prompt que os produziram. Evidências apontam para fragmentos concretos. Relações podem ligar elementos de documentos diferentes do mesmo usuário, formando o grafo intelectual previsto.
-
-### Proveniência e publicação atômica (`0015`)
-
-Duas garantias adicionais foram incorporadas:
-
-- Documento Processado `ativo` exige `publicado_em` preenchido;
-- uma `evidencia` só pode relacionar elemento e fragmento pertencentes ao **mesmo Documento Processado**.
-
-Isso impede proveniência cruzada acidental entre documentos do mesmo usuário, sem impedir relações intelectuais legítimas entre elementos de documentos diferentes.
+Um Documento Processado `ativo` exige `publicado_em` e existe no máximo um ativo por usuário/obra.
 
 ---
 
-## 17. OpenAI — estado e segurança
+## 13. OpenAI — estado e segurança
 
-A camada de IA ainda não está ativada operacionalmente.
+A IA ainda não está ativada operacionalmente.
 
-Variável permitida no servidor:
+Variável permitida:
 
 ```text
 OPENAI_API_KEY
 ```
 
-Uma chave foi enviada diretamente no chat durante desenvolvimento. Ela é tratada como **exposta** e não será usada no ambiente real. Antes de ativar IA, deve ser rotacionada no provedor e a nova chave configurada diretamente como secret do servidor/Vercel, sem voltar ao chat, GitHub ou README.
+A chave enviada anteriormente no chat é tratada como **exposta** e não será usada. Antes de ativar IA, deve ser rotacionada no provedor e a nova chave configurada diretamente no secret do servidor/Vercel, sem voltar ao chat ou GitHub.
 
 Configurações lógicas previstas:
 
@@ -586,110 +434,62 @@ MODELO_IA_EMBEDDING
 
 ---
 
-## 18. CI e reprodutibilidade
+## 14. CI e reprodutibilidade
 
-A auditoria encontrou e corrigiu:
-
-- CI em Node 22 enquanto Vercel podia escolher Node 24 → `engines.node = 22.x`;
-- ausência de lockfile → `package-lock.json` gerado por runner que passou lint/TypeScript/build e versionado;
-- instalação aberta no CI → `npm ci`;
-- Actions antigas → v7;
-- permissão temporária de escrita usada somente para bootstrap do lockfile → removida; workflow voltou a `contents: read`;
-- tentativa de ESLint 10 incompatível → pin compatível em 9.39.5.
-
-O CI final deve passar, no mesmo commit que será incorporado:
+Estado confirmado da Fase 2:
 
 ```text
+Node 22.x
+package-lock.json versionado
 npm ci
-npm run lint
-npm run typecheck
-npm run build
+lint verde
+TypeScript verde
+build verde
+contents: read
 ```
 
----
-
-## 19. Frontend e design
-
-Rotas principais:
-
-```text
-/
-/login
-/biblioteca
-/biblioteca/adicionar
-/cerebro-autoral
-/criar-reflexao
-/reflexoes
-/configuracoes
-/auth/confirm
-/auth/signout
-```
-
-`/biblioteca` usa `dynamic = 'force-dynamic'` porque contém dados autenticados dependentes da requisição.
-
-`docs/DESIGN_VISUAL.md` foi revisado e continua coerente com o produto: acervo pessoal, profundidade editorial, azul-marinho/azul de ação, ausência de métricas fictícias e visibilidade de autoria/proveniência.
+O CI final do PR #7 passou no mesmo head incorporado à `main`. Depois do merge, o Vercel também construiu o squash commit com sucesso.
 
 ---
 
-## 20. Resultado da auditoria completa
+## 15. Resultado da auditoria completa
 
-### Confirmado correto
+### Corrigido e incorporado à `main`
 
-- repositório canônico identificado;
-- Supabase correto e isolado do projeto anterior;
-- Vercel novo correto e ligado ao repo canônico;
-- produção `READY` e site respondendo;
-- proteção de rotas sem sessão funcionando;
-- nenhum cluster de erro de runtime encontrado;
-- schemas internos fechados;
-- Data API limitada a `aplicacao`;
-- RLS e policies coerentes;
-- RPCs com privilégios mínimos;
-- Storage privado e segregado por usuário;
-- constraints existentes validadas;
-- extensões necessárias instaladas;
-- migrations `0001`–`0016` registradas no Supabase e versionadas no GitHub;
-- FKs atualmente detectadas pelo advisor possuem índices adequados;
-- pacote de dependências possui lockfile reproduzível.
+- Vercel canônico confirmado;
+- documentação desatualizada corrigida;
+- migrations alinhadas ao histórico real do Supabase;
+- Pipeline/Taxonomia base ativados;
+- FKs sem índice corrigidas;
+- retomada TUS insegura removida;
+- deduplicação SHA-256 implementada;
+- proveniência de evidências endurecida;
+- publicação ativa endurecida;
+- Node/CI/Vercel alinhados;
+- lockfile e `npm ci` adicionados;
+- ESLint fixado em versão compatível;
+- Proxy e `.gitignore` endurecidos;
+- modelo de dados completo do Pipeline criado até `0016`;
+- Vercel revalidado após o merge sem erros de runtime.
 
-### Erros/inconsistências encontrados e corrigidos
+### Pendências externas / segurança
 
-- README dizia que Vercel não existia → corrigido;
-- `docs/ESTADO_ATUAL.md` estava na Fase 0 → corrigido;
-- timestamps dos arquivos de migration não batiam com o Supabase → corrigidos;
-- prefixo de migration duplicado → corrigido;
-- Pipeline/Taxonomia não tinham versões ativas → `0010`;
-- FKs sem índices → `0009`, `0012` e `0014`;
-- retomada TUS podia misturar caminhos/UUIDs → corrigida;
-- SHA-256 era armazenado, mas não havia deduplicação efetiva → `0016`;
-- evidência podia, em tese, cruzar documentos do mesmo usuário → `0015`;
-- estado `ativo` não exigia `publicado_em` → `0015`;
-- CI/Vercel podiam usar majors Node diferentes → Node 22.x fixado;
-- ausência de lockfile → corrigida;
-- `npm install` não determinístico no CI → `npm ci`;
-- ESLint 10 incompatível → pin compatível em 9.39.5;
-- rotas públicas do Proxy eram reconhecidas por prefixo amplo → endurecido;
-- `.gitignore` não bloqueava todo `.env*` → endurecido;
-- Documento Processado, hierarquia, vetores, elementos, evidências e grafo agora existem conforme o Dicionário.
-
-### Pendências externas / de segurança
-
-- repositório GitHub público: recomendado torná-lo privado;
-- ruleset/branch protection da `main`: precisa confirmação administrativa;
-- Site URL/Redirect URLs/template SSR do Supabase Auth: precisa confirmação no Dashboard;
-- **Leaked Password Protection**: habilitar no Supabase Auth se o plano permitir;
-- OpenAI: rotacionar a chave exposta antes de ativar IA.
+- tornar o repositório GitHub privado antes de conteúdo intelectual real;
+- configurar ruleset/branch protection da `main`;
+- confirmar Site URL/Redirect URLs/template SSR do Supabase Auth;
+- ativar Leaked Password Protection se o plano permitir;
+- rotacionar a chave OpenAI antes de ativar IA.
 
 ---
 
-## 21. Próxima etapa de construção
+## 16. Próxima etapa de construção
 
-A fundação de dados do Pipeline está pronta. O próximo bloco deixa de ser apenas schema e passa a ser **execução real do processamento documental**:
+A próxima etapa é **executar o Pipeline de verdade**, sem abrir schemas internos:
 
 ```text
 arquivo original privado
   ↓
-validação + recalculo de hash no servidor
+validação + recálculo do hash no servidor
   ↓
 extração de texto
   ↓
@@ -716,15 +516,13 @@ validação
 publicação atômica do Documento Processado
 ```
 
-Cada estágio deverá usar `processamento.etapas_execucao`, chave de idempotência, retries controlados, observabilidade e publicação candidata → ativa somente após validação.
+O backend utilizará RPCs server-only em `aplicacao`, concedidas apenas ao backend, mantendo `processamento` e demais schemas internos fora da Data API.
 
-Como `service_role` não recebe acesso direto aos schemas internos, o workflow deverá usar **RPCs server-only em `aplicacao`** para executar operações internas com privilégio mínimo.
-
-A ativação da IA só começará depois de a chave OpenAI ser rotacionada e armazenada diretamente no ambiente servidor.
+A ativação da IA só começará depois da rotação segura da chave e do registro versionado de modelos/prompts.
 
 ---
 
-## 22. Ordem de construção daqui para frente
+## 17. Ordem de construção daqui para frente
 
 | Etapa | Estado |
 |---|---|
@@ -733,8 +531,8 @@ A ativação da IA só começará depois de a chave OpenAI ser rotacionada e arm
 | Taxonomia — estrutura/versionamento | concluída |
 | Biblioteca/Storage/Auth/API | concluídos |
 | Vercel Production | concluído |
-| Pipeline — modelo de dados completo | **concluído no Supabase; PR #7 em validação** |
-| Pipeline — workflow real de processamento | próxima etapa |
+| Pipeline — modelo de dados | **concluído em `main` e produção** |
+| Pipeline — workflow real de processamento | **próxima etapa** |
 | Recuperação híbrida | pendente |
 | Cérebro Autoral | pendente |
 | Influências externas deliberadas | pendente |
@@ -744,7 +542,7 @@ A ativação da IA só começará depois de a chave OpenAI ser rotacionada e arm
 
 ---
 
-## 23. Histórico resumido
+## 18. Histórico resumido
 
 ### 16/09/2026 — Fundação
 
@@ -756,30 +554,26 @@ Next.js/React/TypeScript, CI inicial, `0001_fundacao`, schemas e extensões.
 
 ### 16/09/2026 — Biblioteca e Storage
 
-`0004_biblioteca`, `0005_indice_fk_biblioteca`, `0006_storage_biblioteca`, autoria separada de participação no Cérebro e originais privados; PRs #4 e #5.
+`0004`–`0006`, autoria separada de participação no Cérebro e originais privados; PRs #4 e #5.
 
 ### 16/09/2026 — Auth e upload real
 
-`0007_api_aplicacao_biblioteca`, `@supabase/ssr`, login/cadastro/logout, TUS, SHA-256, Biblioteca real e renderização dinâmica; PR #6.
+`0007`, Auth SSR, login/cadastro/logout, TUS, SHA-256 e Biblioteca real; PR #6.
 
-### 16/09/2026 — Vercel e auditoria
+### 16/09/2026 — Auditoria e Pipeline Documental
 
-Projeto `cerebro-autoral` confirmado, site verificado, GitHub/Supabase/Vercel auditados, migrations alinhadas e build tornado reproduzível.
-
-### 16/09/2026 — Pipeline Documental
-
-`0008`–`0016`: execução/idempotência, versões base, Documento Processado, hierarquia editorial, FTS, sínteses, vetores HNSW 1536, elementos, evidências, grafo intelectual, integração com Taxonomia, publicação/proveniência endurecidas e deduplicação real por hash.
+PR #7 incorporado: `0008`–`0016`, execução/idempotência, versões base, Documento Processado, hierarquia, FTS, sínteses, vetores HNSW 1536, elementos, evidências, grafo, integração com Taxonomia, publicação/proveniência endurecidas e deduplicação real por hash. Deploy Vercel pós-merge validado como READY.
 
 ---
 
-## 24. Regra permanente deste README
+## 19. Regra permanente deste README
 
 Este arquivo deve sempre permitir que uma pessoa não técnica descubra:
 
 - o que é o aplicativo;
 - o que já foi construído;
 - o que realmente está funcionando;
-- o que está somente em branch;
+- o que está somente em desenvolvimento;
 - quais migrations foram aplicadas;
 - quais testes passaram;
 - quais erros foram encontrados/corrigidos;
