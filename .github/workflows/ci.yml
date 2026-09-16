@@ -22,8 +22,14 @@ jobs:
           node-version: 22.x
           cache: npm
 
+      - name: npm 11.19.1
+        run: npm install --global npm@11.19.1
+
       - name: Instalar dependências reproduzíveis
         run: npm ci
+
+      - name: Auditar dependências de produção
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Lint
         run: npm run lint
@@ -33,3 +39,27 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  banco-local:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Supabase CLI 2.117.0
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+
+      - name: Subir Supabase local e aplicar migrations
+        run: supabase start
+
+      - name: Reconstruir banco a partir das migrations e seed
+        run: supabase db reset
+
+      - name: Verificar estado local
+        run: supabase status
+
+      - name: Encerrar Supabase local
+        if: always()
+        run: supabase stop --no-backup

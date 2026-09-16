@@ -1,0 +1,9 @@
+-- Seed local do Cérebro Autoral.
+--
+-- Intencionalmente sem dados pessoais ou conteúdo autoral.
+-- Os registros estruturais indispensáveis (por exemplo, versões-base de Pipeline
+-- e Taxonomia) pertencem às migrations para também existirem em ambientes remotos.
+--
+-- Uma fixture E2E determinística será adicionada aqui quando o fluxo completo de
+-- upload/processamento puder ser testado localmente sem confundir dados de teste
+-- com corpus autoral real.

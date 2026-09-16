@@ -200,9 +200,9 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 
 **Contexto:** a auditoria encontrou timestamps divergentes e prefixo duplicado nos arquivos.
 
-**Decisão:** renomear arquivos `0001`–`0009` para os números de versão já registrados no Supabase, sem alterar SQL nem reexecutar banco.
+**Decisão:** renomear arquivos para os números de versão já registrados no Supabase, sem alterar SQL nem reexecutar banco.
 
-**Consequência:** replay/CLI/auditoria passam a descrever a mesma sequência do banco real.
+**Consequência:** replay/CLI/auditoria passam a descrever a mesma sequência do banco real. A regra vale para migrations futuras; a auditoria da Fase 3 aplicou novamente essa regra à `0017`.
 
 ## ADR-026 — Pipeline 1.0 e Taxonomia 1.0 existem antes da primeira execução
 
@@ -218,13 +218,13 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 
 **Decisão:** `engines.node = 22.x` e CI em Node 22.x.
 
-**Consequência:** upgrade de major passa a ser decisão explícita e testada.
+**Consequência:** upgrade de major passa a ser decisão explícita e testada. A configuração externa da Vercel deve ser mantida em 22.x para cumprir esta decisão.
 
 ## ADR-028 — Dependências exigem lockfile e CI usa `npm ci`
 
 **Contexto:** sem lockfile, builds em datas diferentes podiam resolver árvores diferentes.
 
-**Decisão:** versionar `package-lock.json`, fixar `packageManager = npm@10.9.8` e usar `npm ci` no CI.
+**Decisão:** versionar `package-lock.json` e usar `npm ci` no CI. A versão original de `packageManager` foi npm 10.9.8; a atualização para npm 11.19.1 é formalizada no ADR-041.
 
 **Consequência:** builds são reproduzíveis e mudanças de dependência exigem commit.
 
@@ -323,3 +323,91 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 **Decisão:** depois da consolidação estrutural, criar os documentos dedicados preservando a terminologia e o conteúdo dos quatro documentos canônicos fornecidos pelo proprietário; complementos técnicos devem ser identificados como decisão/implementação, não como alteração silenciosa da fonte.
 
 **Consequência:** o GitHub passará a ser suficiente para reconstruir também o conhecimento arquitetural do projeto, não apenas o código e o banco.
+
+## ADR-041 — npm 11.19.1 substitui npm 10.9.8 para lockfile reproduzível
+
+**Contexto:** ao adicionar o Workflow SDK, npm 10.9.8 gerou em ambiente limpo um `package-lock.json` que o próprio `npm ci` recusava por resolução transitiva incompatível de `chokidar`/`readdirp`. A falha foi reproduzida no GitHub Actions.
+
+**Decisão:** fixar `packageManager = npm@11.19.1`, usar a mesma versão para geração/validação do lockfile e manter `npm ci` como instalação final do CI.
+
+**Consequência:** o ADR-028 continua válido quanto a lockfile/`npm ci`; apenas a versão do gerenciador é substituída formalmente. CI volta a `contents: read` depois do bootstrap.
+
+## ADR-042 — Pipeline usa Vercel Workflow SDK fixado e execução durável
+
+**Contexto:** processamento de livros é longo, precisa sobreviver a retries/falhas e não pode depender do tempo de uma única request HTTP.
+
+**Decisão:** usar `workflow@4.8.8`, `withWorkflow()`, funções `'use workflow'` e etapas `'use step'`. O endpoint interno `/.well-known/workflow/` é excluído do Proxy de sessão conforme a integração oficial. Execuções do Pipeline são iniciadas em `sfo1`, próxima ao Supabase `us-west-2`.
+
+**Consequência:** as etapas podem ser retomadas/repetidas pelo runtime durável sem abrir schemas internos nem manter uma request do usuário viva. Esta decisão é refinada pelos ADR-046 e ADR-047.
+
+## ADR-043 — Disparo do workflow tem reserva transacional recuperável no banco
+
+**Contexto:** a API documentada de `start()` expõe região, mas não foi adotada uma suposição não documentada de idempotency key. Duas requests concorrentes poderiam disparar workflows duplicados; uma falha entre criar a execução e disparar o workflow poderia deixá-la presa.
+
+**Decisão:** `0018` adiciona `workflow_reservado_em`, `workflow_iniciado_em` e `workflow_tentativas`. `backend_iniciar_processamento` usa advisory lock e reserva de cinco minutos; retorna `deve_iniciar_workflow`. Reserva abandonada pode ser recuperada; execução `falhou`/`cancelado` pode ser retomada de forma controlada.
+
+**Consequência:** concorrência e crash pré-disparo são tratados pelo nosso estado determinístico, sem depender de comportamento implícito do provedor.
+
+## ADR-044 — Erro transitório usa retries; falha terminal só após esgotamento
+
+**Contexto:** uma primeira versão marcava a obra como `falhou` dentro do `catch` de uma função `'use step'`. Como steps são automaticamente retryáveis, uma tentativa posterior poderia ter sucesso enquanto o banco já registrava falha terminal.
+
+**Decisão:** erros transitórios de Storage/rede são relançados para o mecanismo de retry. Divergência determinística de hash/tamanho falha imediatamente. Se os retries se esgotarem, o workflow registra `VALIDACAO_ORIGINAL_ESGOTOU_RETRIES` em etapa separada.
+
+**Consequência:** o estado persistido distingue falha temporária de terminal e não contradiz o runtime durável.
+
+## ADR-045 — Workflow permanece desligado até E2E positivo com documento real
+
+**Contexto:** o banco oficial ainda possui zero obras/execuções/Documentos Processados. CI, schema, permissões e Preview podem ser validados sem conteúdo real, mas isso não prova o caminho `Storage → workflow → hash servidor` com um usuário autenticado.
+
+**Decisão:** manter `PROCESSAMENTO_WORKFLOW_ATIVO=false` e não conectar o frontend ao endpoint de início até existir uma obra de teste e o fluxo `validar_arquivo` passar ponta a ponta.
+
+**Consequência:** a infraestrutura da Fase 3 pode ser incorporada sem expor uma funcionalidade parcialmente validada; ativação é um marco separado e auditável.
+
+## ADR-046 — Workflow 4.8.9 com overrides transitivos de segurança
+
+**Contexto:** o `npm audit` identificou vulnerabilidades altas em dependências transitivas da linha estável do Workflow SDK. `workflow@4.8.9` corrige outros problemas da biblioteca, mas ainda trazia faixas vulneráveis de `nanoid` e `undici` na árvore resolvida.
+
+**Decisão:** atualizar para `workflow@4.8.9` e fixar por `overrides` `nanoid@5.1.16` e `undici@7.29.0`. Não usar `npm audit fix --force` nem migrar automaticamente para Workflow 5 beta.
+
+**Consequência:** `npm ci`, `npm audit --omit=dev --audit-level=high`, lint, TypeScript e build passaram juntos. O audit permanece um portão obrigatório do CI.
+
+## ADR-047 — Não forçar região enquanto o SDK estável não aceitar `region`
+
+**Contexto:** exemplos atuais da documentação do Workflow mostram opção `region` em `start()`, mas a assinatura TypeScript do Workflow 4.8.x instalado rejeita esse campo. O Preview Vercel falhou e expôs a divergência entre documentação mais nova e API da linha estável escolhida.
+
+**Decisão:** remover `region` de `start()` enquanto o projeto permanecer em Workflow 4.8.x. Não adotar versão prerelease apenas para obter esse parâmetro.
+
+**Consequência:** código e SDK instalado voltam a ser coerentes; uma futura mudança de versão poderá reavaliar colocação regional em PR próprio.
+
+## ADR-048 — Supabase local é parte do contrato reproduzível do repositório
+
+**Contexto:** migrations existiam, mas o repositório não continha `supabase/config.toml` nem seed local, portanto não havia uma definição completa de ambiente para `supabase start/db reset`.
+
+**Decisão:** versionar `supabase/config.toml` sem segredos e `supabase/seed.sql` sem dados pessoais. O CI usa Supabase CLI fixado e reconstrói o banco do zero.
+
+**Consequência:** o histórico de migrations deixa de ser apenas documentação e passa a ser provado automaticamente contra um ambiente limpo.
+
+## ADR-049 — Transições de workflow são monotônicas e bloqueadas no banco
+
+**Contexto:** retries/replays atrasados poderiam concluir ou falhar uma etapa depois que a execução já tivesse avançado, regressando o estado global.
+
+**Decisão:** `0019` usa `FOR UPDATE` nas transições críticas; início/conclusão/falha só modificam o estado quando a etapa recebida é a etapa atual e a execução não é terminal. Percentual usa `greatest()` para não regredir.
+
+**Consequência:** a máquina de estados permanece coerente mesmo sob retries, chamadas duplicadas e concorrência.
+
+## ADR-050 — OpenAI rotacionada, server-only e stateless por padrão
+
+**Contexto:** a chave inicialmente compartilhada foi exposta e posteriormente rotacionada. O proprietário confirmou que a chave nova foi configurada diretamente na Vercel. A Responses API armazena resposta por padrão quando `store` é omitido/verdadeiro.
+
+**Decisão:** manter `OPENAI_API_KEY` somente no servidor, nunca no Git/browser; para conteúdo intelectual privado usar `store: false`; usar Structured Outputs/JSON Schema e validação Zod antes de persistência; centralizar modelos em `MODELO_IA_*`.
+
+**Consequência:** a credencial não bloqueia mais a implementação, mas IA só será ativada quando o Pipeline chegar às etapas cognitivas apropriadas e houver auditoria/proveniência operacional.
+
+## ADR-051 — `main` deve ganhar Ruleset antes de corpus intelectual real
+
+**Contexto:** o repositório canônico ainda está público e a API de Rulesets retorna lista vazia. A documentação atual do GitHub permite exigir PR, status checks e bloquear force push.
+
+**Decisão:** antes de conteúdo intelectual real, tornar o repositório privado quando operacionalmente viável e criar Ruleset para `main` exigindo os jobs de CI. Avaliar CodeQL default setup conforme disponibilidade da conta.
+
+**Consequência:** o processo que hoje é seguido disciplinarmente passa a ser também imposto pela plataforma.
