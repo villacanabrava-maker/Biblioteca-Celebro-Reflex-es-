@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSHA256 } from 'hash-wasm'
 import { Upload } from 'tus-js-client'
@@ -124,7 +124,6 @@ async function enviarArquivoResumivel({
 
 export function FormularioUploadBiblioteca() {
   const router = useRouter()
-  const supabase = useMemo(() => createClient(), [])
 
   const [arquivo, setArquivo] = useState<File | null>(null)
   const [titulo, setTitulo] = useState('')
@@ -156,6 +155,7 @@ export function FormularioUploadBiblioteca() {
       return
     }
 
+    const supabase = createClient()
     const obraId = crypto.randomUUID()
     const versaoId = crypto.randomUUID()
     const extensao = extensaoDoArquivo(arquivo.name)
