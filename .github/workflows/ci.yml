@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validar:
@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Node.js 22
         uses: actions/setup-node@v7
@@ -25,8 +27,8 @@ jobs:
       - name: npm 11.19.1
         run: npm install --global npm@11.19.1
 
-      - name: Instalar dependências reproduzíveis
-        run: npm ci
+      - name: Sincronizar dependências e lockfile
+        run: npm install
 
       - name: Auditar dependências de produção
         run: npm audit --omit=dev --audit-level=high
@@ -39,3 +41,14 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Versionar lockfile gerado pelo runner validado
+        if: github.event_name == 'pull_request'
+        run: |
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "build: sincronizar lockfile do Workflow 4.8.9"
+            git push origin HEAD:${GITHUB_HEAD_REF}
+          fi
