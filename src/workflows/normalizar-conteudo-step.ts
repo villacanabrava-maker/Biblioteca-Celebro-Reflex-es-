@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto'
 import { LIMITES_EXTRACAO } from '@/dominios/processamento/extrair-conteudo'
-import { normalizarArtefatoExtraido } from '@/dominios/processamento/normalizar-conteudo'
+import {
+  normalizarArtefatoExtraido,
+  validarArtefatoNormalizado,
+} from '@/dominios/processamento/normalizar-conteudo'
 import { createBackendClient } from '@/infraestrutura/supabase/backend'
 
 export type ResultadoNormalizacaoStep = {
@@ -57,7 +60,10 @@ async function obterContexto(execucaoId: string) {
   return contexto
 }
 
-async function obterArtefato(execucaoId: string, tipo: 'conteudo_extraido' | 'conteudo_normalizado') {
+async function obterArtefato(
+  execucaoId: string,
+  tipo: 'conteudo_extraido' | 'conteudo_normalizado'
+) {
   const backend = createBackendClient()
   const { data, error } = await backend
     .schema('aplicacao')
@@ -238,24 +244,13 @@ export async function normalizarConteudoStep(
   if (etapaError) throw etapaError
 
   const etapa = Array.isArray(etapaData) ? etapaData[0] : null
-  const artefatoNormalizadoExistente = await obterArtefato(execucaoId, 'conteudo_normalizado')
+  const artefatoNormalizadoExistente = await obterArtefato(
+    execucaoId,
+    'conteudo_normalizado'
+  )
 
-  if (artefatoNormalizadoExistente) {
-    const verificacao = await baixarArtefatoVerificado(artefatoNormalizadoExistente)
-    if (!verificacao.ok) {
-      await registrarFalhaDeterministica(
-        execucaoId,
-        'ARTEFATO_NORMALIZADO_INTEGRIDADE_DIVERGENTE',
-        'O artefato normalizado registrado não corresponde aos bytes armazenados.',
-        verificacao.detalhes
-      )
-      return { ok: false, execucaoId, motivo: verificacao.motivo }
-    }
-
-    if (etapa?.deve_executar !== false) {
-      await concluirNormalizacao(execucaoId, artefatoNormalizadoExistente, true)
-    }
-
+  // Replay de um workflow que já avançou não refaz I/O de uma etapa concluída.
+  if (artefatoNormalizadoExistente && etapa?.deve_executar === false) {
     return {
       ok: true,
       execucaoId,
@@ -267,7 +262,7 @@ export async function normalizarConteudoStep(
     }
   }
 
-  if (etapa?.deve_executar === false) {
+  if (!artefatoNormalizadoExistente && etapa?.deve_executar === false) {
     throw new Error('Etapa de normalização concluída sem artefato normalizado registrado.')
   }
 
@@ -283,19 +278,67 @@ export async function normalizarConteudoStep(
     return { ok: false, execucaoId, motivo: 'artefato_extraido_ausente' }
   }
 
-  const download = await baixarArtefatoVerificado(artefatoExtraido)
-  if (!download.ok) {
+  const downloadExtraido = await baixarArtefatoVerificado(artefatoExtraido)
+  if (!downloadExtraido.ok) {
     await registrarFalhaDeterministica(
       execucaoId,
       'ARTEFATO_EXTRAIDO_INTEGRIDADE_DIVERGENTE',
       'O artefato extraído registrado não corresponde aos bytes armazenados.',
-      download.detalhes
+      downloadExtraido.detalhes
     )
-    return { ok: false, execucaoId, motivo: download.motivo }
+    return { ok: false, execucaoId, motivo: downloadExtraido.motivo }
+  }
+
+  if (artefatoNormalizadoExistente) {
+    const downloadNormalizado = await baixarArtefatoVerificado(
+      artefatoNormalizadoExistente
+    )
+
+    if (!downloadNormalizado.ok) {
+      await registrarFalhaDeterministica(
+        execucaoId,
+        'ARTEFATO_NORMALIZADO_INTEGRIDADE_DIVERGENTE',
+        'O artefato normalizado registrado não corresponde aos bytes armazenados.',
+        downloadNormalizado.detalhes
+      )
+      return { ok: false, execucaoId, motivo: downloadNormalizado.motivo }
+    }
+
+    const validacaoNormalizado = validarArtefatoNormalizado({
+      bytes: downloadNormalizado.dados,
+      hashOriginalEsperado: contexto.hash_sha256,
+      hashArtefatoExtraidoEsperado: artefatoExtraido.hash_sha256,
+    })
+
+    if (!validacaoNormalizado.ok) {
+      await registrarFalhaDeterministica(
+        execucaoId,
+        validacaoNormalizado.codigo,
+        validacaoNormalizado.motivo,
+        validacaoNormalizado.detalhes ?? {}
+      )
+      return {
+        ok: false,
+        execucaoId,
+        motivo: validacaoNormalizado.codigo.toLowerCase(),
+      }
+    }
+
+    await concluirNormalizacao(execucaoId, artefatoNormalizadoExistente, true)
+
+    return {
+      ok: true,
+      execucaoId,
+      artefatoId: artefatoNormalizadoExistente.artefato_id,
+      caminhoArtefato: artefatoNormalizadoExistente.caminho_arquivo,
+      hashArtefato: artefatoNormalizadoExistente.hash_sha256,
+      tamanhoArtefato: Number(artefatoNormalizadoExistente.tamanho_bytes),
+      reutilizada: true,
+    }
   }
 
   const normalizacao = normalizarArtefatoExtraido({
-    bytes: download.dados,
+    bytes: downloadExtraido.dados,
     hashArtefatoExtraido: artefatoExtraido.hash_sha256,
     hashOriginalEsperado: contexto.hash_sha256,
   })
@@ -310,7 +353,10 @@ export async function normalizarConteudoStep(
     return { ok: false, execucaoId, motivo: normalizacao.codigo.toLowerCase() }
   }
 
-  const bytesNormalizados = new TextEncoder().encode(JSON.stringify(normalizacao.artefato))
+  const bytesNormalizados = new TextEncoder().encode(
+    JSON.stringify(normalizacao.artefato)
+  )
+
   if (bytesNormalizados.byteLength > LIMITES_EXTRACAO.artefatoJsonBytes) {
     await registrarFalhaDeterministica(
       execucaoId,
@@ -324,7 +370,9 @@ export async function normalizarConteudoStep(
     return { ok: false, execucaoId, motivo: 'artefato_normalizado_excede_limite' }
   }
 
-  const hashNormalizado = createHash('sha256').update(bytesNormalizados).digest('hex')
+  const hashNormalizado = createHash('sha256')
+    .update(bytesNormalizados)
+    .digest('hex')
   const caminhoNormalizado = `${contexto.usuario_id}/${execucaoId}/conteudo_normalizado.json`
   const tipoMime = 'application/json; charset=utf-8'
 
