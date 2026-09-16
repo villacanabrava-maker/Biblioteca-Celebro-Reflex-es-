@@ -96,7 +96,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    await start(processarObraWorkflow, [execucao.execucao_id], { region: 'sfo1' })
+    // Workflow SDK 4.8.x não aceita `region` em start(). A região não é
+    // forçada nesta chamada enquanto permanecermos na linha estável 4.8.x.
+    await start(processarObraWorkflow, [execucao.execucao_id])
   } catch {
     try {
       await backend.schema('aplicacao').rpc('backend_falhar_execucao', {
