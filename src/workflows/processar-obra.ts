@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { identificarFormatoDocumento } from '@/dominios/processamento/identificar-formato'
 import { createBackendClient } from '@/infraestrutura/supabase/backend'
 
 type ContextoExecucao = {
@@ -26,18 +27,100 @@ type ResultadoValidacao = {
   reutilizada?: boolean
 }
 
+type ResultadoFormato = {
+  ok: boolean
+  execucaoId: string
+  formato?: 'pdf' | 'texto' | 'markdown'
+  extensao?: string
+  motivo?: string
+}
+
+type ResultadoProcessamentoInicial = {
+  ok: boolean
+  execucaoId: string
+  validacao: ResultadoValidacao
+  identificacaoFormato?: ResultadoFormato
+}
+
 export async function processarObraWorkflow(
   execucaoId: string
-): Promise<ResultadoValidacao> {
+): Promise<ResultadoProcessamentoInicial> {
   'use workflow'
 
+  let validacao: ResultadoValidacao
+
   try {
-    return await validarOriginal(execucaoId)
+    validacao = await validarOriginal(execucaoId)
   } catch (error) {
     const tipoErro = error instanceof Error ? error.name : 'erro_desconhecido'
-    await registrarFalhaFinalValidacao(execucaoId, tipoErro)
+    await registrarFalhaFinalEtapa(
+      execucaoId,
+      'validar_arquivo',
+      'VALIDACAO_ORIGINAL_ESGOTOU_RETRIES',
+      'A validação do arquivo original falhou após as tentativas automáticas do workflow.',
+      tipoErro
+    )
     throw error
   }
+
+  if (!validacao.ok) {
+    return { ok: false, execucaoId, validacao }
+  }
+
+  let identificacaoFormato: ResultadoFormato
+
+  try {
+    identificacaoFormato = await identificarFormato(execucaoId)
+  } catch (error) {
+    const tipoErro = error instanceof Error ? error.name : 'erro_desconhecido'
+    await registrarFalhaFinalEtapa(
+      execucaoId,
+      'identificar_formato',
+      'IDENTIFICACAO_FORMATO_ESGOTOU_RETRIES',
+      'A identificação do formato falhou após as tentativas automáticas do workflow.',
+      tipoErro
+    )
+    throw error
+  }
+
+  return {
+    ok: identificacaoFormato.ok,
+    execucaoId,
+    validacao,
+    identificacaoFormato,
+  }
+}
+
+async function obterContexto(execucaoId: string) {
+  const backend = createBackendClient()
+  const { data, error } = await backend
+    .schema('aplicacao')
+    .rpc('backend_obter_execucao', { p_execucao_id: execucaoId })
+
+  if (error) throw error
+
+  const contexto = (Array.isArray(data) ? data[0] : null) as
+    | ContextoExecucao
+    | undefined
+
+  if (!contexto) {
+    throw new Error('Execução de processamento não encontrada.')
+  }
+
+  return { backend, contexto }
+}
+
+async function criarUrlOriginal(contexto: ContextoExecucao) {
+  const backend = createBackendClient()
+  const { data, error } = await backend.storage
+    .from('originais-biblioteca')
+    .createSignedUrl(contexto.caminho_arquivo, 300)
+
+  if (error || !data?.signedUrl) {
+    throw new Error('Não foi possível gerar URL temporária do original.')
+  }
+
+  return data.signedUrl
 }
 
 async function validarOriginal(execucaoId: string): Promise<ResultadoValidacao> {
@@ -61,29 +144,10 @@ async function validarOriginal(execucaoId: string): Promise<ResultadoValidacao> 
     return { ok: true, execucaoId, reutilizada: true }
   }
 
-  const { data: contextoData, error: contextoError } = await backend
-    .schema('aplicacao')
-    .rpc('backend_obter_execucao', { p_execucao_id: execucaoId })
+  const { contexto } = await obterContexto(execucaoId)
+  const signedUrl = await criarUrlOriginal(contexto)
 
-  if (contextoError) throw contextoError
-
-  const contexto = (Array.isArray(contextoData) ? contextoData[0] : null) as
-    | ContextoExecucao
-    | undefined
-
-  if (!contexto) {
-    throw new Error('Execução de processamento não encontrada.')
-  }
-
-  const { data: urlAssinada, error: urlError } = await backend.storage
-    .from('originais-biblioteca')
-    .createSignedUrl(contexto.caminho_arquivo, 300)
-
-  if (urlError || !urlAssinada?.signedUrl) {
-    throw new Error('Não foi possível gerar URL temporária do original.')
-  }
-
-  const resposta = await fetch(urlAssinada.signedUrl, {
+  const resposta = await fetch(signedUrl, {
     cache: 'no-store',
     signal: AbortSignal.timeout(120_000),
   })
@@ -161,8 +225,145 @@ async function validarOriginal(execucaoId: string): Promise<ResultadoValidacao> 
   }
 }
 
-async function registrarFalhaFinalValidacao(
+async function baixarAmostraOriginal(
+  signedUrl: string,
+  limiteBytes = 64 * 1024
+): Promise<Uint8Array> {
+  const resposta = await fetch(signedUrl, {
+    cache: 'no-store',
+    headers: { Range: `bytes=0-${limiteBytes - 1}` },
+    signal: AbortSignal.timeout(30_000),
+  })
+
+  if (!resposta.ok || !resposta.body) {
+    throw new Error(`Falha ao ler amostra do original privado (${resposta.status}).`)
+  }
+
+  const leitor = resposta.body.getReader()
+  const partes: Uint8Array[] = []
+  let total = 0
+
+  while (total < limiteBytes) {
+    const { done, value } = await leitor.read()
+    if (done) break
+
+    const restante = limiteBytes - total
+    const parte = value.byteLength > restante ? value.slice(0, restante) : value
+    partes.push(parte)
+    total += parte.byteLength
+
+    if (total >= limiteBytes) {
+      await leitor.cancel()
+      break
+    }
+  }
+
+  const amostra = new Uint8Array(total)
+  let offset = 0
+  for (const parte of partes) {
+    amostra.set(parte, offset)
+    offset += parte.byteLength
+  }
+
+  return amostra
+}
+
+async function identificarFormato(execucaoId: string): Promise<ResultadoFormato> {
+  'use step'
+
+  const backend = createBackendClient()
+  const { data: etapaData, error: etapaError } = await backend
+    .schema('aplicacao')
+    .rpc('backend_iniciar_etapa', {
+      p_execucao_id: execucaoId,
+      p_nome_etapa: 'identificar_formato',
+      p_estado_execucao: 'validando',
+      p_percentual: 6,
+    })
+
+  if (etapaError) throw etapaError
+
+  const etapa = Array.isArray(etapaData) ? etapaData[0] : null
+  const devePersistir = etapa?.deve_executar !== false
+
+  const { contexto } = await obterContexto(execucaoId)
+  const signedUrl = await criarUrlOriginal(contexto)
+  const amostra = await baixarAmostraOriginal(signedUrl)
+  const identificacao = identificarFormatoDocumento({
+    nomeArquivo: contexto.nome_arquivo,
+    mimeRegistrado: contexto.tipo_mime,
+    amostra,
+  })
+
+  if (!identificacao.suportado) {
+    if (devePersistir) {
+      const codigo =
+        identificacao.motivo === 'extensao_nao_suportada' ||
+        identificacao.motivo === 'docx_ainda_nao_suportado'
+          ? 'FORMATO_NAO_SUPORTADO'
+          : 'FORMATO_INCONSISTENTE'
+
+      const { error: falhaError } = await backend
+        .schema('aplicacao')
+        .rpc('backend_falhar_execucao', {
+          p_execucao_id: execucaoId,
+          p_nome_etapa: 'identificar_formato',
+          p_codigo_erro: codigo,
+          p_mensagem_erro:
+            'O formato do arquivo não é suportado ou não corresponde à extensão/MIME registrados.',
+          p_detalhes: {
+            motivo: identificacao.motivo,
+            extensao: identificacao.extensao,
+            mime_registrado: identificacao.mimeRegistrado,
+            bytes_amostrados: amostra.byteLength,
+          },
+        })
+
+      if (falhaError) throw falhaError
+    }
+
+    return {
+      ok: false,
+      execucaoId,
+      motivo: identificacao.motivo,
+      extensao: identificacao.extensao ?? undefined,
+    }
+  }
+
+  if (devePersistir) {
+    const { error: concluirError } = await backend
+      .schema('aplicacao')
+      .rpc('backend_concluir_etapa', {
+        p_execucao_id: execucaoId,
+        p_nome_etapa: 'identificar_formato',
+        p_percentual: 8,
+        p_proximo_estado: 'extraindo',
+        p_proxima_etapa: 'extrair_conteudo',
+        p_detalhes: {
+          formato: identificacao.formato,
+          extensao: identificacao.extensao,
+          mime_registrado: identificacao.mimeRegistrado,
+          assinatura: identificacao.assinatura,
+          bytes_amostrados: amostra.byteLength,
+        },
+      })
+
+    if (concluirError) throw concluirError
+  }
+
+  return {
+    ok: true,
+    execucaoId,
+    formato: identificacao.formato,
+    extensao: identificacao.extensao,
+  }
+}
+
+async function registrarFalhaFinalEtapa(
   execucaoId: string,
+  nomeEtapa: string,
+  codigoErro: string,
+  mensagemErro: string,
   tipoErro: string
 ) {
   'use step'
@@ -172,10 +373,9 @@ async function registrarFalhaFinalValidacao(
     .schema('aplicacao')
     .rpc('backend_falhar_execucao', {
       p_execucao_id: execucaoId,
-      p_nome_etapa: 'validar_arquivo',
-      p_codigo_erro: 'VALIDACAO_ORIGINAL_ESGOTOU_RETRIES',
-      p_mensagem_erro:
-        'A validação do arquivo original falhou após as tentativas automáticas do workflow.',
+      p_nome_etapa: nomeEtapa,
+      p_codigo_erro: codigoErro,
+      p_mensagem_erro: mensagemErro,
       p_detalhes: { tipo_erro: tipoErro },
     })
 
