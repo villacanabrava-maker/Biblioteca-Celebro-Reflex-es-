@@ -13,6 +13,7 @@ const mensagensErro: Record<string, string> = {
   dados: 'Informe um e-mail válido e uma senha com pelo menos 8 caracteres.',
   credenciais: 'Não foi possível entrar. Verifique o e-mail e a senha.',
   cadastro: 'Não foi possível criar a conta com esses dados.',
+  confirmacao: 'Não foi possível confirmar esta conta. Solicite um novo e-mail de confirmação.',
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
