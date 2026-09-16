@@ -39,3 +39,27 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  banco-local:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Supabase CLI 2.117.0
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+
+      - name: Subir Supabase local e aplicar migrations
+        run: supabase start
+
+      - name: Reconstruir banco a partir das migrations e seed
+        run: supabase db reset
+
+      - name: Verificar estado local
+        run: supabase status
+
+      - name: Encerrar Supabase local
+        if: always()
+        run: supabase stop --no-backup
