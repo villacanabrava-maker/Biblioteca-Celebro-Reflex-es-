@@ -1,51 +1,102 @@
 # Estado Atual do Projeto
 
+Atualizado em **16/09/2026** após auditoria cruzada de documentos canônicos, GitHub, Supabase e Vercel.
+
 ## Infraestrutura oficial
 
 - GitHub: `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`
 - Branch principal: `main`
-- Branch de trabalho atual: `feature/fundacao`
-- Supabase: projeto oficial `Biblioteca-Celebro-Reflex-es-`, ref `xzkzdaxxmizcgfkjgzoq`
-- Supabase: conector administrativo confirmado e projeto `ACTIVE_HEALTHY`
-- Supabase: banco de aplicação ainda limpo, sem migrations próprias e sem branches de desenvolvimento
-- Vercel: conector autenticado no time `Naninne`
-- Vercel: ainda não existe projeto ligado ao repositório `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`
+- Branch de trabalho atual: `feature/processamento`
+- Supabase: `xzkzdaxxmizcgfkjgzoq`
+- Vercel: projeto `cerebro-autoral`
+- Produção: `https://cerebro-autoral.vercel.app`
+
+O projeto Vercel está ligado exatamente ao repositório canônico e o último deploy de produção inspecionado está `READY`. A página de login responde HTTP 200 e uma rota protegida (`/biblioteca`) redireciona corretamente para login quando não existe sessão. Não foram encontrados clusters de erro de runtime no Vercel nos últimos 7 dias.
 
 ## Fase atual
 
-FASE 0 — Fundação técnica.
+**Pipeline Documental — fundação operacional e preparação do Documento Processado.**
 
-## Concluído
+A Biblioteca, Storage, autenticação SSR, API segura e deploy já existem. O trabalho atual prepara execução idempotente/versionada do processamento e, em seguida, a representação hierárquica dos documentos.
 
-- repositório oficial confirmado;
-- acesso administrativo pelo conector GitHub confirmado;
-- conector Supabase confirmado e projeto oficial inventariado;
-- estado inicial do banco, extensions, migrations e advisors do Supabase inventariados;
-- conector Vercel confirmado e time oficial inventariado;
-- fundação Next.js + React + TypeScript iniciada;
-- ESLint configurado em flat config;
-- variáveis de ambiente documentadas sem segredos;
-- CI inicial com lint, TypeScript e build;
-- página inicial mínima criada.
+## Concluído na `main`
 
-## Observações de infraestrutura
+- Next.js + React + TypeScript;
+- sistema visual inicial;
+- schemas canônicos;
+- schema `sistema`;
+- estrutura da Taxonomia Mestre;
+- Biblioteca (`obras` + `versoes_obras`);
+- Storage privado `originais-biblioteca`;
+- fronteira da Data API em `aplicacao`;
+- Auth SSR com `@supabase/ssr` e `getClaims()`;
+- login, cadastro, confirmação SSR e logout;
+- upload TUS + SHA-256 incremental;
+- Biblioteca lendo dados reais;
+- CI com lint, TypeScript e build;
+- PRs #1 a #6 incorporados.
 
-- O Supabase oficial está saudável e ainda não possui tabelas de aplicação no schema `public`.
-- Não existem migrations de aplicação registradas no Supabase oficial.
-- Não existem branches de desenvolvimento do Supabase neste momento.
-- A extensão `vector` está disponível no servidor, mas ainda não foi instalada; a ativação será feita por migration versionada quando a arquitetura de dados chegar à etapa correspondente.
-- Os advisors de segurança e performance do Supabase não reportaram alertas no estado atual.
-- Os projetos Vercel já existentes pertencem a projetos/repositórios anteriores e não devem ser reutilizados automaticamente neste novo sistema.
+## Aplicado no Supabase e em `feature/processamento`
 
-## Próximos passos
+- `0008_processamento_execucoes` — `processamento.execucoes` e `processamento.etapas_execucao`;
+- `0009_indice_fk_etapas_execucao` — índice da FK composta detectado pelo advisor;
+- `0010_seeds_versoes_base` — ativa `Pipeline 1.0` e `Taxonomia 1.0`.
 
-1. validar o Pull Request da fundação;
-2. preparar a estrutura `supabase/` e migrations versionadas no GitHub;
-3. criar/importar o novo projeto Vercel a partir do repositório oficial;
-4. configurar variáveis de ambiente do novo projeto Vercel sem expor segredos no repositório;
-5. revisar e formalizar o Dicionário Mestre v1.0;
-6. escrever e testar a migration `0001_fundacao` somente após essas validações.
+## Auditoria de segurança do Supabase
 
-## Regra de segurança
+Confirmado:
 
-Nenhuma chave administrativa, segredo de produção ou credencial privada deve ser commitida no GitHub. O repositório contém apenas nomes e exemplos de variáveis. Credenciais devem permanecer nos mecanismos seguros do Supabase, Vercel e ambientes do servidor.
+- schemas internos sem `USAGE` para `anon`/`authenticated`;
+- `authenticated` recebe `USAGE` apenas em `aplicacao`;
+- Data API (`authenticator`) limitada a `public, graphql_public, aplicacao`;
+- RLS ativo nas tabelas pessoais implementadas;
+- policies por `auth.uid()` coerentes;
+- Storage privado e segregado pelo primeiro segmento do caminho;
+- RPCs públicas com `SECURITY DEFINER`, `search_path = ''` e grants explícitos;
+- nenhuma constraint pendente `NOT VALID`;
+- advisor de segurança sem alertas após as últimas migrations.
+
+## Correções realizadas nesta auditoria
+
+1. Os nomes/timestamps dos arquivos de migrations no GitHub foram alinhados às versões realmente registradas no Supabase. Havia timestamps divergentes e um prefixo duplicado.
+2. Foram criadas as versões-base ativas `Pipeline 1.0` e `Taxonomia 1.0`, necessárias para iniciar execuções documentais com proveniência.
+3. O upload TUS deixou de retomar automaticamente fingerprints antigos enquanto obra/versão recebem novos UUIDs a cada tentativa. Isso evita registro em caminho diferente do objeto efetivamente enviado.
+4. Node foi fixado em `22.x`, eliminando divergência entre CI e Vercel.
+5. GitHub Actions está sendo atualizado para `checkout@v7` / `setup-node@v7`.
+6. ESLint foi fixado em versão explícita em vez de `latest`.
+7. Está em andamento a geração/commit de `package-lock.json` para trocar CI de `npm install` para `npm ci`.
+8. README foi atualizado para refletir o Vercel já existente e o estado real do Pipeline.
+
+## Pontos externos ainda pendentes
+
+### GitHub
+
+O repositório está atualmente **público**. Nenhum segredo conhecido foi encontrado nas buscas realizadas, mas a arquitetura/documentação do produto também fica pública. A recomendação de segurança é torná-lo privado antes de armazenar conteúdo intelectual real de produção.
+
+A API acessível mostra zero rulesets. A proteção administrativa da `main` não pôde ser lida/alterada pelo conector atual e precisa ser confirmada na configuração do GitHub.
+
+### Supabase Auth
+
+O conector atual não expõe Site URL/Redirect URLs/templates de e-mail. Deve ser confirmado no Dashboard que o domínio oficial é `https://cerebro-autoral.vercel.app` e que o template de confirmação SSR usa `/auth/confirm` com `token_hash`.
+
+### OpenAI
+
+A chave enviada anteriormente no chat é tratada como exposta e não será usada. Antes de ativar IA, deve ser rotacionada e a nova chave configurada diretamente como secret do servidor/Vercel.
+
+## Próximo passo técnico
+
+Depois de o CI desta auditoria ficar reproduzível e verde:
+
+1. criar `processamento.documentos_processados`;
+2. criar `processamento.secoes` hierárquicas;
+3. criar `processamento.fragmentos` contextualizados + FTS;
+4. criar `processamento.sinteses` multinível;
+5. testar tudo em transação reversível;
+6. aplicar no Supabase oficial;
+7. rodar advisors;
+8. atualizar README/decisões;
+9. seguir para vetores, elementos, evidências e relações.
+
+## Regra permanente
+
+Nenhuma chave administrativa, segredo de produção ou credencial privada deve ser commitida. Nenhuma migration aplicada deve ser reescrita para esconder correções. Toda mudança de estado real deve aparecer no README e neste documento.
