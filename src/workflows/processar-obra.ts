@@ -34,7 +34,8 @@ export async function processarObraWorkflow(
   try {
     return await validarOriginal(execucaoId)
   } catch (error) {
-    await registrarFalhaFinalValidacao(execucaoId, error)
+    const tipoErro = error instanceof Error ? error.name : 'erro_desconhecido'
+    await registrarFalhaFinalValidacao(execucaoId, tipoErro)
     throw error
   }
 }
@@ -160,7 +161,10 @@ async function validarOriginal(execucaoId: string): Promise<ResultadoValidacao> 
   }
 }
 
-async function registrarFalhaFinalValidacao(execucaoId: string, error: unknown) {
+async function registrarFalhaFinalValidacao(
+  execucaoId: string,
+  tipoErro: string
+) {
   'use step'
 
   const backend = createBackendClient()
@@ -172,9 +176,7 @@ async function registrarFalhaFinalValidacao(execucaoId: string, error: unknown) 
       p_codigo_erro: 'VALIDACAO_ORIGINAL_ESGOTOU_RETRIES',
       p_mensagem_erro:
         'A validação do arquivo original falhou após as tentativas automáticas do workflow.',
-      p_detalhes: {
-        tipo_erro: error instanceof Error ? error.name : 'erro_desconhecido',
-      },
+      p_detalhes: { tipo_erro: tipoErro },
     })
 
   if (falhaError) throw falhaError
