@@ -67,7 +67,11 @@ function pareceTextoUtf8(amostra: Uint8Array) {
   if (amostra.includes(0)) return false
 
   try {
-    const texto = new TextDecoder('utf-8', { fatal: true }).decode(amostra)
+    // A amostra pode terminar no meio de um caractere multibyte. `stream: true`
+    // mantém esse sufixo incompleto pendente sem ocultar sequências inválidas no meio.
+    const texto = new TextDecoder('utf-8', { fatal: true }).decode(amostra, {
+      stream: true,
+    })
     if (!texto) return false
 
     let controles = 0
