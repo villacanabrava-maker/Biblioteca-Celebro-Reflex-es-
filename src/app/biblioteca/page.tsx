@@ -2,6 +2,10 @@ import Link from 'next/link'
 import { AppShell } from '@/componentes/app-shell'
 import { createClient } from '@/infraestrutura/supabase/server'
 
+// A Biblioteca é conteúdo pessoal autenticado e depende de cookies da requisição.
+// Ela nunca deve ser pré-renderizada estaticamente durante o build.
+export const dynamic = 'force-dynamic'
+
 type ObraBiblioteca = {
   id: string
   codigo: string
