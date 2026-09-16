@@ -91,26 +91,25 @@ export async function POST(request: Request) {
       codigo: execucao.execucao_codigo,
       estado: execucao.estado,
       criada: Boolean(execucao.criada),
-      workflowIniciado: false,
+      workflowDisparadoAgora: false,
     })
   }
 
   try {
     await start(processarObraWorkflow, [execucao.execucao_id], { region: 'sfo1' })
-
-    // Se esta confirmação falhar depois de o Vercel aceitar a execução, não iniciamos
-    // um segundo workflow. A própria primeira etapa também registra/recupera esse estado.
-    await backend.schema('aplicacao').rpc('backend_registrar_workflow_iniciado', {
-      p_execucao_id: execucao.execucao_id,
-    })
   } catch {
-    await backend.schema('aplicacao').rpc('backend_falhar_execucao', {
-      p_execucao_id: execucao.execucao_id,
-      p_nome_etapa: 'validar_arquivo',
-      p_codigo_erro: 'WORKFLOW_INICIO_FALHOU',
-      p_mensagem_erro: 'Não foi possível iniciar o workflow durável.',
-      p_detalhes: { origem: 'api_processamento_iniciar' },
-    })
+    try {
+      await backend.schema('aplicacao').rpc('backend_falhar_execucao', {
+        p_execucao_id: execucao.execucao_id,
+        p_nome_etapa: 'validar_arquivo',
+        p_codigo_erro: 'WORKFLOW_INICIO_FALHOU',
+        p_mensagem_erro: 'Não foi possível iniciar o workflow durável.',
+        p_detalhes: { origem: 'api_processamento_iniciar' },
+      })
+    } catch {
+      // A reserva expira em cinco minutos e permite recuperação mesmo se o banco
+      // estiver temporariamente indisponível durante o registro desta falha.
+    }
 
     return NextResponse.json(
       {
@@ -121,13 +120,22 @@ export async function POST(request: Request) {
     )
   }
 
+  try {
+    await backend.schema('aplicacao').rpc('backend_registrar_workflow_iniciado', {
+      p_execucao_id: execucao.execucao_id,
+    })
+  } catch {
+    // O workflow já foi aceito. A primeira etapa também grava esse marco e limpa
+    // a reserva; uma falha nesta confirmação não deve criar um falso terminal.
+  }
+
   return NextResponse.json(
     {
       execucaoId: execucao.execucao_id,
       codigo: execucao.execucao_codigo,
       estado: execucao.estado,
       criada: Boolean(execucao.criada),
-      workflowIniciado: true,
+      workflowDisparadoAgora: true,
     },
     { status: 202 }
   )
