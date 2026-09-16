@@ -73,3 +73,35 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 **Decisão:** a aplicação usará apenas a variável servidor-side `OPENAI_API_KEY`. O valor nunca será persistido no repositório. Uma chave fornecida diretamente em conversa de desenvolvimento será considerada exposta e deverá ser rotacionada antes de ser ativada no ambiente real.
 
 **Consequência:** a integração da OpenAI pode ser preparada no código sem depender do segredo. A ativação efetiva só ocorrerá quando uma chave nova estiver armazenada no mecanismo de secrets do ambiente servidor.
+
+## ADR-010 — Integridade multiusuário por FK composta na Biblioteca
+
+**Contexto:** o Dicionário Mestre recomenda que tabelas filhas com `usuario_id` preservem o vínculo `(parent_id, usuario_id) -> (parent.id, parent.usuario_id)` para evitar associações acidentais entre usuários.
+
+**Decisão:** `biblioteca.versoes_obras` referencia `biblioteca.obras` pelo par `(obra_id, usuario_id)`. A tabela pai recebe `unique (id, usuario_id)` apenas para permitir essa FK composta.
+
+**Consequência:** uma versão física não pode apontar para uma obra de outro usuário mesmo que um ID incorreto seja enviado pela aplicação ou por processo interno.
+
+## ADR-011 — Busca textual inicial da Biblioteca usa configuração `simple`
+
+**Contexto:** o Dicionário exige índice de busca textual em título/descrição e o corpus poderá conter múltiplos idiomas. Usar uma configuração linguística fixa como `portuguese` introduziria stemming específico de um idioma antes de conhecermos o corpus real.
+
+**Decisão:** o primeiro índice Full Text Search de `biblioteca.obras` usa `to_tsvector('simple', titulo_normalizado || descricao)`. Busca multilíngue, pesos, normalização avançada e reranking serão refinados na fase de recuperação híbrida.
+
+**Consequência:** a Biblioteca já nasce pesquisável sem assumir que todo conteúdo está em português. A estratégia poderá evoluir por migration e avaliação de retrieval.
+
+## ADR-012 — Regra completa de `externa_influencia` é parcialmente adiada
+
+**Contexto:** o Dicionário determina que `participacao_cerebro = 'externa_influencia'` exija `autoria = 'externa'` e um registro ativo em `cerebro_autoral.influencias_externas`. Essa tabela ainda não existe na etapa da Biblioteca.
+
+**Decisão:** `0004_biblioteca` já exige por CHECK que `externa_influencia` tenha autoria externa. A validação contra um registro ativo de influência será adicionada quando `cerebro_autoral.influencias_externas` for criada.
+
+**Consequência:** a parte verificável da regra já é garantida no banco, sem criar dependência circular ou inventar uma tabela fora da ordem de construção.
+
+## ADR-013 — `atualizado_em` sem trigger global nesta etapa
+
+**Contexto:** `biblioteca.obras` possui `atualizado_em`, mas o Dicionário coloca funções utilitárias e triggers como etapa posterior às tabelas/índices principais.
+
+**Decisão:** a coluna nasce com `default now()`, mas o trigger reutilizável de atualização automática será criado em uma migration de funções/triggers compartilhados, em vez de duplicar função técnica dentro de `0004_biblioteca`.
+
+**Consequência:** até essa migration utilitária existir, qualquer atualização de obra feita pelo backend deverá também atualizar `atualizado_em` explicitamente.
