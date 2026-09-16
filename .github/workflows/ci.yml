@@ -24,8 +24,10 @@ jobs:
           node-version: 22.x
           package-manager-cache: false
 
-      - name: Atualizar lockfile
-        run: npm install --package-lock-only --ignore-scripts
+      - name: Regenerar árvore e lockfile em ambiente limpo
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
 
       - name: Commitar lockfile quando necessário
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
@@ -36,13 +38,14 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add package-lock.json
-            git commit -m "build: atualizar lockfile do Workflow SDK"
+            git commit -m "build: regenerar lockfile do Workflow SDK"
             git push origin HEAD:${{ github.head_ref }}
-            exit 0
           fi
 
-      - name: Instalar dependências reproduzíveis
-        run: npm ci
+      - name: Validar instalação reproduzível
+        run: |
+          rm -rf node_modules
+          npm ci
 
       - name: Lint
         run: npm run lint
