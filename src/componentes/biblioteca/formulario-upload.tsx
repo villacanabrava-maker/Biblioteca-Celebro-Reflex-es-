@@ -110,11 +110,8 @@ async function enviarArquivoResumivel({
       },
     })
 
-    // Não usamos findPreviousUploads() enquanto obraId/versaoId forem criados
-    // a cada nova submissão. Retomar um fingerprint antigo com UUIDs novos pode
-    // concluir o upload em um caminho diferente daquele validado pela RPC.
-    // Retomada entre reloads será adicionada quando a operação de upload tiver
-    // identificadores persistentes próprios. Os retries TUS desta operação continuam ativos.
+    // Retomada entre reloads só voltará quando os IDs da operação forem persistentes.
+    // Os retries TUS desta operação continuam ativos.
     upload.start()
   })
 }
@@ -207,6 +204,11 @@ export function FormularioUploadBiblioteca() {
 
       if (registroError) {
         await supabase.storage.from('originais-biblioteca').remove([caminhoArquivo])
+
+        if (registroError.message.includes('arquivo_duplicado_por_hash')) {
+          throw new Error('Este arquivo já existe na sua Biblioteca. O upload duplicado foi descartado.')
+        }
+
         throw new Error('O arquivo foi enviado, mas o registro da obra falhou e o upload foi revertido.')
       }
 
