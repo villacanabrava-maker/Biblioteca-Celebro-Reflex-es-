@@ -76,6 +76,7 @@ Uma reflexão aprovada **não entra automaticamente no Cérebro**. Para virar no
 - manter RLS e privilégio mínimo desde o início;
 - construir etapas caras como processos idempotentes e reexecutáveis;
 - registrar decisões arquiteturais importantes;
+- nunca reescrever migration já aplicada para esconder uma correção posterior;
 - manter o README atualizado junto com o código.
 
 ---
@@ -107,7 +108,7 @@ Uma reflexão aprovada **não entra automaticamente no Cérebro**. Para virar no
 
 - GitHub — código, branches, PRs e CI
 - Vercel — aplicação e ambientes de deploy
-- Supabase — banco, autenticação e storage
+- Supabase — banco, autenticação e Storage
 
 ---
 
@@ -145,7 +146,7 @@ O banco novo começou vazio e está sendo construído exclusivamente por migrati
 
 **Status: concluída e incorporada à `main`.**
 
-Inclui aplicação Next.js, TypeScript, CI, estrutura visual inicial, páginas principais, schemas canônicos, extensões PostgreSQL e documentação arquitetural.
+Inclui aplicação Next.js, TypeScript, CI, sistema visual inicial, páginas principais, schemas canônicos, extensões PostgreSQL e documentação arquitetural.
 
 ### Schema `sistema`
 
@@ -178,11 +179,9 @@ Inclui:
 - RLS nas classificações pessoais;
 - schema interno fechado.
 
-O PR #3 passou pelo CI e foi incorporado por squash merge.
+### Biblioteca — banco
 
-### Biblioteca
-
-**Status: implementada no Supabase e na branch `feature/biblioteca`, aguardando PR + CI para incorporação à `main`.**
+**Status: concluída e incorporada à `main`.**
 
 Inclui:
 
@@ -190,9 +189,6 @@ Inclui:
 - `biblioteca.versoes_obras`;
 - separação obrigatória entre autoria e participação no Cérebro;
 - vocabulário completo de tipos de obra;
-- estados de obra e processamento;
-- precisão de data e importância;
-- metadados auxiliares controlados;
 - preservação de versões físicas;
 - hash SHA-256 para integridade/deduplicação;
 - integridade multiusuário por FK composta `(obra_id, usuario_id)`;
@@ -201,21 +197,36 @@ Inclui:
 - oito policies por `auth.uid()`;
 - schema `biblioteca` fechado a `anon` e `authenticated`.
 
-Validações concluídas:
+O advisor de performance identificou que a FK composta precisava de índice próprio. Em vez de reescrever a migration já aplicada, foi criada e aplicada `0005_indice_fk_biblioteca`. O alerta específico desapareceu depois da correção.
 
-- `0004_biblioteca` testada integralmente em transação com `ROLLBACK`;
-- `0004_biblioteca` aplicada com sucesso;
-- duas tabelas confirmadas;
-- RLS confirmado nas duas tabelas;
-- oito policies confirmadas;
-- FK composta confirmada;
-- índice FTS confirmado;
-- schema fechado para `authenticated`;
+O PR #4 passou pelo CI e foi incorporado à `main` por squash merge.
+
+### Storage privado da Biblioteca
+
+**Status: implementado no Supabase e na branch `feature/storage-biblioteca`, aguardando PR + CI para incorporação à `main`.**
+
+Entregue:
+
+- bucket `originais-biblioteca`;
+- bucket confirmado com `public = false`;
+- policy de SELECT para o próprio usuário;
+- policy de INSERT para o próprio usuário;
+- policy de UPDATE para o próprio usuário;
+- policy de DELETE para o próprio usuário;
+- isolamento pelo primeiro segmento do caminho do objeto;
+- migration testada transacionalmente antes da aplicação;
+- migration aplicada com sucesso;
 - advisor de segurança sem alertas.
 
-O advisor de performance detectou que a FK composta ainda não possuía índice de suporte. Como `0004` já estava aplicada, ela não foi alterada retroativamente. Foi criada a migration incremental `0005_indice_fk_biblioteca`, testada em transação e aplicada. Após isso, o alerta de FK sem índice desapareceu.
+Formato efetivo do nome do objeto:
 
-Os avisos restantes são apenas `unused_index`, esperados neste momento porque as tabelas são novas e ainda não receberam carga/consultas reais.
+```text
+{usuario_id}/{obra_id}/{versao_id}/original.ext
+```
+
+A forma com `/` inicial usada nos documentos é apenas uma representação visual do caminho. No Storage o nome do objeto será gerado sem barra inicial.
+
+O bucket ainda não possui limite global de tamanho nem lista fixa de MIME types porque o Dicionário Mestre deixou deliberadamente abertos os formatos finais suportados e a estratégia de OCR. Essas restrições serão endurecidas quando o pipeline de upload/processamento formalizar os formatos aceitos.
 
 ---
 
@@ -228,9 +239,21 @@ Os avisos restantes são apenas `unused_index`, esperados neste momento porque a
 | 0003 | `0003_taxonomia` | aplicada | Taxonomia Mestre versionada |
 | 0004 | `0004_biblioteca` | aplicada | obras e versões físicas |
 | 0005 | `0005_indice_fk_biblioteca` | aplicada | índice de suporte à FK composta da Biblioteca |
-| 0006 | Storage privado da Biblioteca | próxima | bucket privado e políticas de objetos |
+| 0006 | `0006_storage_biblioteca` | aplicada | bucket privado e RLS de objetos da Biblioteca |
 
-### Schemas canônicos existentes
+Os avisos atuais do advisor de performance são apenas `unused_index`. Eles são informativos neste estágio, pois as tabelas foram recém-criadas e ainda não receberam carga ou consultas reais. Os índices não serão removidos antes de termos dados de uso e avaliações de retrieval.
+
+Referência do linter para `unused_index`:
+
+```text
+https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index
+```
+
+---
+
+## 8. Schemas e extensões
+
+### Schemas canônicos
 
 - `biblioteca`
 - `processamento`
@@ -241,6 +264,8 @@ Os avisos restantes são apenas `unused_index`, esperados neste momento porque a
 - `sistema`
 - `aplicacao`
 
+Schemas nativos do Supabase como `auth` e `storage` permanecem nativos.
+
 ### Extensões confirmadas
 
 - `vector`
@@ -249,7 +274,7 @@ Os avisos restantes são apenas `unused_index`, esperados neste momento porque a
 
 ---
 
-## 8. Taxonomia Mestre
+## 9. Taxonomia Mestre
 
 A Taxonomia impede a proliferação descontrolada de tags e conceitos desconectados.
 
@@ -268,11 +293,11 @@ Domínios iniciais:
 
 A IA deverá procurar, comparar e normalizar conceitos existentes antes de propor novos conceitos.
 
-O Dicionário ainda não enumera os valores de `taxonomia.conceitos.estado`; por isso não foi inventado um CHECK. A FK entre `taxonomia.classificacoes_elementos.elemento_id` e `processamento.elementos` também permanece adiada até a criação do Processamento.
+O Dicionário ainda não enumera os valores de `taxonomia.conceitos.estado`; por isso não foi inventado um CHECK. A FK entre `taxonomia.classificacoes_elementos.elemento_id` e `processamento.elementos` permanece adiada até a criação do Processamento.
 
 ---
 
-## 9. Biblioteca
+## 10. Biblioteca
 
 ### `biblioteca.obras`
 
@@ -307,7 +332,7 @@ Principais dados:
 - `externa_influencia`
 - `excluida_cerebro`
 
-`autoral_prioritaria` exige autoria autoral. `externa_influencia` já exige autoria externa; a validação adicional de que existe influência externa ativa será criada quando `cerebro_autoral.influencias_externas` existir.
+`autoral_prioritaria` exige autoria autoral. `externa_influencia` já exige autoria externa; a validação adicional de influência ativa será criada quando `cerebro_autoral.influencias_externas` existir.
 
 ### Tipos de obra
 
@@ -336,27 +361,68 @@ A FK composta garante que uma versão de um usuário nunca consiga apontar para 
 
 ---
 
-## 10. Próxima etapa — Storage privado da Biblioteca
+## 11. Storage privado
 
-O documento canônico define o bucket privado:
+Bucket canônico:
 
 ```text
 originais-biblioteca
 ```
 
-Estrutura de caminho prevista:
+O bucket é privado. Downloads comuns exigirão sessão autenticada e política RLS; quando necessário, o servidor poderá fornecer URLs assinadas temporárias.
+
+Caminho canônico efetivo:
 
 ```text
-/{usuario_id}/{obra_id}/{versao_id}/original.ext
+{usuario_id}/{obra_id}/{versao_id}/original.ext
 ```
 
-A próxima etapa criará o bucket privado e as políticas que impedem acesso cruzado entre usuários. Depois disso, o frontend poderá começar a fazer upload real e criar registros em `biblioteca.obras` e `biblioteca.versoes_obras`.
+As policies de `storage.objects` exigem simultaneamente:
+
+```text
+bucket_id = originais-biblioteca
+primeira pasta = auth.uid()
+```
+
+Isso cria uma segunda camada de isolamento além das tabelas da Biblioteca. A aplicação também deverá validar obra, versão, MIME, hash e metadados antes de considerar um upload válido.
 
 ---
 
-## 11. Frontend implementado
+## 12. Próxima etapa — upload real e autenticação da Biblioteca
 
-Rotas/telas já preparadas visualmente:
+Com banco e Storage preparados, a próxima etapa passa da infraestrutura para o fluxo real da aplicação.
+
+Objetivo do próximo bloco:
+
+```text
+usuário autenticado
+   ↓
+seleciona arquivo
+   ↓
+validação inicial
+   ↓
+hash SHA-256
+   ↓
+criação de obra
+   ↓
+criação de versão
+   ↓
+upload privado
+   ↓
+registro do caminho original
+   ↓
+estado recebido
+   ↓
+preparar disparo futuro do pipeline
+```
+
+O upload não deve destruir versões anteriores e não deve permitir que um arquivo externo seja classificado automaticamente como autoria do usuário.
+
+---
+
+## 13. Frontend implementado
+
+Rotas/telas visualmente preparadas:
 
 - `/` — início/dashboard;
 - `/biblioteca` — Biblioteca;
@@ -371,7 +437,7 @@ Os indicadores permanecem em zero enquanto não existe corpus real. A interface 
 
 ---
 
-## 12. Design visual
+## 14. Design visual
 
 Diretrizes atuais:
 
@@ -394,7 +460,7 @@ docs/DESIGN_VISUAL.md
 
 ---
 
-## 13. Segurança
+## 15. Segurança
 
 Regras obrigatórias:
 
@@ -409,7 +475,7 @@ Regras obrigatórias:
 - logs sem conteúdo sensível desnecessário;
 - documentos externos tratados como **DADO**, nunca como instrução;
 - defesa contra prompt injection;
-- usuário A nunca acessa dados do usuário B.
+- usuário A nunca acessa dados ou objetos do usuário B.
 
 ### OpenAI
 
@@ -421,11 +487,11 @@ OPENAI_API_KEY
 
 Nenhum valor de chave será salvo neste repositório.
 
-Em 16/09/2026 uma chave de projeto foi fornecida diretamente na conversa de desenvolvimento. Por segurança, ela **não foi persistida nem ativada**. Antes da integração real, deverá ser usada uma chave nova/rotacionada, armazenada exclusivamente como secret do ambiente servidor.
+Em 16/09/2026 uma chave de projeto foi fornecida diretamente na conversa de desenvolvimento. Por segurança, ela **não foi persistida nem ativada**. Antes da integração real, deverá ser utilizada uma chave nova/rotacionada e armazenada exclusivamente como secret do ambiente servidor.
 
 ---
 
-## 14. Arquitetura da IA
+## 16. Arquitetura da IA
 
 ```text
 src/ia/
@@ -465,7 +531,7 @@ texto livre do modelo → verdade canônica no banco
 
 ---
 
-## 15. Regra de autoria
+## 17. Regra de autoria
 
 ```text
 NÚCLEO AUTORAL
@@ -479,7 +545,7 @@ Uma fonte externa nunca poderá se transformar silenciosamente em evidência de 
 
 ---
 
-## 16. Pipeline documental planejado
+## 18. Pipeline documental planejado
 
 ```text
 arquivo recebido
@@ -521,7 +587,7 @@ Cada etapa cara deverá ser idempotente, versionada, observável e recuperável.
 
 ---
 
-## 17. Testes e CI
+## 19. Testes e CI
 
 GitHub Actions atualmente valida:
 
@@ -532,7 +598,7 @@ GitHub Actions atualmente valida:
 
 A cobertura será expandida para:
 
-- unitários;
+- testes unitários;
 - integração;
 - SQL;
 - migrations;
@@ -548,7 +614,7 @@ Nenhum PR estrutural deve entrar na `main` com CI falhando.
 
 ---
 
-## 18. Estratégia de branches
+## 20. Estratégia de branches e migrations
 
 ```text
 main
@@ -558,11 +624,11 @@ feature/<etapa>
 
 Cada bloco significativo é desenvolvido em branch própria, validado em PR e incorporado à `main` somente depois dos checks.
 
-Migrations aplicadas nunca devem ser reescritas para esconder correções posteriores. A correção do índice da FK da Biblioteca em `0005` é um exemplo desse princípio.
+Migrations aplicadas nunca devem ser reescritas para esconder correções posteriores. A correção do índice da FK em `0005` é um exemplo desse princípio.
 
 ---
 
-## 19. Documentação mantida
+## 21. Documentação mantida
 
 - `README.md` — painel mestre;
 - `docs/DESIGN_VISUAL.md` — sistema visual;
@@ -571,15 +637,16 @@ Migrations aplicadas nunca devem ser reescritas para esconder correções poster
 
 ---
 
-## 20. Ordem de construção atual
+## 22. Ordem de construção atual
 
 | Etapa | Status |
 |---|---|
 | Fundação técnica | concluída |
 | Schema `sistema` | concluído |
 | Taxonomia Mestre | concluída |
-| Biblioteca — banco | implementada / aguardando PR + CI |
-| Storage privado + upload | próxima |
+| Biblioteca — banco | concluída |
+| Storage privado | implementado / aguardando PR + CI |
+| Upload + Auth da Biblioteca | próxima |
 | Pipeline documental | pendente |
 | Documento Processado | pendente |
 | Busca híbrida | pendente |
@@ -592,22 +659,25 @@ Migrations aplicadas nunca devem ser reescritas para esconder correções poster
 
 ---
 
-## 21. Próximas ações imediatas
+## 23. Próximas ações imediatas
 
-1. abrir PR da Biblioteca;
-2. validar CI;
-3. incorporar `0004` e `0005` à `main`;
-4. pesquisar/confirmar a configuração atual de Supabase Storage;
-5. criar migration do bucket `originais-biblioteca` e políticas de acesso;
-6. atualizar novamente este README;
-7. conectar o frontend ao upload real;
-8. iniciar pipeline documental;
-9. preparar a camada OpenAI sem segredo no código;
-10. ativar IA somente após rotação segura da chave.
+1. abrir PR do Storage privado;
+2. validar CI e incorporar `0006` à `main`;
+3. revisar a integração Supabase recomendada para Next.js App Router;
+4. configurar cliente browser e cliente server sem expor chaves secretas;
+5. conectar autenticação real;
+6. implementar upload real para `originais-biblioteca`;
+7. calcular hash SHA-256 e persistir obra/versão;
+8. substituir estados fictícios da Biblioteca por dados reais;
+9. adicionar testes de isolamento de Storage e RLS;
+10. atualizar novamente este README;
+11. depois iniciar o pipeline documental;
+12. preparar a camada OpenAI sem inserir segredo no código;
+13. ativar IA somente após rotação segura da chave.
 
 ---
 
-## 22. Histórico de marcos
+## 24. Histórico de marcos
 
 ### 16/09/2026 — Fundação
 
@@ -631,25 +701,35 @@ Migrations aplicadas nunca devem ser reescritas para esconder correções poster
 - cinco tabelas taxonômicas;
 - vocabulários controlados;
 - RLS;
-- CI aprovado;
 - PR #3 integrado.
 
 ### 16/09/2026 — Biblioteca
 
 - `0004_biblioteca` testada e aplicada;
-- obras e versões físicas criadas;
+- obras e versões físicas;
 - autoria separada de participação no Cérebro;
 - FK composta multiusuário;
 - FTS inicial;
 - RLS e oito policies;
-- advisor detectou FK sem índice;
-- `0005_indice_fk_biblioteca` criada e aplicada;
-- alerta de FK sem índice resolvido;
-- advisor de segurança limpo.
+- `0005_indice_fk_biblioteca` corrigiu o índice da FK;
+- advisor de segurança limpo;
+- PR #4 aprovado no CI e integrado à `main`.
+
+### 16/09/2026 — Storage privado
+
+- documentação atual do Supabase revisada;
+- branch `feature/storage-biblioteca` criada;
+- `0006_storage_biblioteca` escrita;
+- teste transacional com rollback aprovado;
+- bucket `originais-biblioteca` criado como privado;
+- policies SELECT/INSERT/UPDATE/DELETE aplicadas;
+- isolamento por primeira pasta = `auth.uid()`;
+- advisor de segurança limpo;
+- README e ADRs atualizados.
 
 ---
 
-## 23. Regra de manutenção deste README
+## 25. Regra de manutenção deste README
 
 Toda mudança relevante deve atualizar este arquivo no mesmo ciclo de desenvolvimento.
 
