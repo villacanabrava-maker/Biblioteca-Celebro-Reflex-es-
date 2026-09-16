@@ -1,54 +1,64 @@
 # Estado Atual do Projeto
 
-Atualizado em **16/09/2026** após auditoria cruzada dos documentos canônicos, GitHub, Supabase e Vercel.
+Atualizado em **16/09/2026** após conclusão da auditoria cruzada dos documentos canônicos, GitHub, Supabase e Vercel.
 
 ## Infraestrutura oficial
 
 - GitHub: `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`
-- Branch principal: `main`
-- Branch atual: `feature/processamento`
-- PR atual: #7
+- Branch oficial: `main`
 - Supabase: `xzkzdaxxmizcgfkjgzoq`
 - Vercel: projeto `cerebro-autoral`
 - Produção: `https://cerebro-autoral.vercel.app`
+- Fase 2 / PR #7: **incorporada à `main`**
+- Commit de produção da Fase 2: `326286036566ccc46addfc4b071fd224cd1a5c09`
 
-O Vercel está ligado ao repositório canônico. O deploy de produção inspecionado está `READY`; a página de login responde HTTP 200, `/biblioteca` redireciona para login sem sessão e não foram encontrados clusters de erro de runtime nos últimos 7 dias.
+O Vercel recebeu exatamente esse commit da `main`, concluiu o deployment com estado `READY`, atualizou o domínio principal e não apresentou erros de runtime na verificação pós-merge. A página de login responde e `/biblioteca` continua protegida para visitantes sem sessão.
 
 ## Fase atual
 
-**Pipeline Documental — modelo de dados completo; preparação do workflow real de processamento.**
+**Pipeline Documental — modelo de dados concluído. Próxima etapa: workflow real de processamento.**
 
-Biblioteca, Storage, Auth SSR, API segura, deploy e a representação estrutural/inteligente de documentos já existem no banco. O próximo bloco implementará execução real: validação do arquivo, recálculo do hash no servidor, extração, normalização, estruturação, fragmentação, sínteses, elementos, taxonomia, embeddings, relações, validação e publicação atômica.
+Biblioteca, Storage, Auth SSR, API segura, deploy e a representação estrutural/inteligente de documentos estão na `main`. O próximo bloco implementará execução real: validação do arquivo, recálculo de hash no servidor, extração, normalização, estruturação, fragmentação, sínteses, elementos, taxonomia, embeddings, relações, validação e publicação atômica.
 
-## Concluído na `main`
+## Concluído em `main`
 
 - Next.js + React + TypeScript;
 - sistema visual inicial;
 - schemas canônicos;
 - schema `sistema`;
-- estrutura da Taxonomia Mestre;
-- Biblioteca;
+- estrutura/versionamento da Taxonomia Mestre;
+- Biblioteca e versões de obras;
 - Storage privado `originais-biblioteca`;
 - fronteira da Data API em `aplicacao`;
 - Auth SSR com `@supabase/ssr` e `getClaims()`;
 - login, cadastro, confirmação SSR e logout;
 - upload TUS + SHA-256 incremental;
+- deduplicação real por usuário + SHA-256;
 - Biblioteca lendo dados reais;
-- PRs #1 a #6 incorporados.
+- Pipeline Documental modelado até `0016`;
+- lockfile versionado e CI com `npm ci`;
+- PRs #1 a #7 incorporados.
 
-## Aplicado no Supabase e versionado no PR #7
+## Migrations aplicadas no Supabase e versionadas em `main`
 
-- `0008_processamento_execucoes` — execuções e etapas idempotentes;
-- `0009_indice_fk_etapas_execucao` — índice da FK composta;
-- `0010_seeds_versoes_base` — Pipeline 1.0 + Taxonomia 1.0;
-- `0011_processamento_documentos_hierarquia` — Documento Processado, seções, fragmentos e sínteses;
-- `0012_indices_fk_processamento_hierarquia` — índices adicionais apontados pelo advisor;
-- `0013_processamento_elementos_vetores_grafo` — vetores HNSW, elementos, evidências, relações e FK Taxonomia → Elementos;
-- `0014_indice_fk_taxonomia_elementos` — índice dedicado da FK composta Taxonomia → Elementos;
-- `0015_integridade_proveniencia_publicacao` — evidência no mesmo documento e estado `ativo` com publicação explícita;
-- `0016_deduplicacao_hash_biblioteca` — deduplicação concorrente por usuário + SHA-256.
+- `0001_fundacao`
+- `0002_sistema`
+- `0003_taxonomia`
+- `0004_biblioteca`
+- `0005_indice_fk_biblioteca`
+- `0006_storage_biblioteca`
+- `0007_api_aplicacao_biblioteca`
+- `0008_processamento_execucoes`
+- `0009_indice_fk_etapas_execucao`
+- `0010_seeds_versoes_base`
+- `0011_processamento_documentos_hierarquia`
+- `0012_indices_fk_processamento_hierarquia`
+- `0013_processamento_elementos_vetores_grafo`
+- `0014_indice_fk_taxonomia_elementos`
+- `0015_integridade_proveniencia_publicacao`
+- `0016_deduplicacao_hash_biblioteca`
 
-## Pipeline — estruturas atuais
+## Pipeline — estruturas prontas
 
 ### Execução
 
@@ -69,85 +79,74 @@ Biblioteca, Storage, Auth SSR, API segura, deploy e a representação estrutural
 - `processamento.evidencias`
 - `processamento.relacoes_elementos`
 
-Fragmentos possuem Full Text Search gerado automaticamente. Vetores usam `extensions.vector(1536)` + HNSW/cosine. Elementos carregam modelo/prompt, importância, confiança e estado de revisão. Evidências apontam para fragmentos concretos do mesmo Documento Processado. Relações formam o grafo intelectual inclusive entre documentos do mesmo usuário.
+Fragmentos possuem Full Text Search automático. Vetores usam `vector(1536)` + HNSW/cosine. Evidências só podem apontar para fragmentos do mesmo Documento Processado. Um Documento Processado `ativo` exige `publicado_em` e existe no máximo um ativo por usuário/obra.
 
-Somente um Documento Processado `ativo` por usuário/obra pode existir, e um documento `ativo` exige `publicado_em` preenchido.
-
-## Auditoria do Supabase
+## Auditoria de segurança
 
 Confirmado:
 
-- schemas internos sem `USAGE` para `anon`/`authenticated`;
-- `authenticated` recebe `USAGE` apenas em `aplicacao`;
-- `service_role` também não recebe acesso direto aos schemas internos; futuros workflows devem usar RPCs server-only em `aplicacao`;
+- schemas internos fechados para navegador;
+- `authenticated` recebe acesso de schema somente em `aplicacao`;
 - Data API limitada a `public, graphql_public, aplicacao`;
 - RLS ativo nas tabelas pessoais;
-- policies por `auth.uid()`;
-- Storage privado e segregado por pasta de usuário;
-- RPCs públicas `SECURITY DEFINER`, `search_path = ''` e grants explícitos;
-- funções internas de trigger sem execução externa;
+- Storage privado e segregado por usuário;
+- RPCs públicas `SECURITY DEFINER`, `search_path = ''` e grants mínimos;
+- funções internas sem execução externa;
 - nenhuma constraint `NOT VALID` pendente;
-- advisor de performance sem FKs não indexadas após `0014`;
-- avisos restantes de performance são somente `unused_index`, esperados em tabelas vazias.
+- advisor de performance sem FKs não indexadas;
+- avisos restantes de performance são apenas `unused_index`, esperados com tabelas vazias.
 
-### Alerta de segurança aberto
+### Alerta externo ainda aberto
 
-O advisor do Supabase reporta **Leaked Password Protection Disabled**. A documentação oficial informa que a proteção contra senhas comprometidas usa HaveIBeenPwned/Pwned Passwords e está disponível no plano Pro e acima.
+O Supabase Auth reporta **Leaked Password Protection Disabled**. A proteção deve ser habilitada no Dashboard antes de usuários reais, se o plano permitir.
 
-Antes de usuários reais, ativar em Auth → Providers → Email se o plano permitir. O conector atual não expõe essa configuração.
+## Correções concluídas na auditoria
 
-## Correções realizadas nesta auditoria
-
-1. Vercel novo/canônico foi confirmado e o README antigo foi corrigido.
-2. Os nomes/timestamps dos arquivos de migrations foram alinhados às versões do Supabase; o prefixo duplicado foi removido.
-3. Pipeline 1.0 e Taxonomia 1.0 foram ativados em `0010`.
-4. FKs sem índice detectadas pelos advisors foram corrigidas em migrations incrementais (`0009`, `0012`, `0014`).
-5. A retomada TUS insegura entre novas submissões com UUIDs diferentes foi removida; retries da operação atual continuam.
-6. SHA-256, que antes era apenas armazenado, passou a ser usado para deduplicação real e concorrente em `0016`.
-7. Evidências foram endurecidas para não cruzar Documentos Processados em `0015`.
-8. Documento Processado `ativo` passou a exigir `publicado_em` em `0015`.
-9. Node foi fixado em `22.x` para CI/Vercel usarem a mesma major.
-10. Actions foram atualizadas para v7.
-11. O primeiro `package-lock.json` foi gerado por um runner verde e versionado.
-12. CI foi migrado para `npm ci` e voltou a `permissions: contents: read`.
-13. ESLint 10 foi testado e rejeitado por incompatibilidade real com o plugin React de `eslint-config-next 16.3.5`; ESLint `9.39.5` fica fixado até upgrade compatível.
-14. As rotas públicas do Proxy foram estreitadas para `/login` e `/auth/*`.
-15. `.gitignore` passou a bloquear todo `.env*`, exceto `.env.example`.
-16. Documento Processado/hierarquia e representação intelectual foram implementados até `0016`.
-17. README, este arquivo e ADRs são mantidos sincronizados com o estado real.
+1. Vercel canônico confirmado e deploy pós-merge verificado.
+2. Migrations do GitHub alinhadas ao histórico real do Supabase.
+3. Pipeline 1.0 e Taxonomia 1.0 ativados.
+4. FKs sem índices corrigidas.
+5. Retomada TUS insegura removida.
+6. Deduplicação SHA-256 implementada com lock transacional.
+7. Evidências impedidas de cruzar Documentos Processados.
+8. Documento Processado `ativo` exige publicação explícita.
+9. Node fixado em `22.x` para CI/Vercel.
+10. Actions atualizadas para v7.
+11. `package-lock.json` versionado e CI migrado para `npm ci`.
+12. ESLint 9.39.5 fixado após teste real de incompatibilidade do ESLint 10 com a cadeia Next atual.
+13. Proxy endurecido para rotas públicas exatas.
+14. `.gitignore` endurecido para qualquer `.env*`, exceto `.env.example`.
+15. README, `ESTADO_ATUAL` e ADRs sincronizados com a Fase 2.
 
 ## Pontos externos ainda pendentes
 
 ### GitHub
 
-O repositório está atualmente **público**. Nenhum segredo conhecido foi encontrado nas buscas realizadas, mas código e arquitetura também ficam públicos. Recomendação: torná-lo privado antes de conteúdo intelectual real.
-
-A API acessível mostra zero rulesets; a proteção administrativa da `main` precisa ser confirmada/configurada fora do conector atual.
+O repositório continua **público**. Recomendação: torná-lo privado antes de conteúdo intelectual real. A configuração de ruleset/branch protection da `main` precisa ser confirmada com acesso administrativo.
 
 ### Supabase Auth
 
 Confirmar no Dashboard:
 
 - Site URL `https://cerebro-autoral.vercel.app`;
-- Redirect URLs de produção/preview quando necessário;
-- template de confirmação SSR com `/auth/confirm` + `token_hash`;
-- Leaked Password Protection se o plano permitir.
+- Redirect URLs necessárias;
+- template SSR de confirmação com `/auth/confirm` + `token_hash`;
+- Leaked Password Protection, se o plano permitir.
 
 ### OpenAI
 
-A chave fornecida no chat é tratada como exposta e não será usada. Antes de ativar IA, ela deve ser rotacionada e a nova chave cadastrada diretamente no ambiente servidor/Vercel.
+A chave fornecida anteriormente no chat é tratada como exposta e não será usada. Antes de ativar IA, deve ser rotacionada e a nova chave cadastrada diretamente no ambiente servidor/Vercel.
 
 ## Próximo passo técnico
 
-1. concluir CI final e incorporar PR #7 somente com tudo verde;
-2. confirmar o novo deploy Vercel após merge;
-3. implementar RPCs server-only para o workflow sem abrir schemas internos;
-4. implementar `processar_obra()` sobre as tabelas já prontas;
-5. validar/recalcular hash do arquivo no servidor antes de extrair;
-6. implementar extração/normalização/estruturação com etapas idempotentes;
-7. publicar Documento Processado como `candidato` e só promovê-lo a `ativo` após validação;
-8. integrar IA somente após rotação segura da chave e registro dos modelos/prompts usados;
-9. atualizar README/ADRs em cada marco.
+1. criar a camada server-only de operações do workflow em `aplicacao`;
+2. implementar `processar_obra()` sem abrir schemas internos;
+3. recalcular/verificar SHA-256 no servidor;
+4. extrair e normalizar conteúdo;
+5. construir estrutura/seções/fragmentos de forma idempotente;
+6. integrar sínteses/elementos/taxonomia/embeddings somente com modelos e prompts versionados;
+7. publicar Documento Processado como `candidato` e promovê-lo a `ativo` somente após validação;
+8. atualizar README/ADRs em cada marco.
 
 ## Regra permanente
 
