@@ -74,7 +74,9 @@ villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
 
 - branch oficial: `main`;
 - Fase 2: incorporada e publicada;
-- primeira entrega da Fase 3: tecnicamente validada no PR #9, mantendo feature flag desligada;
+- primeira entrega da Fase 3: incorporada à `main` pelo PR #9;
+- segunda entrega da Fase 3: identificação e extração documental em validação no PR #10;
+- `PROCESSAMENTO_WORKFLOW_ATIVO=false` permanece;
 - repositório atualmente **público**;
 - API de Rulesets retorna `[]`;
 - nenhum segredo deve existir no código ou histórico.
@@ -100,7 +102,7 @@ Produção: https://cerebro-autoral.vercel.app
 Git: villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
 ```
 
-A produção baseada em `main` permanece `READY`. O Preview do commit validado da Fase 3 também está `READY`.
+A produção baseada em `main` permanece `READY`. A produção da primeira entrega da Fase 3 está publicada e o Preview da segunda entrega também está `READY`.
 
 O Dashboard da Vercel ainda reporta `nodeVersion = 24.x`, mas o build respeita `engines.node = 22.x` do `package.json` e usa Node 22. Mesmo assim, o setting do projeto deve ser alinhado manualmente para 22.x para eliminar ambiguidade operacional.
 
@@ -140,6 +142,16 @@ Projetos antigos de Memória Reflexiva/Reflexima são históricos e **não** faz
 - retries na operação atual;
 - deduplicação transacional por usuário + hash.
 
+### Processamento de arquivos
+
+- `unpdf` `1.8.1` para PDF textual em Node/serverless;
+- TXT/Markdown por decodificação UTF-8 determinística;
+- PDF processado página a página, sem fan-out irrestrito;
+- limites explícitos de tamanho, páginas, pixels, caracteres e tempo;
+- PDF sem camada textual é rejeitado como `PDF_SEM_TEXTO_EXTRAIVEL`; OCR será decidido em etapa própria;
+- DOCX permanece explicitamente fora do escopo desta versão até validação segura do container OOXML;
+- extensão, MIME e conteúdo são combinados; nenhum desses sinais é confiado isoladamente.
+
 ### Workflow
 
 - Vercel Workflow SDK `4.8.9` estável;
@@ -161,8 +173,8 @@ O `npm audit` encontrou vulnerabilidades altas dentro da árvore do Workflow SDK
 ```
 
 - `nanoid 5.1.16` está fora da faixa vulnerável detectada;
-- `undici 7.29.0` substitui a versão transitiva vulnerável e coincide com a atualização preparada no repositório oficial do Workflow;
-- `npm ci` + `npm audit --omit=dev --audit-level=high` passaram no CI após a mudança.
+- `undici 7.29.0` substitui a versão transitiva vulnerável;
+- `npm ci` + `npm audit --omit=dev --audit-level=high` passam no CI.
 
 ### IA
 
@@ -182,7 +194,8 @@ O `npm audit` encontrou vulnerabilidades altas dentro da árvore do Workflow SDK
 - `actions/checkout@v7`;
 - `actions/setup-node@v7`;
 - CI em `contents: read`;
-- instalação final por `npm ci`.
+- instalação por `npm ci`;
+- `npm test` cobre identificação de formato, spoofing, TXT/Markdown e extração de um PDF textual real mínimo.
 
 ---
 
@@ -203,11 +216,14 @@ O `npm audit` encontrou vulnerabilidades altas dentro da árvore do Workflow SDK
 | Documento Processado/hierarquia | concluído / `main` |
 | Vetores/elementos/evidências/grafo | concluídos / `main` |
 | Proveniência/publicação atômica | concluída / `main` |
-| Pipeline — orquestração server-only | implementada e aplicada no Supabase |
+| Pipeline — orquestração server-only | concluída / `main`, feature flag OFF |
 | Pipeline — `validar_arquivo` | implementado / feature flag OFF |
+| Pipeline — `identificar_formato` | implementado e testado |
+| Pipeline — `extrair_conteudo` | implementado e testado para PDF textual/TXT/Markdown |
+| Artefatos intermediários privados | `0020`/`0021` aplicadas no Supabase |
 | Idempotência/concorrência do workflow | reforçada até `0019` |
 | Supabase local reproduzível | implementado e testado no CI |
-| Pipeline — extração em diante | pendente |
+| Pipeline — `normalizar_conteudo` em diante | pendente |
 | OpenAI server-side | credencial configurada; camada operacional ainda pendente |
 | Cérebro Autoral | pendente |
 | Recuperação híbrida | pendente |
@@ -242,8 +258,10 @@ Migration aplicada não é reescrita. Toda correção posterior recebe nova migr
 | `20260916202853` | `0017_api_backend_workflow_processamento` | RPCs server-only e 14 etapas canônicas |
 | `20260916212133` | `0018_recuperacao_orquestracao_workflow` | reserva/reinício/recuperação do workflow |
 | `20260916221057` | `0019_idempotencia_transicoes_workflow` | locks e transições monotônicas/idempotentes |
+| `20260916223016` | `0020_artefatos_intermediarios_processamento` | metadados/RPCs/bucket privado para artefatos parciais |
+| `20260916225622` | `0021_politica_negacao_artefatos_processamento` | policy explícita de negação para clientes |
 
-O CI agora sobe um Supabase local limpo e executa todas essas migrations e `seed.sql`; em seguida executa `supabase db reset` para provar que a reconstrução é repetível.
+O CI sobe um Supabase local limpo e executa todas essas migrations e `seed.sql`; em seguida executa `supabase db reset` para provar que a reconstrução é repetível.
 
 ---
 
@@ -277,6 +295,7 @@ Auditorias confirmaram:
 - RPCs `backend_*` são `SECURITY DEFINER` com `search_path = ''`;
 - `anon` e `authenticated` não executam RPCs `backend_*`;
 - somente a credencial de backend executa a fronteira server-only necessária;
+- `processamento.artefatos_execucao` tem RLS + policy explícita de negação e grants diretos revogados;
 - nenhuma constraint auditada permanece `NOT VALID`;
 - advisors não apontam FK sem índice;
 - `unused_index` permanece apenas informativo enquanto o banco está vazio.
@@ -339,9 +358,9 @@ A retomada TUS entre reloads permanece desativada até existir uma operação pe
 
 ---
 
-## 9. Documento Processado
+## 9. Documento Processado e artefatos intermediários
 
-Estrutura hierárquica:
+Estrutura hierárquica final:
 
 ```text
 obra
@@ -363,6 +382,8 @@ Tabelas principais:
 - `processamento.relacoes_elementos`.
 
 Fragmentos possuem FTS automático. Vetores v1 usam `vector(1536)` + HNSW/cosine. Evidências devem permanecer no mesmo Documento Processado. Um Documento Processado `ativo` exige `publicado_em` e existe no máximo um ativo por usuário/obra.
+
+Conteúdo parcial **não** é gravado como Documento Processado. `0020` criou `processamento.artefatos_execucao` e o bucket privado `artefatos-processamento` para artefatos intermediários como `conteudo_extraido` e `conteudo_normalizado`. O banco guarda hash, tamanho, MIME, metadados e proveniência; o conteúdo grande fica no Storage privado. `0021` torna explícito que clientes não têm acesso direto a essa tabela.
 
 ---
 
@@ -414,6 +435,28 @@ comparação com Biblioteca
 - falha terminal só após esgotamento de retries;
 - sucesso posiciona a execução em `identificar_formato`.
 
+### `identificar_formato`
+
+Primeira allowlist operacional:
+
+```text
+PDF textual
+TXT UTF-8
+Markdown UTF-8
+```
+
+A identificação combina extensão, MIME e assinatura/conteúdo. PDF exige `%PDF-` na região inicial. TXT/Markdown rejeitam NUL, controles binários anormais e amostra UTF-8 inválida. DOCX não é aceito ainda; ele será implementado somente com validação OOXML segura.
+
+### `extrair_conteudo`
+
+- TXT/Markdown: decodificação UTF-8 completa, preservando o conteúdo para a normalização posterior;
+- PDF: `unpdf`/PDF.js serverless, leitura página a página e preservação do número da página;
+- original é novamente verificado por hash e tamanho antes da extração;
+- limites v1: 20 MiB para texto, 50 MiB para PDF, 1.000 páginas, 12 milhões de caracteres, ~16 MP por imagem declarada e 90 s para extração PDF;
+- PDF sem camada textual não é enviado para IA: retorna `PDF_SEM_TEXTO_EXTRAIVEL` e fica aguardando estratégia de OCR futura;
+- resultado é serializado em JSON, recebe SHA-256 próprio e é salvo como `conteudo_extraido.json` no bucket `artefatos-processamento`;
+- sucesso avança para `normalizar_conteudo`.
+
 A feature flag permanece:
 
 ```text
@@ -437,8 +480,18 @@ npm ci
 npm audit --omit=dev --audit-level=high
 npm run lint
 npm run typecheck
+npm test
 npm run build
 ```
+
+A suíte `tests/processamento/processamento-documental.test.mjs` cobre:
+
+- PDF válido versus arquivo falso com extensão `.pdf`;
+- TXT/Markdown UTF-8;
+- rejeição de binário disfarçado de texto;
+- DOCX explicitamente fora do escopo v1;
+- BOM, conteúdo vazio e UTF-8 inválido;
+- extração real de texto de um PDF mínimo preservando a página.
 
 ### Banco local
 
@@ -456,7 +509,7 @@ Além do CI, a revisão de uma fase verifica migrations remotas, grants, RLS, co
 
 ### Limite atual de E2E
 
-Ainda não há obra real no banco oficial. Portanto o caminho positivo `upload real → workflow → hash validado` ainda não foi exercitado com corpus. A feature flag continuará `false` até existir uma obra de teste controlada e esse fluxo passar de ponta a ponta.
+Ainda não há obra real no banco oficial. Portanto o caminho positivo `upload real → workflow → validar → identificar → extrair` ainda não foi exercitado com corpus. A feature flag continuará `false` até existir uma obra de teste controlada e esse fluxo passar de ponta a ponta.
 
 ---
 
@@ -471,6 +524,8 @@ Constatações atuais:
 - Supabase Functions/RPC: `SECURITY DEFINER` exige `search_path` controlado e grants explícitos;
 - GitHub: Rulesets podem exigir PR, status checks, bloquear force push e integrar security scanning;
 - Vercel Workflow: usamos a linha estável 4.8.x; recursos documentados por versões posteriores não são assumidos automaticamente;
+- `unpdf`/PDF.js: PDFs não confiáveis exigem limites de páginas, imagens e tempo; o parser não substitui validação de upload;
+- OWASP: extensão, MIME e assinatura não são suficientes isoladamente; usamos defesa em profundidade e allowlist;
 - OpenAI: Responses API + Structured Outputs continuam a base prevista; para conteúdo privado adotaremos `store: false` e minimização de contexto enviado.
 
 Ser moderno neste projeto significa **pesquisar e verificar**, não adicionar mais tecnologias sem necessidade.
@@ -495,11 +550,11 @@ A sequência imediata permanece determinística:
 ```text
 validar_arquivo        ✅ implementado
   ↓
-identificar_formato     ← próxima implementação
+identificar_formato    ✅ implementado
   ↓
-extrair_conteudo
+extrair_conteudo       ✅ implementado para PDF textual/TXT/Markdown
   ↓
-normalizar_conteudo
+normalizar_conteudo     ← próxima implementação
   ↓
 identificar_estrutura
   ↓
@@ -522,7 +577,7 @@ validar_resultado
 publicar_documento
 ```
 
-A camada OpenAI será centralizada e preparada antes das primeiras etapas realmente cognitivas, mas não será chamada durante validação de arquivo, identificação simples de formato ou operações que possam ser resolvidas deterministicamente.
+A camada OpenAI será centralizada e preparada antes das primeiras etapas realmente cognitivas, mas não será chamada durante validação de arquivo, identificação de formato, extração textual ou normalização que possam ser resolvidas deterministicamente.
 
 ---
 
@@ -534,7 +589,7 @@ A camada OpenAI será centralizada e preparada antes das primeiras etapas realme
 | Dicionário/Taxonomia — estrutura | concluída |
 | Biblioteca/Storage/Auth/API | concluídos |
 | Pipeline — modelo de dados | concluído |
-| Pipeline — workflow | **em construção, primeira etapa validada** |
+| Pipeline — workflow | **em construção, validação/formato/extração implementados** |
 | Documentos Processados — execução real | pendente do workflow completo |
 | Taxonomia inteligente | pendente |
 | Recuperação híbrida | pendente |
