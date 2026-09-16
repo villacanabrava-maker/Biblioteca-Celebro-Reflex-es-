@@ -113,8 +113,6 @@ Uma reflexão aprovada **não entra automaticamente no Cérebro**. Para virar no
 
 ## 5. Infraestrutura canônica
 
-O projeto novo utiliza uma única cadeia oficial:
-
 ```text
 GitHub
    ↓
@@ -125,21 +123,19 @@ Aplicação Next.js
 Supabase
 ```
 
-Repositório canônico atual:
+Repositório canônico:
 
 ```text
 villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
 ```
 
-Projeto Supabase oficial utilizado nesta implementação:
+Projeto Supabase oficial:
 
 ```text
 xzkzdaxxmizcgfkjgzoq
 ```
 
-O banco novo começou vazio e está sendo construído exclusivamente por migrations versionadas.
-
-Projetos, tabelas, migrations, funções ou deploys do aplicativo anterior não são considerados parte desta arquitetura.
+O banco novo começou vazio e está sendo construído exclusivamente por migrations versionadas. Projetos, tabelas, funções, migrations ou deploys do aplicativo anterior não são considerados parte desta arquitetura.
 
 ---
 
@@ -149,81 +145,77 @@ Projetos, tabelas, migrations, funções ou deploys do aplicativo anterior não 
 
 **Status: concluída e incorporada à `main`.**
 
-Entregue:
-
-- aplicação Next.js inicial;
-- TypeScript;
-- estrutura de navegação;
-- sistema visual inicial;
-- páginas principais do produto;
-- GitHub Actions CI;
-- primeira migration de fundação;
-- schemas canônicos no Supabase;
-- extensões necessárias;
-- documentação de design;
-- documentação de decisões arquiteturais.
+Inclui aplicação Next.js, TypeScript, CI, estrutura visual inicial, páginas principais, schemas canônicos, extensões PostgreSQL e documentação arquitetural.
 
 ### Schema `sistema`
 
 **Status: concluído e incorporado à `main`.**
 
-Entregue:
+Inclui:
 
 - `sistema.modelos_ia`;
 - `sistema.prompts`;
 - `sistema.versoes_prompts`;
 - `sistema.versoes_pipeline`;
 - `sistema.configuracoes_usuario`;
-- constraints;
-- comentários SQL;
-- RLS em dados pessoais;
-- quatro policies de isolamento da configuração do usuário;
-- schemas internos fechados para acesso direto de `anon` e `authenticated`.
-
-Validações concluídas:
-
-- teste transacional com `ROLLBACK` antes da aplicação real;
-- migration aplicada com sucesso;
-- cinco tabelas confirmadas;
-- RLS confirmado;
-- quatro policies confirmadas;
-- `authenticated` sem acesso direto ao schema interno;
-- advisors de segurança sem alertas;
-- advisors de performance sem alertas naquele estágio;
-- CI do PR #2 aprovado;
-- PR #2 incorporado à `main` por squash merge.
+- RLS e policies para configurações pessoais;
+- schema interno fechado por padrão.
 
 ### Taxonomia Mestre
 
-**Status: implementada no Supabase e em branch `feature/taxonomia`, aguardando CI/PR para incorporação à `main`.**
+**Status: concluída e incorporada à `main`.**
 
-Entregue:
+Inclui:
 
 - `taxonomia.versoes`;
 - `taxonomia.conceitos`;
 - `taxonomia.termos`;
 - `taxonomia.relacoes`;
 - `taxonomia.classificacoes_elementos`;
-- checks para vocabulários explicitamente definidos;
-- checks de confiança no intervalo 0–1;
-- índices de versão, domínio, termos, relações e classificações;
-- bloqueio de duplicações exatas no mesmo escopo;
-- RLS em `classificacoes_elementos`;
-- quatro policies por `auth.uid()`;
-- schema `taxonomia` fechado a `anon` e `authenticated`.
+- vocabulários controlados;
+- constraints de confiança;
+- índices taxonômicos;
+- RLS nas classificações pessoais;
+- schema interno fechado.
+
+O PR #3 passou pelo CI e foi incorporado por squash merge.
+
+### Biblioteca
+
+**Status: implementada no Supabase e na branch `feature/biblioteca`, aguardando PR + CI para incorporação à `main`.**
+
+Inclui:
+
+- `biblioteca.obras`;
+- `biblioteca.versoes_obras`;
+- separação obrigatória entre autoria e participação no Cérebro;
+- vocabulário completo de tipos de obra;
+- estados de obra e processamento;
+- precisão de data e importância;
+- metadados auxiliares controlados;
+- preservação de versões físicas;
+- hash SHA-256 para integridade/deduplicação;
+- integridade multiusuário por FK composta `(obra_id, usuario_id)`;
+- Full Text Search inicial em título/descrição;
+- RLS nas duas tabelas;
+- oito policies por `auth.uid()`;
+- schema `biblioteca` fechado a `anon` e `authenticated`.
 
 Validações concluídas:
 
-- teste transacional completo antes da aplicação real;
-- `ROLLBACK` confirmado no teste;
-- migration aplicada com sucesso como `0003_taxonomia`;
-- cinco tabelas confirmadas;
-- RLS confirmado em `classificacoes_elementos`;
-- quatro policies confirmadas;
-- `authenticated` sem `USAGE` direto no schema;
+- `0004_biblioteca` testada integralmente em transação com `ROLLBACK`;
+- `0004_biblioteca` aplicada com sucesso;
+- duas tabelas confirmadas;
+- RLS confirmado nas duas tabelas;
+- oito policies confirmadas;
+- FK composta confirmada;
+- índice FTS confirmado;
+- schema fechado para `authenticated`;
 - advisor de segurança sem alertas.
 
-Observação de performance: o advisor informa que dez índices da Taxonomia ainda estão sem uso. Isso é esperado porque as tabelas acabaram de ser criadas e ainda não receberam consultas reais. Esses índices correspondem justamente aos caminhos de consulta previstos pelo Dicionário — termo normalizado, versão, domínio, origem/destino de relações e classificações — portanto não serão removidos apenas por estarem novos.
+O advisor de performance detectou que a FK composta ainda não possuía índice de suporte. Como `0004` já estava aplicada, ela não foi alterada retroativamente. Foi criada a migration incremental `0005_indice_fk_biblioteca`, testada em transação e aplicada. Após isso, o alerta de FK sem índice desapareceu.
+
+Os avisos restantes são apenas `unused_index`, esperados neste momento porque as tabelas são novas e ainda não receberam carga/consultas reais.
 
 ---
 
@@ -232,9 +224,11 @@ Observação de performance: o advisor informa que dez índices da Taxonomia ain
 | Ordem | Migration | Estado | Finalidade |
 |---|---|---|---|
 | 0001 | `0001_fundacao` | aplicada | extensões e schemas canônicos |
-| 0002 | `0002_sistema` | aplicada | modelos, prompts, pipeline e configurações do usuário |
+| 0002 | `0002_sistema` | aplicada | modelos, prompts, pipeline e configurações |
 | 0003 | `0003_taxonomia` | aplicada | Taxonomia Mestre versionada |
-| 0004 | `0004_biblioteca` | próxima | obras, versões, autoria e participação no Cérebro |
+| 0004 | `0004_biblioteca` | aplicada | obras e versões físicas |
+| 0005 | `0005_indice_fk_biblioteca` | aplicada | índice de suporte à FK composta da Biblioteca |
+| 0006 | Storage privado da Biblioteca | próxima | bucket privado e políticas de objetos |
 
 ### Schemas canônicos existentes
 
@@ -247,8 +241,6 @@ Observação de performance: o advisor informa que dez índices da Taxonomia ain
 - `sistema`
 - `aplicacao`
 
-Schemas nativos do Supabase, como `auth` e `storage`, permanecem nativos.
-
 ### Extensões confirmadas
 
 - `vector`
@@ -259,17 +251,9 @@ Schemas nativos do Supabase, como `auth` e `storage`, permanecem nativos.
 
 ## 8. Taxonomia Mestre
 
-A Taxonomia Mestre é a camada que impede a proliferação descontrolada de tags e conceitos desconectados.
+A Taxonomia impede a proliferação descontrolada de tags e conceitos desconectados.
 
-Estruturas implementadas:
-
-- `taxonomia.versoes` — versionamento formal;
-- `taxonomia.conceitos` — unidade canônica de conhecimento;
-- `taxonomia.termos` — preferenciais, alternativos, sinônimos, históricos e ocultos de busca;
-- `taxonomia.relacoes` — relações semânticas entre conceitos;
-- `taxonomia.classificacoes_elementos` — ligação futura entre elementos processados e conceitos canônicos.
-
-Domínios intelectuais iniciais:
+Domínios iniciais:
 
 1. `intelectual`
 2. `axiologico`
@@ -282,52 +266,34 @@ Domínios intelectuais iniciais:
 9. `estrutural`
 10. `autoral`
 
-Tipos de termo:
+A IA deverá procurar, comparar e normalizar conceitos existentes antes de propor novos conceitos.
 
-- `preferencial`
-- `alternativo`
-- `sinonimo`
-- `historico`
-- `oculto_busca`
-
-Tipos de relação:
-
-- `mais_amplo`
-- `mais_especifico`
-- `relacionado`
-- `contrasta_com`
-- `deriva_de`
-- `evolui_para`
-- `associado_a`
-
-Origens de relação:
-
-- `curadoria`
-- `ia`
-- `importacao`
-
-Papéis de classificação:
-
-- `principal`
-- `secundario`
-- `contextual`
-- `oposicao`
-
-A IA deverá primeiro procurar, comparar e normalizar conceitos existentes antes de propor novos conceitos.
-
-### Decisões deliberadamente abertas
-
-O Dicionário Mestre exige `taxonomia.conceitos.estado`, mas ainda não enumera seus valores canônicos. Por isso a coluna foi criada como `text not null`, sem inventarmos um `CHECK` não documentado. A formalização futura desse vocabulário deverá gerar migration explícita.
-
-`taxonomia.classificacoes_elementos.elemento_id` ainda não possui FK porque `processamento.elementos` ainda não existe. A FK será criada quando o schema de Processamento for implementado.
+O Dicionário ainda não enumera os valores de `taxonomia.conceitos.estado`; por isso não foi inventado um CHECK. A FK entre `taxonomia.classificacoes_elementos.elemento_id` e `processamento.elementos` também permanece adiada até a criação do Processamento.
 
 ---
 
-## 9. Próxima etapa — Biblioteca
+## 9. Biblioteca
 
-A próxima migration será `0004_biblioteca`.
+### `biblioteca.obras`
 
-Ela deverá criar a base do acervo original do usuário, preservando duas coisas que nunca podem ser confundidas:
+Representa a obra intelectual lógica, independentemente do arquivo físico.
+
+Principais dados:
+
+- proprietário;
+- código humano;
+- títulos original/exibição/normalizado;
+- tipo de obra;
+- autoria;
+- participação no Cérebro;
+- autor original externo;
+- idioma;
+- categoria e descrição;
+- datas/período autoral;
+- precisão da data;
+- importância;
+- estado;
+- metadados auxiliares.
 
 ### Autoria
 
@@ -341,16 +307,54 @@ Ela deverá criar a base do acervo original do usuário, preservando duas coisas
 - `externa_influencia`
 - `excluida_cerebro`
 
-Tabelas principais previstas:
+`autoral_prioritaria` exige autoria autoral. `externa_influencia` já exige autoria externa; a validação adicional de que existe influência externa ativa será criada quando `cerebro_autoral.influencias_externas` existir.
 
-- `biblioteca.obras`;
-- `biblioteca.versoes_obras`.
+### Tipos de obra
 
-Depois dessa migration virá a configuração do bucket privado `originais-biblioteca` e do fluxo de upload/versionamento.
+- `livro`
+- `capitulo`
+- `artigo`
+- `carta`
+- `reflexao`
+- `ensaio`
+- `relato`
+- `mensagem`
+- `anotacao`
+- `transcricao`
+- `documento_profissional`
+- `material_metodologico`
+- `referencia_externa`
+- `outro`
+
+### `biblioteca.versoes_obras`
+
+Preserva cada arquivo físico e cada versão sem destruir versões anteriores.
+
+Armazena nome original, caminho no Storage, MIME, extensão, tamanho, hash SHA-256, páginas, palavras, estado de processamento e número da versão.
+
+A FK composta garante que uma versão de um usuário nunca consiga apontar para obra pertencente a outro usuário.
 
 ---
 
-## 10. Frontend implementado
+## 10. Próxima etapa — Storage privado da Biblioteca
+
+O documento canônico define o bucket privado:
+
+```text
+originais-biblioteca
+```
+
+Estrutura de caminho prevista:
+
+```text
+/{usuario_id}/{obra_id}/{versao_id}/original.ext
+```
+
+A próxima etapa criará o bucket privado e as políticas que impedem acesso cruzado entre usuários. Depois disso, o frontend poderá começar a fazer upload real e criar registros em `biblioteca.obras` e `biblioteca.versoes_obras`.
+
+---
+
+## 11. Frontend implementado
 
 Rotas/telas já preparadas visualmente:
 
@@ -363,27 +367,24 @@ Rotas/telas já preparadas visualmente:
 - `/configuracoes` — configurações;
 - login.
 
-Os números e indicadores permanecem em zero enquanto não existe corpus real. A interface não deve apresentar dados fictícios como se fossem dados do usuário.
+Os indicadores permanecem em zero enquanto não existe corpus real. A interface não apresenta dados fictícios como se fossem dados do usuário.
 
 ---
 
-## 11. Design visual
-
-A identidade visual inicial foi construída a partir das referências fornecidas pelo proprietário do produto.
+## 12. Design visual
 
 Diretrizes atuais:
 
 - azul-marinho profundo como cor estrutural;
-- azul luminoso para ações e destaques;
+- azul luminoso para ações;
 - fundos claros;
 - cartões brancos;
 - hierarquia editorial;
 - títulos com presença serifada;
-- corpo de texto moderno e legível;
-- espaçamento generoso;
+- corpo moderno e legível;
 - navegação lateral no desktop;
 - navegação inferior no mobile;
-- sensação visual de biblioteca pessoal, pensamento e reflexão.
+- sensação de biblioteca pessoal, pensamento e reflexão.
 
 Documento dedicado:
 
@@ -393,7 +394,7 @@ docs/DESIGN_VISUAL.md
 
 ---
 
-## 12. Segurança
+## 13. Segurança
 
 Regras obrigatórias:
 
@@ -406,27 +407,25 @@ Regras obrigatórias:
 - segredos nunca no GitHub ou README;
 - URLs temporárias para arquivos privados;
 - logs sem conteúdo sensível desnecessário;
-- conteúdo de documentos tratado como **DADO**, nunca como instrução de sistema;
+- documentos externos tratados como **DADO**, nunca como instrução;
 - defesa contra prompt injection;
-- usuário A nunca pode consultar ou modificar dados do usuário B.
+- usuário A nunca acessa dados do usuário B.
 
-### Chave da OpenAI
+### OpenAI
 
-A aplicação utilizará uma variável de ambiente servidor-side chamada:
+A aplicação utilizará a variável servidor-side:
 
 ```text
 OPENAI_API_KEY
 ```
 
-**Nenhum valor de chave será salvo neste repositório.**
+Nenhum valor de chave será salvo neste repositório.
 
-Em 16/09/2026 uma chave de projeto foi fornecida diretamente na conversa de desenvolvimento. Por segurança, ela **não foi persistida nem ativada no código**. Antes da integração real com a OpenAI, deve ser utilizada uma chave nova/rotacionada e armazenada exclusivamente como secret do ambiente de servidor.
+Em 16/09/2026 uma chave de projeto foi fornecida diretamente na conversa de desenvolvimento. Por segurança, ela **não foi persistida nem ativada**. Antes da integração real, deverá ser usada uma chave nova/rotacionada, armazenada exclusivamente como secret do ambiente servidor.
 
 ---
 
-## 13. Arquitetura da camada de IA
-
-Estrutura lógica planejada:
+## 14. Arquitetura da IA
 
 ```text
 src/ia/
@@ -440,18 +439,7 @@ src/ia/
   aprendizado/
 ```
 
-Motores previstos:
-
-- motor documental;
-- motor taxonômico;
-- motor autoral;
-- motor de recuperação;
-- motor de planejamento;
-- motor de redação;
-- motor de auditoria;
-- motor de aprendizado.
-
-Dados estruturados produzidos por IA deverão seguir:
+Dados estruturados de IA deverão seguir:
 
 ```text
 OpenAI
@@ -460,7 +448,7 @@ Structured Output
   ↓
 JSON Schema
   ↓
-validação da aplicação
+validação
   ↓
 normalização
   ↓
@@ -469,7 +457,7 @@ validação de referências
 persistência
 ```
 
-Nunca será permitido o fluxo direto:
+Nunca será permitido:
 
 ```text
 texto livre do modelo → verdade canônica no banco
@@ -477,9 +465,7 @@ texto livre do modelo → verdade canônica no banco
 
 ---
 
-## 14. Autoria e influências externas
-
-Regra central:
+## 15. Regra de autoria
 
 ```text
 NÚCLEO AUTORAL
@@ -491,32 +477,30 @@ CÉREBRO ATIVO
 
 Uma fonte externa nunca poderá se transformar silenciosamente em evidência de autoria.
 
-Para uma fonte externa alterar metodologia do Cérebro, isso exigirá decisão explícita do usuário, com escopo e intensidade registrados. A origem externa continuará registrada permanentemente.
-
 ---
 
-## 15. Pipeline documental planejado
-
-Fluxo conceitual:
+## 16. Pipeline documental planejado
 
 ```text
 arquivo recebido
   ↓
 validar
   ↓
-identificar formato
+hash / deduplicação
+  ↓
+preservar original
+  ↓
+registrar obra e versão
   ↓
 extrair conteúdo
   ↓
 normalizar
   ↓
-identificar estrutura
-  ↓
 construir hierarquia
   ↓
-criar fragmentos
+fragmentar
   ↓
-criar sínteses
+sintetizar
   ↓
 extrair elementos
   ↓
@@ -531,43 +515,40 @@ validar
 publicar Documento Processado
   ↓
 avaliar participação no Cérebro
-  ↓
-atualizar Cérebro candidato
 ```
 
-Cada etapa deverá ser idempotente, versionada, observável, recuperável e reexecutável.
+Cada etapa cara deverá ser idempotente, versionada, observável e recuperável.
 
 ---
 
-## 16. Testes e CI
+## 17. Testes e CI
 
-Workflow GitHub Actions atual valida:
+GitHub Actions atualmente valida:
 
 - instalação de dependências;
 - lint;
 - TypeScript;
 - build Next.js.
 
-A cobertura será expandida ao longo do projeto para incluir:
+A cobertura será expandida para:
 
-- testes unitários;
+- unitários;
 - integração;
 - SQL;
 - migrations;
 - RLS;
+- Storage;
 - taxonomia;
-- validação de outputs de IA;
+- outputs de IA;
 - retrieval;
-- autoria/contaminação autoral;
+- contaminação autoral;
 - E2E.
 
-Nenhum PR estrutural deve ser incorporado à `main` com CI falhando.
+Nenhum PR estrutural deve entrar na `main` com CI falhando.
 
 ---
 
-## 17. Estratégia de branches
-
-Fluxo atual:
+## 18. Estratégia de branches
 
 ```text
 main
@@ -575,50 +556,35 @@ main
 feature/<etapa>
 ```
 
-Cada bloco significativo é desenvolvido em branch própria, validado em PR e só então incorporado à `main`.
+Cada bloco significativo é desenvolvido em branch própria, validado em PR e incorporado à `main` somente depois dos checks.
 
-Migrations devem permanecer pequenas, ordenadas, auditáveis e reproduzíveis.
+Migrations aplicadas nunca devem ser reescritas para esconder correções posteriores. A correção do índice da FK da Biblioteca em `0005` é um exemplo desse princípio.
 
 ---
 
-## 18. Documentação do repositório
+## 19. Documentação mantida
 
-Documentos mantidos:
-
-- `README.md` — painel mestre e status atual;
+- `README.md` — painel mestre;
 - `docs/DESIGN_VISUAL.md` — sistema visual;
-- `docs/DECISOES.md` — decisões arquiteturais e justificativas;
+- `docs/DECISOES.md` — ADRs e justificativas;
 - `supabase/migrations/` — histórico executável do banco.
 
-Documentação prevista ao longo da construção:
-
-- visão do produto;
-- arquitetura técnica;
-- Dicionário Mestre de Dados;
-- Taxonomia;
-- Cérebro Autoral;
-- pipeline documental;
-- motor de reflexões;
-- segurança;
-- estado atual;
-- plano de implementação.
-
 ---
 
-## 19. Ordem de construção atual
+## 20. Ordem de construção atual
 
 | Etapa | Status |
 |---|---|
 | Fundação técnica | concluída |
 | Schema `sistema` | concluído |
-| Taxonomia Mestre | implementada / aguardando PR + CI |
-| Biblioteca | próxima |
-| Storage privado e upload | pendente |
+| Taxonomia Mestre | concluída |
+| Biblioteca — banco | implementada / aguardando PR + CI |
+| Storage privado + upload | próxima |
 | Pipeline documental | pendente |
 | Documento Processado | pendente |
 | Busca híbrida | pendente |
 | Cérebro Autoral | pendente |
-| Influências externas deliberadas | pendente |
+| Influências externas | pendente |
 | Recuperação contextual | pendente |
 | Motor de Reflexões | pendente |
 | Aprendizado por revisão | pendente |
@@ -626,61 +592,68 @@ Documentação prevista ao longo da construção:
 
 ---
 
-## 20. Próximas ações imediatas
+## 21. Próximas ações imediatas
 
-1. abrir PR da Taxonomia;
-2. aguardar CI do PR;
-3. incorporar `0003_taxonomia` à `main` quando os checks estiverem verdes;
-4. iniciar `feature/biblioteca`;
-5. implementar `0004_biblioteca`;
-6. testar a migration transacionalmente;
-7. aplicar no Supabase;
-8. configurar Storage privado da Biblioteca;
-9. conectar o frontend da Biblioteca aos dados reais;
-10. preparar a camada da OpenAI sem expor segredos;
-11. ativar a integração somente após rotação da chave de projeto.
+1. abrir PR da Biblioteca;
+2. validar CI;
+3. incorporar `0004` e `0005` à `main`;
+4. pesquisar/confirmar a configuração atual de Supabase Storage;
+5. criar migration do bucket `originais-biblioteca` e políticas de acesso;
+6. atualizar novamente este README;
+7. conectar o frontend ao upload real;
+8. iniciar pipeline documental;
+9. preparar a camada OpenAI sem segredo no código;
+10. ativar IA somente após rotação segura da chave.
 
 ---
 
-## 21. Histórico de marcos
+## 22. Histórico de marcos
 
 ### 16/09/2026 — Fundação
 
-- novo repositório canônico consolidado;
-- Next.js/React/TypeScript estruturados;
-- sistema visual inicial implementado;
-- CI criado;
-- `0001_fundacao` aplicada;
-- oito schemas canônicos confirmados;
-- `vector`, `unaccent` e `pg_trgm` confirmados.
+- aplicação e sistema visual inicial;
+- CI;
+- `0001_fundacao`;
+- oito schemas canônicos;
+- extensões de busca/vetor.
 
 ### 16/09/2026 — Sistema
 
-- `0002_sistema` aplicada;
-- cinco tabelas operacionais criadas;
-- RLS de configurações do usuário validado;
-- advisors limpos;
-- PR #2 aprovado pelo CI e incorporado à `main`;
+- `0002_sistema`;
+- modelos/prompts/pipeline/configuração;
+- RLS;
+- PR #2 integrado;
 - README transformado em painel mestre.
 
 ### 16/09/2026 — Taxonomia
 
-- branch `feature/taxonomia` criada;
-- ADRs específicos da Taxonomia registrados;
-- `0003_taxonomia` testada em transação e revertida com sucesso;
-- `0003_taxonomia` aplicada no banco oficial;
-- cinco tabelas da Taxonomia confirmadas;
-- RLS e policies confirmados;
-- advisor de segurança limpo;
-- avisos de índices sem uso registrados como esperados para tabelas recém-criadas.
+- `0003_taxonomia`;
+- cinco tabelas taxonômicas;
+- vocabulários controlados;
+- RLS;
+- CI aprovado;
+- PR #3 integrado.
+
+### 16/09/2026 — Biblioteca
+
+- `0004_biblioteca` testada e aplicada;
+- obras e versões físicas criadas;
+- autoria separada de participação no Cérebro;
+- FK composta multiusuário;
+- FTS inicial;
+- RLS e oito policies;
+- advisor detectou FK sem índice;
+- `0005_indice_fk_biblioteca` criada e aplicada;
+- alerta de FK sem índice resolvido;
+- advisor de segurança limpo.
 
 ---
 
-## 22. Regra de manutenção deste README
+## 23. Regra de manutenção deste README
 
-A partir de 16/09/2026, toda mudança relevante deve atualizar este arquivo no mesmo ciclo de desenvolvimento.
+Toda mudança relevante deve atualizar este arquivo no mesmo ciclo de desenvolvimento.
 
-O README deve sempre permitir responder, sem conhecimento técnico prévio:
+O README deve sempre permitir responder:
 
 - o que é o aplicativo;
 - o que já foi construído;
@@ -690,4 +663,4 @@ O README deve sempre permitir responder, sem conhecimento técnico prévio:
 - quais decisões foram tomadas;
 - como segurança e autoria estão sendo protegidas;
 - qual é a próxima etapa;
-- quais itens ainda faltam para o produto estar concluído.
+- o que ainda falta para o produto estar concluído.
