@@ -1,195 +1,325 @@
 # Decisões Arquiteturais
 
-Este arquivo registra escolhas técnicas que não estavam completamente congeladas nos documentos canônicos. Quando uma decisão mudar, ela deverá ser registrada aqui em vez de ser alterada silenciosamente.
+Este arquivo registra escolhas técnicas que não estavam completamente congeladas nos documentos canônicos. Uma decisão não deve ser alterada silenciosamente: quando houver refinamento ou substituição, isso deve aparecer em novo ADR ou na própria decisão com indicação explícita.
+
+---
 
 ## ADR-001 — Migrations iniciais pequenas e ordenadas
 
-**Contexto:** o Dicionário Mestre descreve uma primeira migration ampla, mas também define uma ordem explícita: extensões e schemas, depois `sistema`, `taxonomia`, `biblioteca` e os demais domínios.
+**Contexto:** o Dicionário Mestre descreve uma fundação ampla, mas define uma ordem explícita entre extensões/schemas e os domínios.
 
-**Decisão:** dividir a fundação em migrations pequenas e cumulativas. `0001_fundacao` cria somente extensões, schemas e negação de acesso por padrão. `0002_sistema` cria o schema operacional de sistema. As migrations seguintes respeitam a ordem do Dicionário.
+**Decisão:** dividir a fundação em migrations pequenas e cumulativas, respeitando a ordem canônica.
 
-**Consequência:** cada mudança pode ser revisada, testada e revertida com menor risco, sem perder a ordem conceitual definida pelo projeto.
+**Consequência:** revisão, teste e correção ficam menores e rastreáveis.
 
 ## ADR-002 — Schemas internos fechados por padrão
 
-**Contexto:** Supabase separa privilégios PostgreSQL de RLS. RLS controla linhas; GRANT/REVOKE controla se o objeto pode ser alcançado.
+**Contexto:** RLS controla linhas; GRANT/REVOKE controla acesso aos objetos.
 
-**Decisão:** `sistema`, `taxonomia`, `biblioteca`, `processamento`, `cerebro_autoral`, `reflexoes` e `auditoria` permanecem internos por padrão. A interface recebe somente o acesso mínimo necessário por uma camada controlada em `aplicacao` ou por endpoints do servidor. Tabelas pessoais continuam usando RLS como defesa adicional.
+**Decisão:** `sistema`, `taxonomia`, `biblioteca`, `processamento`, `cerebro_autoral`, `reflexoes` e `auditoria` permanecem internos. A superfície de API é controlada por `aplicacao`.
 
-**Consequência:** nenhuma tabela nova se torna uma API pública apenas por ter sido criada.
+**Consequência:** criar uma tabela não a transforma automaticamente em endpoint público.
 
 ## ADR-003 — Versão do pipeline como texto
 
-**Contexto:** os documentos usam exemplos como pipeline `2.0`, e não definem `numero_versao` como inteiro.
+**Contexto:** os documentos usam identificadores como `1.0`, `1.1` e `2.0`.
 
-**Decisão:** `sistema.versoes_pipeline.numero_versao` é `text`, permitindo identificadores semânticos como `1.0`, `1.1` ou `2.0`.
+**Decisão:** `sistema.versoes_pipeline.numero_versao` usa `text`.
 
-**Consequência:** comparação cronológica deve usar datas/estado, e não ordenação lexical do identificador.
+**Consequência:** ordem cronológica depende de datas/estado, não de ordenação lexical.
 
 ## ADR-004 — Estados iniciais do pipeline
 
-**Contexto:** o Dicionário exige um campo `estado`, mas não fecha seu vocabulário.
+**Contexto:** o Dicionário exige estado versionado do pipeline, mas não congelou todo o vocabulário operacional na fundação.
 
-**Decisão inicial:** usar os estados técnicos `rascunho`, `ativa`, `arquivada` e `invalidada`, implementados como `text + CHECK`.
+**Decisão:** versões de pipeline usam `rascunho`, `ativa`, `arquivada` e `invalidada`, por `text + CHECK`.
 
-**Consequência:** qualquer novo estado exigirá migration explícita e atualização deste registro.
+**Consequência:** novos estados exigem migration explícita.
 
-## ADR-005 — Configurações do usuário não são um cofre de segredos
+## ADR-005 — Configurações do usuário não são cofre de segredos
 
-**Contexto:** o Dicionário determina que `sistema.configuracoes_usuario` armazene preferências seguras e não secretas.
+**Contexto:** preferências e segredos têm riscos e ciclos de vida diferentes.
 
-**Decisão:** idioma, recuperação, nível de detalhamento e aprovação manual ficam em colunas próprias. Apenas preferências visuais flexíveis ficam em `jsonb`. Chaves de API, senhas, tokens e segredos são proibidos nessa tabela.
+**Decisão:** `sistema.configuracoes_usuario` guarda apenas preferências não secretas. Chaves, senhas e tokens ficam fora do banco de preferências.
 
-**Consequência:** configurações importantes continuam pesquisáveis e validáveis, enquanto metadados puramente visuais podem evoluir sem alterar o schema a cada detalhe de interface.
+**Consequência:** nenhuma credencial deve ser persistida nessa tabela.
 
 ## ADR-006 — Estado de conceito ainda sem CHECK
 
-**Contexto:** o Dicionário Mestre exige `taxonomia.conceitos.estado`, mas não enumera quais valores são canônicos para esse campo. Ao mesmo tempo, a regra geral do projeto determina que estados técnicos estáveis usem `text + CHECK`.
+**Contexto:** `taxonomia.conceitos.estado` é obrigatório, mas o Dicionário não enumera seus valores.
 
-**Decisão:** em `0003_taxonomia`, `estado` é `text not null`, mas ainda sem `CHECK`. Não será inventado um vocabulário que os documentos não definiram.
+**Decisão:** manter `text not null` sem inventar um vocabulário.
 
-**Consequência:** antes de a Taxonomia Mestre entrar em operação real, o vocabulário de estado de conceito deverá ser formalizado no Dicionário e endurecido por migration explícita.
+**Consequência:** o CHECK será criado quando o Dicionário formalizar os estados.
 
-## ADR-007 — FK de classificação para elemento processado é adiada
+## ADR-007 — FK Taxonomia → Elementos foi inicialmente adiada
 
-**Contexto:** o Dicionário ordena a criação de Taxonomia antes de Processamento, mas `taxonomia.classificacoes_elementos.elemento_id` deverá apontar para `processamento.elementos`, tabela que ainda não existe nessa etapa.
+**Contexto:** Taxonomia foi criada antes de `processamento.elementos`.
 
-**Decisão:** criar `elemento_id uuid not null` em `0003_taxonomia`, documentando a referência lógica, e adicionar a FK somente na migration em que `processamento.elementos` existir.
+**Decisão:** `classificacoes_elementos.elemento_id` nasceu sem FK e a referência foi adicionada em `0013`, quando a tabela de elementos passou a existir.
 
-**Consequência:** a ordem canônica das migrations é preservada sem criar dependência impossível. A integridade referencial completa será adicionada antes de classificações reais entrarem em produção.
+**Consequência:** a ordem canônica foi preservada e a integridade referencial hoje está completa.
 
-## ADR-008 — Bloqueio de duplicações exatas na Taxonomia
+## ADR-008 — Bloqueio de duplicações taxonômicas exatas
 
-**Contexto:** o Dicionário define vocabulários controlados e uma Taxonomia Mestre reutilizável, mas não especifica todas as constraints de duplicidade.
+**Contexto:** reexecuções não devem multiplicar a mesma entidade canônica.
 
-**Decisão:** impedir duplicações exatamente equivalentes dentro do mesmo escopo, incluindo código de conceito na mesma versão, termo normalizado repetido no mesmo conceito/tipo/idioma, relação idêntica com a mesma origem e classificação idêntica do mesmo usuário/elemento/conceito/papel.
+**Decisão:** usar constraints de unicidade para conceitos/termos/relações/classificações semanticamente idênticos no mesmo escopo.
 
-**Consequência:** reexecuções e processamento repetido não geram linhas semanticamente idênticas. Se no futuro houver necessidade de registrar ocorrências múltiplas como evidências separadas, isso será modelado em tabela própria de evidência/proveniência, e não por duplicação da entidade canônica.
+**Consequência:** evidências repetidas devem ser modeladas como evidências, não como duplicação da entidade canônica.
 
-## ADR-009 — Chave da OpenAI somente em secret servidor-side
+## ADR-009 — Chave OpenAI somente server-side
 
-**Contexto:** a aplicação precisará chamar a OpenAI API, mas qualquer chave colocada em código, README, browser ou repositório compromete a segurança e pode gerar uso e cobrança indevidos.
+**Contexto:** chaves em browser, Git ou README podem gerar acesso indevido e cobrança.
 
-**Decisão:** a aplicação usará apenas a variável servidor-side `OPENAI_API_KEY`. O valor nunca será persistido no repositório. Uma chave fornecida diretamente em conversa de desenvolvimento será considerada exposta e deverá ser rotacionada antes de ser ativada no ambiente real.
+**Decisão:** somente `OPENAI_API_KEY` no ambiente servidor. A chave enviada no chat é tratada como exposta e deve ser rotacionada antes da ativação real.
 
-**Consequência:** a integração da OpenAI pode ser preparada no código sem depender do segredo. A ativação efetiva só ocorrerá quando uma chave nova estiver armazenada no mecanismo de secrets do ambiente servidor.
+**Consequência:** o código pode existir sem segredo; produção só será ativada com chave nova armazenada diretamente no ambiente.
 
-## ADR-010 — Integridade multiusuário por FK composta na Biblioteca
+## ADR-010 — Integridade multiusuário por FKs compostas
 
-**Contexto:** o Dicionário Mestre recomenda que tabelas filhas com `usuario_id` preservem o vínculo `(parent_id, usuario_id) -> (parent.id, parent.usuario_id)` para evitar associações acidentais entre usuários.
+**Contexto:** um filho com `usuario_id` não deve poder apontar para entidade de outro usuário.
 
-**Decisão:** `biblioteca.versoes_obras` referencia `biblioteca.obras` pelo par `(obra_id, usuario_id)`. A tabela pai recebe `unique (id, usuario_id)` apenas para permitir essa FK composta.
+**Decisão:** quando pai e filho carregam usuário, usar vínculos do tipo `(parent_id, usuario_id) -> (parent.id, parent.usuario_id)`.
 
-**Consequência:** uma versão física não pode apontar para uma obra de outro usuário mesmo que um ID incorreto seja enviado pela aplicação ou por processo interno.
+**Consequência:** erros internos não atravessam fronteira de propriedade apenas por conhecer um UUID.
 
-## ADR-011 — Busca textual inicial da Biblioteca usa configuração `simple`
+## ADR-011 — Busca textual inicial usa configuração `simple`
 
-**Contexto:** o Dicionário exige índice de busca textual em título/descrição e o corpus poderá conter múltiplos idiomas. Usar uma configuração linguística fixa como `portuguese` introduziria stemming específico de um idioma antes de conhecermos o corpus real.
+**Contexto:** o corpus pode ser multilíngue.
 
-**Decisão:** o primeiro índice Full Text Search de `biblioteca.obras` usa `to_tsvector('simple', titulo_normalizado || descricao)`. Busca multilíngue, pesos, normalização avançada e reranking serão refinados na fase de recuperação híbrida.
+**Decisão:** FTS inicial usa `to_tsvector('simple', ...)`; stemming específico será avaliado na recuperação híbrida.
 
-**Consequência:** a Biblioteca já nasce pesquisável sem assumir que todo conteúdo está em português. A estratégia poderá evoluir por migration e avaliação de retrieval.
+**Consequência:** a base não assume prematuramente que todo conteúdo está em português.
 
-## ADR-012 — Regra completa de `externa_influencia` é parcialmente adiada
+## ADR-012 — Regra completa de `externa_influencia` é progressiva
 
-**Contexto:** o Dicionário determina que `participacao_cerebro = 'externa_influencia'` exija `autoria = 'externa'` e um registro ativo em `cerebro_autoral.influencias_externas`. Essa tabela ainda não existe na etapa da Biblioteca.
+**Contexto:** influência deliberada exige entidade própria no Cérebro Autoral.
 
-**Decisão:** `0004_biblioteca` já exige por CHECK que `externa_influencia` tenha autoria externa. A validação contra um registro ativo de influência será adicionada quando `cerebro_autoral.influencias_externas` for criada.
+**Decisão:** a Biblioteca já exige autoria externa; a validação contra `cerebro_autoral.influencias_externas` será adicionada quando essa estrutura existir.
 
-**Consequência:** a parte verificável da regra já é garantida no banco, sem criar dependência circular ou inventar uma tabela fora da ordem de construção.
+**Consequência:** não criamos dependência circular, mas também não tratamos referência comum como influência metodológica.
 
-## ADR-013 — `atualizado_em` sem trigger global nesta etapa
+## ADR-013 — `atualizado_em` sem trigger global prematuro
 
-**Contexto:** `biblioteca.obras` possui `atualizado_em`, mas o Dicionário coloca funções utilitárias e triggers como etapa posterior às tabelas/índices principais.
+**Contexto:** utilitários/triggers compartilhados pertencem a uma etapa posterior da fundação.
 
-**Decisão:** a coluna nasce com `default now()`, mas o trigger reutilizável de atualização automática será criado em uma migration de funções/triggers compartilhados, em vez de duplicar função técnica dentro de `0004_biblioteca`.
+**Decisão:** campos recebem `default now()` e o trigger compartilhado será introduzido em migration própria quando necessário.
 
-**Consequência:** até essa migration utilitária existir, qualquer atualização de obra feita pelo backend deverá também atualizar `atualizado_em` explicitamente.
+**Consequência:** atualizações feitas antes disso precisam escrever `atualizado_em` explicitamente.
 
-## ADR-014 — Bucket de originais é privado e versionado por migration
+## ADR-014 — Bucket de originais privado e versionado por migration
 
-**Contexto:** os documentos canônicos definem o bucket `originais-biblioteca` como privado. A documentação atual do Supabase suporta criação de buckets por SQL e informa que buckets privados submetem operações e downloads às políticas RLS.
+**Contexto:** o original é conteúdo intelectual privado e a infraestrutura deve ser reproduzível.
 
-**Decisão:** `0006_storage_biblioteca` cria/garante o bucket `originais-biblioteca` com `public = false` e versiona as políticas de `storage.objects` no mesmo histórico de migrations do projeto.
+**Decisão:** `originais-biblioteca` é criado/configurado por migration com `public = false`.
 
-**Consequência:** a infraestrutura de arquivos pode ser reproduzida junto com o banco, e um deploy novo não depende de configuração manual silenciosa no Dashboard.
+**Consequência:** um ambiente novo reproduz bucket e políticas sem configuração invisível.
 
-## ADR-015 — Isolamento de objetos pelo primeiro segmento do caminho
+## ADR-015 — Isolamento de Storage pelo primeiro segmento do caminho
 
-**Contexto:** o caminho canônico é representado como `/{usuario_id}/{obra_id}/{versao_id}/original.ext`. No Supabase Storage, nomes de objetos não precisam de barra inicial e a função `storage.foldername(name)` permite controlar pastas via RLS.
+**Contexto:** cada usuário precisa ter namespace próprio.
 
-**Decisão:** o nome efetivo do objeto será `{usuario_id}/{obra_id}/{versao_id}/original.ext`. As quatro policies de SELECT/INSERT/UPDATE/DELETE exigem que o primeiro segmento seja exatamente `auth.uid()::text` e que o bucket seja `originais-biblioteca`.
+**Decisão:** caminho efetivo `{usuario_id}/{obra_id}/{versao_id}/original.ext`; policies exigem primeira pasta igual a `auth.uid()`.
 
-**Consequência:** um usuário autenticado não pode usar a API normal do Storage para acessar ou gravar arquivos na pasta de outro usuário. O backend deverá sempre gerar caminhos nesse formato.
+**Consequência:** a API normal do Storage não permite acesso à pasta de outro usuário.
 
-## ADR-016 — MIME e tamanho de arquivo ainda não congelados no bucket
+## ADR-016 — MIME e tamanho de arquivo ainda não congelados
 
-**Contexto:** o Dicionário Mestre deixa deliberadamente em aberto o conjunto completo de tipos de arquivo e a estratégia final de OCR. O Supabase permite configurar `allowed_mime_types` e limite de tamanho diretamente no bucket.
+**Contexto:** formatos finais e estratégia de OCR continuam deliberadamente abertos no Dicionário.
 
-**Decisão:** `0006_storage_biblioteca` não congela MIME nem limite máximo de arquivo. Essas restrições serão definidas após a fase de upload/processamento validar os formatos suportados e os limites operacionais.
+**Decisão:** bucket sem `allowed_mime_types`/limite global por enquanto; validação evoluirá junto do pipeline.
 
-**Consequência:** não bloqueamos prematuramente documentos válidos. A validação inicial será feita pela aplicação e, quando os formatos forem formalizados, o bucket poderá ser endurecido por migration explícita.
+**Consequência:** não bloqueamos prematuramente documentos que podem ser suportados depois.
 
-## ADR-017 — `aplicacao` é a única fronteira da Biblioteca na Data API
+## ADR-017 — `aplicacao` é a fronteira da Data API
 
-**Contexto:** a interface precisa consultar e registrar obras, mas expor `biblioteca` diretamente pela Data API enfraqueceria a separação entre persistência interna e superfície pública.
+**Contexto:** expor schemas internos ampliaria superfície e acoplamento.
 
-**Decisão:** `0007_api_aplicacao_biblioteca` configura `pgrst.db_schemas` como `public, graphql_public, aplicacao`. O schema `biblioteca` permanece fora da Data API. A UI acessa somente funções explicitamente liberadas em `aplicacao`.
+**Decisão:** PostgREST expõe `public`, `graphql_public` e `aplicacao`; schemas de domínio ficam fechados.
 
-**Consequência:** evolução de tabelas internas não amplia automaticamente a superfície HTTP. Qualquer nova operação pública exige uma RPC deliberada e um grant explícito.
+**Consequência:** novas operações públicas exigem RPC deliberada e grant explícito.
 
-## ADR-018 — RPCs públicas não recebem `usuario_id` do navegador
+## ADR-018 — RPCs públicas derivam identidade de `auth.uid()`
 
-**Contexto:** permitir que o cliente informe o proprietário de uma obra cria risco de troca de identidade e exige confiar em um campo controlado pelo usuário.
+**Contexto:** o navegador não pode escolher quem é o proprietário.
 
-**Decisão:** `aplicacao.listar_obras()` e `aplicacao.registrar_obra_arquivo(...)` derivam a identidade exclusivamente de `auth.uid()`. As funções são `SECURITY DEFINER`, usam `set search_path = ''`, validam entradas e recebem grants mínimos.
+**Decisão:** RPCs não recebem `usuario_id`; derivam o usuário autenticado e usam `SECURITY DEFINER` + `search_path = ''`.
 
-**Consequência:** a autorização não depende de o navegador enviar o usuário correto. O banco continua sendo a autoridade sobre identidade e propriedade.
+**Consequência:** autorização não depende de campos enviados pelo cliente.
 
 ## ADR-019 — Códigos humanos iniciais derivados de UUID
 
-**Contexto:** o Dicionário exige códigos humanos e apresenta exemplos como `OBR-000001`, mas não congela uma sequência global. Uma sequência global pode revelar volume, criar contenção e exigir uma política adicional de escopo multiusuário.
+**Contexto:** o Dicionário exige código humano, mas não congela contador global.
 
-**Decisão:** na primeira versão, o código da obra é `OBR-` seguido dos 12 primeiros caracteres hexadecimais do UUID e o código da versão é `VOB-` com o mesmo padrão. Os UUIDs continuam sendo as chaves reais.
+**Decisão:** `OBR-`/`VOB-` usam prefixo derivado do UUID; UUID continua sendo a chave real.
 
-**Consequência:** os códigos são estáveis, legíveis e independentes de contador global. Se o produto exigir numeração sequencial humana no futuro, isso será introduzido por migration e decisão própria.
+**Consequência:** evitamos contador global e vazamento de volume sem impedir futura numeração sequencial.
 
-## ADR-020 — Upload resumível TUS desde o primeiro fluxo real
+## ADR-020 — TUS com retries; retomada entre reloads exige IDs persistentes
 
-**Contexto:** livros e documentos podem ser grandes. A documentação atual do Supabase recomenda TUS para arquivos acima de 6 MB, redes instáveis e quando progresso/retomada são importantes.
+**Contexto:** `findPreviousUploads()` era incompatível com novos UUIDs gerados a cada submissão.
 
-**Decisão:** o frontend usa `tus-js-client`, endpoint direto do Storage, retries progressivos, retomada de uploads anteriores e chunks de exatamente 6 MB. Não é enviado `x-upsert`, evitando sobrescrita silenciosa do original.
+**Decisão:** manter TUS, endpoint direto, chunks de 6 MB e retries da operação atual, mas não retomar fingerprint de submissão anterior até existir uma operação persistente com IDs estáveis.
 
-**Consequência:** upload de livros grandes é mais resiliente e pode continuar após interrupções sem modificar a regra de preservação do original.
+**Consequência:** elimina risco de upload antigo ser registrado com caminho/UUID novo.
 
-## ADR-021 — SHA-256 incremental no navegador e futura revalidação no pipeline
+## ADR-021 — SHA-256 incremental no navegador e revalidação futura no servidor
 
-**Contexto:** o Dicionário exige SHA-256 para integridade e deduplicação. Ler um livro grande inteiro em memória só para calcular hash aumenta uso de RAM desnecessariamente.
+**Contexto:** hash é necessário para integridade/deduplicação, mas arquivos grandes não devem ser carregados inteiros na memória.
 
-**Decisão:** o frontend calcula SHA-256 incrementalmente com `hash-wasm`, em blocos. O hash é enviado para o registro da versão. O pipeline documental poderá recalcular/verificar o hash do objeto armazenado como defesa adicional antes do processamento.
+**Decisão:** calcular SHA-256 em blocos com `hash-wasm`; o pipeline deverá recalcular/verificar o objeto armazenado antes de processar.
 
-**Consequência:** o primeiro upload já possui identidade de conteúdo sem sacrificar memória do navegador, e a segurança futura não precisa confiar cegamente em um hash informado pelo cliente.
+**Consequência:** o upload já tem identidade de conteúdo sem transformar o navegador em autoridade final.
 
 ## ADR-022 — `externa_influencia` não aparece no upload inicial
 
-**Contexto:** uma influência externa deliberada exige escopo, intensidade e registro explícito no Cérebro Autoral, estruturas que ainda não foram implementadas.
+**Contexto:** influência externa deliberada exige escopo, intensidade e registro próprio.
 
-**Decisão:** ao adicionar uma fonte externa agora, a interface oferece `externa_referencia` ou `excluida_cerebro`. A opção `externa_influencia` só será habilitada no painel próprio de influências quando suas entidades e regras existirem.
+**Decisão:** upload de fonte externa oferece `externa_referencia` ou `excluida_cerebro`; influência será habilitada apenas no painel específico.
 
-**Consequência:** uma referência externa não pode virar influência metodológica apenas por uma seleção prematura no formulário de upload.
+**Consequência:** referência externa não vira influência metodológica por clique acidental.
 
 ## ADR-023 — Auth SSR usa `getClaims()` para autorização
 
-**Contexto:** no padrão atual do Supabase para Next.js SSR, cookies podem precisar ser renovados no Proxy e `getSession()` não deve ser usado no servidor como prova de autorização.
+**Contexto:** `getSession()` não deve ser prova de identidade no servidor.
 
-**Decisão:** o projeto usa `@supabase/ssr`, clientes separados para browser/servidor, cookies, `proxy.ts` e `supabase.auth.getClaims()` para validar identidade server-side. `getSession()` é usado apenas no navegador durante TUS para obter o access token que é validado pelo Storage remoto.
+**Decisão:** usar `@supabase/ssr`, cookies, `proxy.ts` e `getClaims()` server-side. `getSession()` no browser é usado somente para obter token encaminhado ao Storage.
 
-**Consequência:** rotas protegidas e operações server-side não confiam em sessão não verificada, enquanto o upload resumível continua compatível com o mecanismo TUS.
+**Consequência:** decisões de autorização server-side dependem de JWT validado.
 
-## ADR-024 — Deploy novo não reutiliza projeto Vercel antigo
+## ADR-024 — Deploy usa Vercel novo e exclusivo
 
-**Contexto:** a inspeção da conta Vercel conectada mostrou apenas projetos antigos e nenhum ligado ao repositório canônico novo. Os documentos do projeto proíbem reutilizar automaticamente o deploy anterior.
+**Contexto:** o projeto novo não pode herdar silenciosamente deploy/configuração do aplicativo anterior.
 
-**Decisão:** será criado um projeto Vercel exclusivo, recomendado como `cerebro-autoral`, importando `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`. O projeto receberá apenas as variáveis necessárias ao novo aplicativo.
+**Decisão:** projeto Vercel `cerebro-autoral`, ligado ao repositório canônico novo.
 
-**Consequência:** o histórico e a configuração do aplicativo anterior não contaminam o novo produto. Como o conector Vercel disponível não permite criar projeto nem editar variáveis de ambiente, essa configuração permanece uma ação externa explícita e documentada.
+**Consequência:** produção atual está separada do legado e foi verificada online.
+
+## ADR-025 — Nome das migrations no Git coincide com histórico Supabase
+
+**Contexto:** a auditoria encontrou timestamps divergentes e prefixo duplicado nos arquivos.
+
+**Decisão:** renomear arquivos `0001`–`0009` para os números de versão já registrados no Supabase, sem alterar SQL nem reexecutar banco.
+
+**Consequência:** replay/CLI/auditoria passam a descrever a mesma sequência do banco real.
+
+## ADR-026 — Pipeline 1.0 e Taxonomia 1.0 existem antes da primeira execução
+
+**Contexto:** `processamento.execucoes` exige versões referenciáveis e as tabelas estavam vazias.
+
+**Decisão:** `0010` cria/ativa apenas os registros de versão `1.0`, sem inventar conceitos ou modelos.
+
+**Consequência:** toda execução poderá registrar proveniência desde o início.
+
+## ADR-027 — Runtime Node é o mesmo no CI e Vercel
+
+**Contexto:** `>=22` permitiu Vercel Node 24 enquanto CI validava Node 22.
+
+**Decisão:** `engines.node = 22.x` e CI em Node 22.x.
+
+**Consequência:** upgrade de major passa a ser decisão explícita e testada.
+
+## ADR-028 — Dependências exigem lockfile e CI usa `npm ci`
+
+**Contexto:** sem lockfile, builds em datas diferentes podiam resolver árvores diferentes.
+
+**Decisão:** versionar `package-lock.json`, fixar `packageManager = npm@10.9.8` e usar `npm ci` no CI.
+
+**Consequência:** builds são reproduzíveis e mudanças de dependência exigem commit.
+
+## ADR-029 — Repositório público é risco operacional
+
+**Contexto:** o repo canônico está público; não foram encontrados segredos conhecidos, mas arquitetura e documentação proprietária ficam expostas.
+
+**Decisão:** recomendar repositório privado antes de conteúdo intelectual real. Segurança do aplicativo não dependerá apenas dessa privacidade.
+
+**Consequência:** alteração de visibilidade continua como ação administrativa externa.
+
+## ADR-030 — ESLint permanece em 9.39.5 por compatibilidade comprovada
+
+**Contexto:** atualização para ESLint 10.10.0 foi testada no CI e falhou porque `eslint-config-next 16.3.5` carrega plugin React dependente de API removida no ESLint 10.
+
+**Decisão:** fixar `eslint = 9.39.5` até a cadeia Next/plugin suportar ESLint 10.
+
+**Consequência:** não mascaramos erro nem mantemos `latest`; upgrade será um PR técnico próprio quando compatível.
+
+## ADR-031 — Vetores v1 usam 1536 dimensões + HNSW cosine
+
+**Contexto:** o Dicionário v1 padroniza `vector(1536)` e exige versionamento para mudança dimensional. A recuperação semântica precisa de índice vetorial.
+
+**Decisão:** `processamento.vetores.embedding` usa `extensions.vector(1536)` e índice HNSW com `extensions.vector_cosine_ops`.
+
+**Consequência:** o índice pode existir desde tabela vazia e qualquer mudança de dimensionalidade exige migration/versionamento explícito.
+
+## ADR-032 — Documento Processado preserva hierarquia, não chunks planos
+
+**Contexto:** o produto precisa recuperar conteúdo com contexto estrutural.
+
+**Decisão:** modelar `documentos_processados`, `secoes`, `fragmentos` e `sinteses`, preservando pai/filho, ordem, páginas e conteúdo contextualizado.
+
+**Consequência:** retrieval futuro pode operar por obra, parte, capítulo, seção e fragmento.
+
+## ADR-033 — Evidência pertence ao mesmo Documento Processado do elemento
+
+**Contexto:** FKs por usuário impediam cruzar usuários, mas ainda permitiam elemento de um documento apontar para fragmento de outro documento do mesmo usuário.
+
+**Decisão:** `0015` cria validação no banco que exige o mesmo `documento_processado_id` entre elemento e fragmento de uma evidência.
+
+**Consequência:** proveniência textual de cada elemento permanece local ao documento que o originou; relações intelectuais entre documentos continuam permitidas em `relacoes_elementos`.
+
+## ADR-034 — Documento Processado ativo exige publicação explícita
+
+**Contexto:** regra canônica determina publicação candidata → ativa somente após validação.
+
+**Decisão:** estado `ativo` exige `publicado_em not null`; índice parcial garante no máximo um ativo por usuário/obra.
+
+**Consequência:** o Cérebro não deverá consumir representação parcial ou nunca publicada.
+
+## ADR-035 — Deduplicação por hash usa advisory lock, não UNIQUE estrutural
+
+**Contexto:** o Dicionário define `hash_sha256` para integridade/deduplicação e recomenda índice `(usuario_id, hash_sha256)`, mas não exige `UNIQUE`. Uma simples consulta antes do insert teria corrida concorrente.
+
+**Decisão:** `0016` usa `pg_advisory_xact_lock` derivado de usuário + SHA-256, consulta hash existente dentro da transação e recusa o segundo registro com `arquivo_duplicado_por_hash`.
+
+**Consequência:** deduplicação é segura sob concorrência sem impor semântica de unicidade que o Dicionário não congelou.
+
+## ADR-036 — Backend não ganha acesso direto aos schemas internos
+
+**Contexto:** a auditoria confirmou que até `service_role` não possui `USAGE` em `processamento`, `biblioteca` e demais schemas internos.
+
+**Decisão:** manter a fronteira. O workflow documental usará RPCs **server-only em `aplicacao`**, concedidas apenas ao backend, executando internamente com `SECURITY DEFINER` e `search_path = ''`.
+
+**Consequência:** não precisamos abrir schemas internos na Data API para executar processamento.
+
+## ADR-037 — Rotas públicas do Proxy são exatas
+
+**Contexto:** `startsWith('/login')` e `startsWith('/auth')` poderiam tornar públicos caminhos apenas semelhantes.
+
+**Decisão:** considerar público somente `/login` e caminhos dentro de `/auth/`.
+
+**Consequência:** novas rotas semelhantes não escapam da autenticação por prefixo amplo.
+
+## ADR-038 — Todos os arquivos `.env*` são ignorados, exceto exemplo
+
+**Contexto:** ignorar somente `.env`, `.env.local` e variantes locais ainda deixava risco de `/.env.production` real ser commitido.
+
+**Decisão:** `.gitignore` usa `.env*` e exceção `!.env.example`.
+
+**Consequência:** configuração documentada continua versionável sem permitir segredo real por padrão.
+
+## ADR-039 — Proteção contra senhas vazadas é requisito antes de usuários reais
+
+**Contexto:** o advisor de segurança do Supabase reporta `Leaked Password Protection Disabled`. A documentação atual informa integração com Pwned Passwords/HaveIBeenPwned disponível no plano Pro e acima.
+
+**Decisão:** ativar a proteção no Dashboard antes de abertura para usuários reais, se o plano permitir; manter também política mínima de senha e avaliar MFA.
+
+**Consequência:** este item permanece bloqueio externo de hardening, pois o conector atual não expõe essa configuração.
+
+## ADR-040 — Documentos canônicos completos serão versionados por domínio sem reinterpretação silenciosa
+
+**Contexto:** o repositório hoje contém `DECISOES.md`, `ESTADO_ATUAL.md` e `DESIGN_VISUAL.md`, enquanto o plano prevê documentação dedicada de arquitetura, segurança, pipeline, Cérebro e motor de reflexões.
+
+**Decisão:** depois da consolidação estrutural, criar os documentos dedicados preservando a terminologia e o conteúdo dos quatro documentos canônicos fornecidos pelo proprietário; complementos técnicos devem ser identificados como decisão/implementação, não como alteração silenciosa da fonte.
+
+**Consequência:** o GitHub passará a ser suficiente para reconstruir também o conhecimento arquitetural do projeto, não apenas o código e o banco.

@@ -110,15 +110,9 @@ async function enviarArquivoResumivel({
       },
     })
 
-    upload
-      .findPreviousUploads()
-      .then((anteriores) => {
-        if (anteriores.length > 0) {
-          upload.resumeFromPreviousUpload(anteriores[0])
-        }
-        upload.start()
-      })
-      .catch(reject)
+    // Retomada entre reloads só voltará quando os IDs da operação forem persistentes.
+    // Os retries TUS desta operação continuam ativos.
+    upload.start()
   })
 }
 
@@ -210,6 +204,11 @@ export function FormularioUploadBiblioteca() {
 
       if (registroError) {
         await supabase.storage.from('originais-biblioteca').remove([caminhoArquivo])
+
+        if (registroError.message.includes('arquivo_duplicado_por_hash')) {
+          throw new Error('Este arquivo já existe na sua Biblioteca. O upload duplicado foi descartado.')
+        }
+
         throw new Error('O arquivo foi enviado, mas o registro da obra falhou e o upload foi revertido.')
       }
 

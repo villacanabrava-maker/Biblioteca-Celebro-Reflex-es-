@@ -1,13 +1,18 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+function rotaEhPublica(pathname: string) {
+  return pathname === '/login' || pathname.startsWith('/auth/')
+}
+
 export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
   const pathname = request.nextUrl.pathname
+  const rotaPublica = rotaEhPublica(pathname)
 
   if (!url || !publishableKey) {
-    if (pathname.startsWith('/login')) {
+    if (rotaPublica) {
       return NextResponse.next({ request })
     }
 
@@ -46,7 +51,6 @@ export async function updateSession(request: NextRequest) {
   // getClaims() valida a identidade; getSession() não é usado para autorização.
   const { data } = await supabase.auth.getClaims()
   const claims = data?.claims
-  const rotaPublica = pathname.startsWith('/login') || pathname.startsWith('/auth')
 
   if (!claims && !rotaPublica) {
     const redirectUrl = request.nextUrl.clone()
@@ -55,7 +59,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  if (claims && pathname.startsWith('/login')) {
+  if (claims && pathname === '/login') {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/'
     redirectUrl.search = ''
