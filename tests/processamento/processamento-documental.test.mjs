@@ -6,6 +6,7 @@ import {
   extrairTextoPdf,
   extrairTextoUtf8,
 } from '../../src/dominios/processamento/extrair-conteudo.ts'
+import { normalizarArtefatoExtraido } from '../../src/dominios/processamento/normalizar-conteudo.ts'
 
 const encoder = new TextEncoder()
 
@@ -43,6 +44,22 @@ function criarPdfTexto(texto = 'Teste PDF') {
 
   pdf += `trailer\n<< /Size ${objetos.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
   return bytes(pdf)
+}
+
+function artefatoTexto(conteudo, formato = 'texto') {
+  return {
+    schema_version: 1,
+    formato,
+    encoding: 'utf-8',
+    metodo: 'utf8_deterministico',
+    fonte: {
+      nome_arquivo: formato === 'markdown' ? 'ensaio.md' : 'ensaio.txt',
+      tipo_mime_registrado: formato === 'markdown' ? 'text/markdown' : 'text/plain',
+      hash_sha256_original: 'e'.repeat(64),
+    },
+    total_paginas: null,
+    conteudo,
+  }
 }
 
 test('identifica PDF apenas quando extensão, MIME e assinatura são coerentes', () => {
@@ -153,4 +170,93 @@ test('extrai texto de PDF preservando a referência da página', async () => {
   assert.equal(resultado.paginasComTexto, 1)
   assert.equal(resultado.artefato.paginas?.[0]?.numero, 1)
   assert.match(resultado.artefato.paginas?.[0]?.conteudo ?? '', /Teste PDF/)
+})
+
+test('normaliza Unicode em NFC e quebras de linha sem apagar escolhas autorais', () => {
+  const entrada = artefatoTexto('Cafe\u0301\r\nLinha 2\rLinha 3  \nLigatura: ﬀ — “aspas”')
+  const resultado = normalizarArtefatoExtraido({
+    bytes: bytes(JSON.stringify(entrada)),
+    hashArtefatoExtraido: 'f'.repeat(64),
+    hashOriginalEsperado: 'e'.repeat(64),
+  })
+
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+
+  assert.equal(
+    resultado.artefato.conteudo,
+    'Café\nLinha 2\nLinha 3  \nLigatura: ﬀ — “aspas”'
+  )
+  assert.equal(resultado.artefato.normalizacao.unicode, 'NFC')
+  assert.equal(resultado.artefato.normalizacao.alteracoes.quebras_crlf_convertidas, 1)
+  assert.equal(resultado.artefato.normalizacao.alteracoes.quebras_cr_isoladas_convertidas, 1)
+  assert.equal(resultado.artefato.normalizacao.alteracoes.segmentos_alterados_nfc, 1)
+})
+
+test('NFC preserva distinções de compatibilidade que NFKC apagaria', () => {
+  const entrada = artefatoTexto('ﬀ ① Ａ')
+  const resultado = normalizarArtefatoExtraido({
+    bytes: bytes(JSON.stringify(entrada)),
+    hashArtefatoExtraido: '1'.repeat(64),
+    hashOriginalEsperado: 'e'.repeat(64),
+  })
+
+  assert.equal(resultado.ok, true)
+  if (resultado.ok) assert.equal(resultado.artefato.conteudo, 'ﬀ ① Ａ')
+})
+
+test('normalização preserva espaços significativos de Markdown', () => {
+  const entrada = artefatoTexto('Linha com quebra Markdown  \r\ncontinuação', 'markdown')
+  const resultado = normalizarArtefatoExtraido({
+    bytes: bytes(JSON.stringify(entrada)),
+    hashArtefatoExtraido: '2'.repeat(64),
+    hashOriginalEsperado: 'e'.repeat(64),
+  })
+
+  assert.equal(resultado.ok, true)
+  if (resultado.ok) assert.equal(resultado.artefato.conteudo, 'Linha com quebra Markdown  \ncontinuação')
+})
+
+test('normalização preserva ordem e números das páginas de PDF', () => {
+  const entrada = {
+    schema_version: 1,
+    formato: 'pdf',
+    encoding: 'utf-8',
+    metodo: 'unpdf_pdfjs_texto',
+    fonte: {
+      nome_arquivo: 'livro.pdf',
+      tipo_mime_registrado: 'application/pdf',
+      hash_sha256_original: 'e'.repeat(64),
+    },
+    total_paginas: 2,
+    paginas: [
+      { numero: 1, conteudo: 'Pa\u0301gina 1\r\ntexto' },
+      { numero: 2, conteudo: 'Página 2' },
+    ],
+  }
+
+  const resultado = normalizarArtefatoExtraido({
+    bytes: bytes(JSON.stringify(entrada)),
+    hashArtefatoExtraido: '3'.repeat(64),
+    hashOriginalEsperado: 'e'.repeat(64),
+  })
+
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+  assert.deepEqual(resultado.artefato.paginas, [
+    { numero: 1, conteudo: 'Página 1\ntexto' },
+    { numero: 2, conteudo: 'Página 2' },
+  ])
+})
+
+test('normalização rejeita artefato ligado a outro original', () => {
+  const entrada = artefatoTexto('Conteúdo')
+  const resultado = normalizarArtefatoExtraido({
+    bytes: bytes(JSON.stringify(entrada)),
+    hashArtefatoExtraido: '4'.repeat(64),
+    hashOriginalEsperado: '9'.repeat(64),
+  })
+
+  assert.equal(resultado.ok, false)
+  if (!resultado.ok) assert.equal(resultado.codigo, 'ARTEFATO_EXTRAIDO_ORIGINAL_DIVERGENTE')
 })
