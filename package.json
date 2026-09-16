@@ -11,7 +11,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/processamento/*.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
@@ -22,6 +23,7 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "tus-js-client": "4.3.1",
+    "unpdf": "1.8.1",
     "workflow": "4.8.9",
     "zod": "4.6.5"
   },
