@@ -68,12 +68,15 @@ Os documentos canônicos completos ainda serão transpostos para arquivos de doc
 
 ```text
 villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
-main: 4931b492cc7828d121625151d97be1818fda50b3
+main: 15250537998d36c5c4df5375990c1f6c4cc66ed3
+PR atual: #13 — feature/processamento-normalizacao
 ```
 
 - Fase 2 incorporada;
 - PR #9 incorporado: orquestração durável e validação de original;
 - PR #10 incorporado: identificação de formato, extração determinística e artefatos intermediários;
+- PR #11 incorporado: sincronização documental pós-PR #10;
+- PR #13 em validação final: normalização determinística/conservadora;
 - `PROCESSAMENTO_WORKFLOW_ATIVO=false` permanece;
 - repositório atualmente **público**;
 - `main` ainda não possui Ruleset/proteção obrigatória;
@@ -100,9 +103,9 @@ Produção: https://cerebro-autoral.vercel.app
 Git: villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
 ```
 
-O domínio de produção continua `READY`, porém **ainda executa o commit anterior `3a3a25f...`**. O merge `4931b492...` recebeu status Vercel `failure` com motivo `build-rate-limit`, isto é, a Vercel recusou criar um novo build por limite de builds da conta; não foi erro de compilação do aplicativo. O mesmo código executável do PR #10 foi validado em Preview `READY` antes do merge.
+O domínio de produção está `READY`, porém **ainda aponta para o commit `3a3a25f450fa1bdc2b56ec8f91120718de21adc2`**. O atraso de produção após os merges posteriores ocorreu por `build-rate-limit` da conta Vercel, não por erro de compilação confirmado no código. Os Previews mais recentes das branches de processamento estão `READY`.
 
-A produção continuará funcional com a versão anterior até a Vercel aceitar um novo build de `main`. Como `PROCESSAMENTO_WORKFLOW_ATIVO=false`, nenhuma funcionalidade parcial foi exposta.
+Como `PROCESSAMENTO_WORKFLOW_ATIVO=false`, nenhuma etapa parcial do Pipeline está exposta aos usuários enquanto a produção não alcança a `main` atual.
 
 O Dashboard da Vercel ainda reporta `nodeVersion = 24.x`, enquanto `package.json` exige Node `22.x`; os builds têm respeitado a engine do projeto. O setting externo deve ser alinhado manualmente para 22.x.
 
@@ -140,7 +143,8 @@ O Dashboard da Vercel ainda reporta `nodeVersion = 24.x`, enquanto `package.json
 - PDF página a página, sem fan-out irrestrito;
 - limites explícitos de tamanho, páginas, pixels, caracteres e tempo;
 - PDF sem camada textual retorna `PDF_SEM_TEXTO_EXTRAIVEL` e aguarda estratégia própria de OCR;
-- DOCX permanece fora do escopo até validação segura OOXML.
+- DOCX permanece fora do escopo até validação segura OOXML;
+- normalização técnica por Unicode NFC + quebras LF, sem reescrita editorial.
 
 ### Supply chain
 
@@ -152,6 +156,8 @@ O Dashboard da Vercel ainda reporta `nodeVersion = 24.x`, enquanto `package.json
 ```
 
 Esses overrides corrigem vulnerabilidades transitivas encontradas no Workflow SDK. `npm audit --omit=dev --audit-level=high` permanece gate obrigatório.
+
+ESLint permanece em `9.39.5` enquanto a combinação atual do ecossistema Next.js/plugin React não suporta de forma segura o ESLint 10 testado anteriormente.
 
 ### IA
 
@@ -175,21 +181,22 @@ Esses overrides corrigem vulnerabilidades transitivas encontradas no Workflow SD
 | Upload TUS + SHA-256 + deduplicação | concluídos |
 | Obras reais no banco oficial | **0 — ainda sem corpus** |
 | Pipeline — modelo de dados | concluído |
-| Documento Processado/hierarquia | concluído |
-| Vetores/elementos/evidências/grafo | concluídos |
+| Documento Processado/hierarquia — schema | concluído |
+| Vetores/elementos/evidências/grafo — schema | concluído |
 | Orquestração server-only | concluída / flag OFF |
 | `validar_arquivo` | implementado e testado |
 | `identificar_formato` | implementado e testado |
 | `extrair_conteudo` | implementado e testado para PDF textual/TXT/Markdown |
+| `normalizar_conteudo` | **implementado no PR #13; validação final em andamento** |
 | Artefatos intermediários privados | migrations `0020`/`0021` aplicadas |
 | Supabase local reproduzível | implementado e testado no CI |
-| `normalizar_conteudo` | **próxima implementação** |
+| `identificar_estrutura` | próxima etapa após PR #13 |
 | OpenAI operacional no Pipeline | pendente por arquitetura, não por credencial |
 | Cérebro Autoral | pendente |
 | Recuperação híbrida | pendente |
 | Motor de Reflexões | pendente |
 
-O banco oficial possui atualmente `1` usuário Auth e `0` obras, `0` versões de obra, `0` execuções, `0` Documentos Processados, `0` fragmentos e `0` elementos. Há 1 versão ativa de Pipeline e 1 versão ativa de Taxonomia.
+O banco oficial possui atualmente, na última auditoria, `1` usuário Auth e `0` obras, `0` versões de obra, `0` execuções, `0` Documentos Processados, `0` fragmentos e `0` elementos. Há 1 versão ativa de Pipeline e 1 versão ativa de Taxonomia.
 
 ---
 
@@ -221,7 +228,7 @@ Migration aplicada não é reescrita. Toda correção posterior recebe nova migr
 | `20260916223016` | `0020_artefatos_intermediarios_processamento` | artefatos parciais privados |
 | `20260916225622` | `0021_politica_negacao_artefatos_processamento` | negação explícita a clientes |
 
-O CI reconstrói um Supabase local do zero com migrations + seed e executa `db reset`, provando reprodutibilidade.
+O CI reconstrói um Supabase local do zero com migrations + seed e executa `db reset`, provando reprodutibilidade. Uma falha transitória de container ocorrida no PR #13 foi repetida isoladamente e o mesmo job passou integralmente sem alteração de migration.
 
 ---
 
@@ -242,7 +249,7 @@ Pendências externas obrigatórias antes de usuários/corpus reais:
 
 1. **Supabase Auth:** habilitar Leaked Password Protection, se disponível no plano, e confirmar Site URL/Redirects/template SSR.
 2. **GitHub:** tornar o repositório privado e criar Ruleset para `main` exigindo PR/checks e bloqueando force push; considerar CodeQL.
-3. **Vercel:** alinhar setting Node para 22.x e permitir/concluir o próximo build de produção após o rate limit.
+3. **Vercel:** alinhar setting Node para 22.x e concluir um novo build de produção da `main` após o limite de builds.
 4. **E2E:** usar uma obra controlada de teste antes de ativar `PROCESSAMENTO_WORKFLOW_ATIVO`.
 
 Segredos:
@@ -257,6 +264,8 @@ Segredos:
 ## 8. Biblioteca e original
 
 `biblioteca.obras` representa a obra lógica; `biblioteca.versoes_obras` preserva cada versão física. O original nunca é modificado.
+
+Caminho privado:
 
 ```text
 {usuario_id}/{obra_id}/{versao_id}/original.ext
@@ -345,6 +354,29 @@ Combina extensão, MIME e conteúdo. DOCX só entrará com validação OOXML ade
 - resultado vira `conteudo_extraido.json` no Storage privado;
 - sucesso avança para `normalizar_conteudo`.
 
+### `normalizar_conteudo`
+
+A etapa não “melhora” a escrita. Ela faz somente transformações técnicas determinísticas:
+
+```text
+CRLF/CR → LF
+Unicode → NFC
+```
+
+NFKC/NFKD não são usados porque normalizações de compatibilidade podem apagar distinções relevantes. Espaços internos e espaços significativos de Markdown são preservados, assim como caixa, pontuação, aspas, travessões e escolhas lexicais.
+
+Antes de criar ou reutilizar o resultado, o sistema verifica bytes, MIME, limites, SHA-256, tamanho, schema e proveniência. A cadeia obrigatória é:
+
+```text
+original
+  ↓ hash registrado
+conteudo_extraido
+  ↓ hash do artefato
+conteudo_normalizado
+```
+
+Em replay, um artefato existente também é baixado e revalidado; se o workflow já avançou, ele é reutilizado sem repetir a transição de estado.
+
 A feature flag permanece:
 
 ```text
@@ -366,7 +398,7 @@ npm test
 npm run build
 ```
 
-A suíte cobre detecção/spoofing, TXT/Markdown, binário disfarçado, DOCX fora do escopo, UTF-8/BOM/vazio e extração real de um PDF textual mínimo.
+A suíte cobre detecção/spoofing, TXT/Markdown, binário disfarçado, DOCX fora do escopo, UTF-8/BOM/vazio, extração real de PDF textual, Unicode NFC, preservação de espaços Markdown, preservação de páginas e validação de proveniência da normalização.
 
 ### Banco local
 
@@ -377,31 +409,27 @@ supabase status
 supabase stop --no-backup
 ```
 
-O head final do PR #10 passou **ambos os jobs integralmente** antes do merge.
+No PR #13, a primeira tentativa de `db reset` falhou por erro genérico do container depois que o ambiente já havia aplicado todas as migrations. O rerun isolado do mesmo job passou integralmente, sem alteração de SQL, confirmando evento transitório do runner.
 
 ### Limite atual de E2E
 
-Ainda não há obra real no banco oficial. O caminho positivo `upload → workflow → validar → identificar → extrair` não foi exercitado com corpus. A flag ficará desligada até esse E2E passar.
+Ainda não há obra real no banco oficial. O caminho positivo `upload → workflow → validar → identificar → extrair → normalizar` não foi exercitado com corpus. A flag ficará desligada até esse E2E passar.
 
 ---
 
-## 12. Próxima etapa: normalização
+## 12. Próxima etapa: identificar estrutura
 
-A próxima implementação é `normalizar_conteudo`, ainda sem IA.
+Depois que o PR #13 for incorporado, a próxima implementação é `identificar_estrutura`.
 
-Política definida para proteger identidade autoral:
+Princípio inicial:
 
-- verificar hash/tamanho do artefato extraído antes de reutilizá-lo;
-- validar o JSON do artefato e sua versão;
-- normalização Unicode **NFC**, não NFKC;
-- CRLF/CR → LF;
-- remover apenas ruído técnico comprovado;
-- preservar pontuação, caixa, aspas, travessões, escolhas lexicais e espaços internos autorais;
-- preservar páginas/ordem/proveniência;
-- produzir `conteudo_normalizado.json` com hash próprio e registro de transformações;
-- avançar depois para `identificar_estrutura`.
-
-NFKC/NFKD não serão usados como padrão porque normalizações de compatibilidade podem apagar distinções que podem ser relevantes à identidade linguística.
+- consumir apenas `conteudo_normalizado` validado;
+- preservar a proveniência até a unidade estrutural;
+- detectar sinais determinísticos quando forem confiáveis;
+- não inventar capítulos/seções onde houver ambiguidade;
+- registrar incerteza para etapas cognitivas posteriores quando necessário;
+- separar identificação de estrutura de `criar_hierarquia`, que materializa as entidades canônicas;
+- nenhuma estrutura parcial alimenta o Cérebro.
 
 ---
 
@@ -413,7 +441,7 @@ NFKC/NFKD não serão usados como padrão porque normalizações de compatibilid
 | Dicionário/Taxonomia — estrutura | concluída |
 | Biblioteca/Storage/Auth/API | concluídos |
 | Pipeline — modelo de dados | concluído |
-| Pipeline — workflow | **em construção; validação/formato/extração concluídos** |
+| Pipeline — workflow | **em construção; até normalização no PR #13** |
 | Documentos Processados — execução real | pendente do workflow completo |
 | Taxonomia inteligente | pendente |
 | Recuperação híbrida | pendente |
