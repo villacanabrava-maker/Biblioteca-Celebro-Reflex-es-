@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validar:
@@ -15,30 +15,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Node.js 22
         uses: actions/setup-node@v7
         with:
           node-version: 22.x
-          package-manager-cache: false
+          cache: npm
 
-      - name: Instalar dependências e gerar lockfile
-        run: npm install
-
-      - name: Commitar lockfile inicial
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-        run: |
-          if git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
-            echo "package-lock já versionado"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "build: adicionar package-lock reproduzivel"
-          git push origin HEAD:${{ github.head_ref }}
+      - name: Instalar dependências reproduzíveis
+        run: npm ci
 
       - name: Lint
         run: npm run lint
