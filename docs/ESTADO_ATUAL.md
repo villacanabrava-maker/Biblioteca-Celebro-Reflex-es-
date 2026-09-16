@@ -11,9 +11,11 @@ Atualizado em **16/09/2026** após revisão cruzada dos documentos canônicos, G
 - Produção: `https://cerebro-autoral.vercel.app`
 - Fase 2: incorporada à `main` e publicada
 - Primeira entrega da Fase 3 / PR #9: incorporada à `main` pelo commit `3a3a25f450fa1bdc2b56ec8f91120718de21adc2`
-- Continuação da Fase 3 / PR #10: **em validação, ainda não incorporada**
+- Segunda entrega da Fase 3 / PR #10: incorporada à `main` pelo commit `4931b492cc7828d121625151d97be1818fda50b3`
 
-A produção permanece protegida porque `PROCESSAMENTO_WORKFLOW_ATIVO=false`. O frontend não inicia um Pipeline ainda incompleto.
+A feature flag `PROCESSAMENTO_WORKFLOW_ATIVO=false` permanece. O frontend não inicia um Pipeline ainda incompleto.
+
+**Atenção operacional:** GitHub e Supabase já contêm a segunda entrega da Fase 3, mas a produção Vercel ainda aponta para o commit anterior `3a3a25f...`. O merge `4931b492...` não gerou deployment automático; a sincronização Git → Vercel está sendo auditada antes de declarar esta entrega publicada.
 
 ## Fase atual
 
@@ -26,11 +28,11 @@ Fluxo implementado/previsto:
 ```text
 validar_arquivo          ✅ main
   ↓
-identificar_formato      ✅ PR #10
+identificar_formato      ✅ main
   ↓
-extrair_conteudo         ✅ PR #10
+extrair_conteudo         ✅ main
   ↓
-normalizar_conteudo      ← próxima etapa
+normalizar_conteudo      ← próxima etapa funcional
   ↓
 identificar_estrutura
   ↓
@@ -73,8 +75,10 @@ Nenhum artefato parcial é tratado como Documento Processado ativo e nenhum proc
 - proveniência e publicação atômica;
 - Workflow durável server-only;
 - máquina de estados monotônica/idempotente até `0019`;
+- artefatos intermediários privados `0020`/`0021`;
+- `validar_arquivo`, `identificar_formato` e `extrair_conteudo`;
 - Supabase local reproduzível por migrations/seed;
-- CI com `npm ci`, auditoria de dependências, lint, TypeScript e build.
+- CI com `npm ci`, auditoria de dependências, lint, TypeScript, testes unitários e build.
 
 ## Primeira entrega da Fase 3 — consolidada
 
@@ -100,7 +104,7 @@ Adiciona row locks e transições monotônicas: retry/replay atrasado não pode 
 
 A primeira etapa real recalcula SHA-256 e tamanho no servidor sobre o objeto privado. Divergência é falha determinística; indisponibilidade transitória de rede/Storage usa retries do Workflow. O Workflow SDK está fixado em `4.8.9` e a feature flag permanece desligada.
 
-## PR #10 — identificação e extração documental
+## Segunda entrega da Fase 3 — incorporada pelo PR #10
 
 ### `identificar_formato`
 
@@ -185,7 +189,7 @@ npm 11.19.1
 Node 22.x
 ```
 
-O `unpdf 1.8.1` foi adicionado com lockfile gerado em runner limpo; `npm audit --omit=dev --audit-level=high` passou antes do commit do lockfile. O bootstrap temporário usado apenas para gerar o lockfile foi removido da branch.
+O `unpdf 1.8.1` foi adicionado com lockfile gerado em runner limpo; `npm audit --omit=dev --audit-level=high` passou antes do commit do lockfile. O bootstrap temporário usado apenas para gerar o lockfile foi removido da branch antes do merge.
 
 ## CI e testes
 
@@ -216,25 +220,42 @@ supabase stop --no-backup
 
 Esse job prova que todas as migrations e o seed recriam o banco a partir do repositório, sem usar dados pessoais e sem conectar o runner ao banco de produção.
 
+O merge `4931b492...` passou novamente pelos dois jobs na `main`: aplicação e reconstrução local do banco concluíram com sucesso.
+
 ## Supabase remoto
 
-O projeto oficial permanece saudável. O banco ainda não possui corpus real de Biblioteca/Processamento; por isso o E2E positivo `upload → workflow → artefato extraído` ainda não foi executado com uma obra real autenticada.
+O projeto oficial permanece saudável. `0020` e `0021` estão aplicadas e coincidem com o GitHub. A auditoria confirmou:
 
-Advisor de segurança atual: somente a pendência externa **Leaked Password Protection Disabled**. Essa configuração deve ser habilitada no Dashboard antes de usuários reais, se o plano permitir.
+- RLS ativo em `processamento.artefatos_execucao`;
+- policy explícita de negação para `anon`/`authenticated`;
+- nenhum privilégio direto de tabela para `anon`, `authenticated` ou `service_role`;
+- bucket `artefatos-processamento` privado;
+- RPCs de artefatos não executáveis por `anon`/`authenticated` e executáveis somente por `service_role`;
+- RPCs `SECURITY DEFINER` com `search_path = ''`.
 
-## Vercel
+O banco ainda não possui corpus real de Biblioteca/Processamento; por isso o E2E positivo `upload → workflow → artefato extraído` ainda não foi executado com uma obra real autenticada.
 
-A produção da `main` está `READY` no commit da primeira entrega da Fase 3. O PR #10 gera Preview a cada commit e só poderá ser incorporado com Preview `READY` no head final.
+Advisor de segurança atual: somente a pendência externa **Leaked Password Protection Disabled**. Essa configuração deve ser habilitada no Dashboard antes de usuários reais, se o plano permitir. Advisors de performance apontam somente `unused_index`, esperado em banco sem corpus.
+
+## Vercel — divergência operacional aberta
+
+A produção pública está `READY`, porém ainda no commit `3a3a25f450fa1bdc2b56ec8f91120718de21adc2` (primeira entrega da Fase 3).
+
+O PR #10 foi incorporado à `main` como `4931b492cc7828d121625151d97be1818fda50b3`, mas **nenhum deployment Vercel foi criado após esse merge**, mesmo depois de o CI da `main` ficar verde. A tentativa de usar a ação manual do conector também não executou nada porque o conector expôs uma função sem os parâmetros que seu backend exige.
+
+Foi aberta uma branch operacional `chore/sincronizar-producao-fase3` com alteração não funcional em código para provocar um novo evento Git/Preview e diagnosticar se o problema está apenas no caminho de produção.
 
 O Dashboard ainda anuncia Node `24.x`, mas `engines.node = 22.x` força os builds deste projeto a Node 22. O setting administrativo deve ser alinhado para evitar ambiguidade futura.
 
 ## GitHub
 
 - repositório canônico correto;
-- PR #10 em validação;
+- PR #10 incorporado à `main`;
+- merge `4931b492...` com CI pós-merge totalmente verde;
+- branch operacional `chore/sincronizar-producao-fase3` criada para auditar a publicação Vercel;
 - repositório ainda **público**;
 - Rulesets continuam vazios;
-- CI agora inclui testes unitários do processamento.
+- CI inclui testes unitários do processamento.
 
 Antes de corpus intelectual real, ainda é recomendado tornar o repositório privado e configurar Ruleset da `main` exigindo PR + checks e bloqueando force push.
 
@@ -246,7 +267,9 @@ Quando a camada cognitiva começar, a arquitetura prevista permanece: Responses 
 
 ## Próximo passo técnico
 
-Após o PR #10 passar no **head final** por testes, build, reconstrução local do banco e Preview Vercel, a próxima branch implementará `normalizar_conteudo`.
+A prioridade imediata é **sincronizar a produção Vercel com a `main`** e provar que o domínio público está executando a segunda entrega da Fase 3, mantendo `PROCESSAMENTO_WORKFLOW_ATIVO=false`.
+
+Depois dessa sincronização, a próxima branch funcional implementará `normalizar_conteudo`.
 
 A normalização deverá primeiro ler o artefato privado `conteudo_extraido`, conferir tamanho/hash, validar sua estrutura e só então aplicar transformações determinísticas como normalização Unicode/line endings/whitespace preservando páginas, parágrafos e proveniência. O resultado deverá ser um novo artefato `conteudo_normalizado`, também privado e idempotente.
 
