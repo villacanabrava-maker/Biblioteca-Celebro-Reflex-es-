@@ -41,6 +41,7 @@ export type ResultadoExtracaoDeterministica =
       detalhes?: Record<string, string | number | boolean | null>
     }
 
+// Guardrails v1: limites operacionais versionados e revisáveis por evidência.
 export const LIMITES_EXTRACAO = {
   originalTextoBytes: 20 * 1024 * 1024,
   originalPdfBytes: 50 * 1024 * 1024,
