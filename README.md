@@ -131,7 +131,13 @@ Repositório canônico atual:
 villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
 ```
 
-Projeto Supabase oficial identificado pelo projeto da aplicação atual. O banco novo começou vazio e está sendo construído exclusivamente por migrations versionadas.
+Projeto Supabase oficial utilizado nesta implementação:
+
+```text
+xzkzdaxxmizcgfkjgzoq
+```
+
+O banco novo começou vazio e está sendo construído exclusivamente por migrations versionadas.
 
 Projetos, tabelas, migrations, funções ou deploys do aplicativo anterior não são considerados parte desta arquitetura.
 
@@ -139,7 +145,7 @@ Projetos, tabelas, migrations, funções ou deploys do aplicativo anterior não 
 
 ## 6. Estado atual — 16/09/2026
 
-### Fundação
+### Fundação técnica
 
 **Status: concluída e incorporada à `main`.**
 
@@ -159,7 +165,7 @@ Entregue:
 
 ### Schema `sistema`
 
-**Status: implementado no Supabase e em PR para incorporação à `main`.**
+**Status: concluído e incorporado à `main`.**
 
 Entregue:
 
@@ -183,8 +189,41 @@ Validações concluídas:
 - quatro policies confirmadas;
 - `authenticated` sem acesso direto ao schema interno;
 - advisors de segurança sem alertas;
-- advisors de performance sem alertas;
-- CI do PR #2 aprovado.
+- advisors de performance sem alertas naquele estágio;
+- CI do PR #2 aprovado;
+- PR #2 incorporado à `main` por squash merge.
+
+### Taxonomia Mestre
+
+**Status: implementada no Supabase e em branch `feature/taxonomia`, aguardando CI/PR para incorporação à `main`.**
+
+Entregue:
+
+- `taxonomia.versoes`;
+- `taxonomia.conceitos`;
+- `taxonomia.termos`;
+- `taxonomia.relacoes`;
+- `taxonomia.classificacoes_elementos`;
+- checks para vocabulários explicitamente definidos;
+- checks de confiança no intervalo 0–1;
+- índices de versão, domínio, termos, relações e classificações;
+- bloqueio de duplicações exatas no mesmo escopo;
+- RLS em `classificacoes_elementos`;
+- quatro policies por `auth.uid()`;
+- schema `taxonomia` fechado a `anon` e `authenticated`.
+
+Validações concluídas:
+
+- teste transacional completo antes da aplicação real;
+- `ROLLBACK` confirmado no teste;
+- migration aplicada com sucesso como `0003_taxonomia`;
+- cinco tabelas confirmadas;
+- RLS confirmado em `classificacoes_elementos`;
+- quatro policies confirmadas;
+- `authenticated` sem `USAGE` direto no schema;
+- advisor de segurança sem alertas.
+
+Observação de performance: o advisor informa que dez índices da Taxonomia ainda estão sem uso. Isso é esperado porque as tabelas acabaram de ser criadas e ainda não receberam consultas reais. Esses índices correspondem justamente aos caminhos de consulta previstos pelo Dicionário — termo normalizado, versão, domínio, origem/destino de relações e classificações — portanto não serão removidos apenas por estarem novos.
 
 ---
 
@@ -194,7 +233,8 @@ Validações concluídas:
 |---|---|---|---|
 | 0001 | `0001_fundacao` | aplicada | extensões e schemas canônicos |
 | 0002 | `0002_sistema` | aplicada | modelos, prompts, pipeline e configurações do usuário |
-| 0003 | `0003_taxonomia` | próxima | Taxonomia Mestre versionada |
+| 0003 | `0003_taxonomia` | aplicada | Taxonomia Mestre versionada |
+| 0004 | `0004_biblioteca` | próxima | obras, versões, autoria e participação no Cérebro |
 
 ### Schemas canônicos existentes
 
@@ -217,17 +257,17 @@ Schemas nativos do Supabase, como `auth` e `storage`, permanecem nativos.
 
 ---
 
-## 8. Próxima migration — `0003_taxonomia`
+## 8. Taxonomia Mestre
 
-A Taxonomia Mestre será a camada responsável por impedir proliferação descontrolada de tags e conceitos desconectados.
+A Taxonomia Mestre é a camada que impede a proliferação descontrolada de tags e conceitos desconectados.
 
-Estruturas previstas:
+Estruturas implementadas:
 
-- `taxonomia.versoes`;
-- `taxonomia.conceitos`;
-- `taxonomia.termos`;
-- `taxonomia.relacoes`;
-- `taxonomia.classificacoes_elementos`.
+- `taxonomia.versoes` — versionamento formal;
+- `taxonomia.conceitos` — unidade canônica de conhecimento;
+- `taxonomia.termos` — preferenciais, alternativos, sinônimos, históricos e ocultos de busca;
+- `taxonomia.relacoes` — relações semânticas entre conceitos;
+- `taxonomia.classificacoes_elementos` — ligação futura entre elementos processados e conceitos canônicos.
 
 Domínios intelectuais iniciais:
 
@@ -242,11 +282,75 @@ Domínios intelectuais iniciais:
 9. `estrutural`
 10. `autoral`
 
-A IA deverá primeiro procurar e normalizar conceitos existentes antes de propor novos conceitos.
+Tipos de termo:
+
+- `preferencial`
+- `alternativo`
+- `sinonimo`
+- `historico`
+- `oculto_busca`
+
+Tipos de relação:
+
+- `mais_amplo`
+- `mais_especifico`
+- `relacionado`
+- `contrasta_com`
+- `deriva_de`
+- `evolui_para`
+- `associado_a`
+
+Origens de relação:
+
+- `curadoria`
+- `ia`
+- `importacao`
+
+Papéis de classificação:
+
+- `principal`
+- `secundario`
+- `contextual`
+- `oposicao`
+
+A IA deverá primeiro procurar, comparar e normalizar conceitos existentes antes de propor novos conceitos.
+
+### Decisões deliberadamente abertas
+
+O Dicionário Mestre exige `taxonomia.conceitos.estado`, mas ainda não enumera seus valores canônicos. Por isso a coluna foi criada como `text not null`, sem inventarmos um `CHECK` não documentado. A formalização futura desse vocabulário deverá gerar migration explícita.
+
+`taxonomia.classificacoes_elementos.elemento_id` ainda não possui FK porque `processamento.elementos` ainda não existe. A FK será criada quando o schema de Processamento for implementado.
 
 ---
 
-## 9. Frontend implementado
+## 9. Próxima etapa — Biblioteca
+
+A próxima migration será `0004_biblioteca`.
+
+Ela deverá criar a base do acervo original do usuário, preservando duas coisas que nunca podem ser confundidas:
+
+### Autoria
+
+- `autoral`
+- `externa`
+
+### Participação no Cérebro
+
+- `autoral_prioritaria`
+- `externa_referencia`
+- `externa_influencia`
+- `excluida_cerebro`
+
+Tabelas principais previstas:
+
+- `biblioteca.obras`;
+- `biblioteca.versoes_obras`.
+
+Depois dessa migration virá a configuração do bucket privado `originais-biblioteca` e do fluxo de upload/versionamento.
+
+---
+
+## 10. Frontend implementado
 
 Rotas/telas já preparadas visualmente:
 
@@ -263,7 +367,7 @@ Os números e indicadores permanecem em zero enquanto não existe corpus real. A
 
 ---
 
-## 10. Design visual
+## 11. Design visual
 
 A identidade visual inicial foi construída a partir das referências fornecidas pelo proprietário do produto.
 
@@ -289,7 +393,7 @@ docs/DESIGN_VISUAL.md
 
 ---
 
-## 11. Segurança
+## 12. Segurança
 
 Regras obrigatórias:
 
@@ -320,7 +424,7 @@ Em 16/09/2026 uma chave de projeto foi fornecida diretamente na conversa de dese
 
 ---
 
-## 12. Arquitetura da camada de IA
+## 13. Arquitetura da camada de IA
 
 Estrutura lógica planejada:
 
@@ -373,21 +477,7 @@ texto livre do modelo → verdade canônica no banco
 
 ---
 
-## 13. Autoria e influências externas
-
-Toda obra deverá distinguir duas dimensões independentes:
-
-### Autoria
-
-- `autoral`
-- `externa`
-
-### Participação no Cérebro
-
-- `autoral_prioritaria`
-- `externa_referencia`
-- `externa_influencia`
-- `excluida_cerebro`
+## 14. Autoria e influências externas
 
 Regra central:
 
@@ -401,9 +491,11 @@ CÉREBRO ATIVO
 
 Uma fonte externa nunca poderá se transformar silenciosamente em evidência de autoria.
 
+Para uma fonte externa alterar metodologia do Cérebro, isso exigirá decisão explícita do usuário, com escopo e intensidade registrados. A origem externa continuará registrada permanentemente.
+
 ---
 
-## 14. Pipeline documental planejado
+## 15. Pipeline documental planejado
 
 Fluxo conceitual:
 
@@ -447,7 +539,7 @@ Cada etapa deverá ser idempotente, versionada, observável, recuperável e reex
 
 ---
 
-## 15. Testes e CI
+## 16. Testes e CI
 
 Workflow GitHub Actions atual valida:
 
@@ -473,7 +565,7 @@ Nenhum PR estrutural deve ser incorporado à `main` com CI falhando.
 
 ---
 
-## 16. Estratégia de branches
+## 17. Estratégia de branches
 
 Fluxo atual:
 
@@ -489,9 +581,9 @@ Migrations devem permanecer pequenas, ordenadas, auditáveis e reproduzíveis.
 
 ---
 
-## 17. Documentação do repositório
+## 18. Documentação do repositório
 
-Documentos já utilizados/mantidos:
+Documentos mantidos:
 
 - `README.md` — painel mestre e status atual;
 - `docs/DESIGN_VISUAL.md` — sistema visual;
@@ -513,14 +605,14 @@ Documentação prevista ao longo da construção:
 
 ---
 
-## 18. Ordem de construção atual
+## 19. Ordem de construção atual
 
 | Etapa | Status |
 |---|---|
 | Fundação técnica | concluída |
-| Schema `sistema` | implementado / PR em validação final |
-| Taxonomia Mestre | próxima |
-| Biblioteca | pendente |
+| Schema `sistema` | concluído |
+| Taxonomia Mestre | implementada / aguardando PR + CI |
+| Biblioteca | próxima |
 | Storage privado e upload | pendente |
 | Pipeline documental | pendente |
 | Documento Processado | pendente |
@@ -534,22 +626,57 @@ Documentação prevista ao longo da construção:
 
 ---
 
-## 19. Próximas ações imediatas
+## 20. Próximas ações imediatas
 
-1. incorporar o PR #2 após CI verde;
-2. criar branch `feature/taxonomia`;
-3. implementar `0003_taxonomia`;
-4. testar a migration transacionalmente antes de persistir;
-5. aplicar no Supabase;
-6. rodar advisors de segurança e performance;
-7. atualizar este README com o resultado;
-8. abrir PR da Taxonomia;
-9. iniciar a Biblioteca somente depois da Taxonomia validada;
-10. integrar a OpenAI apenas após a chave de projeto estar rotacionada e armazenada como secret servidor-side.
+1. abrir PR da Taxonomia;
+2. aguardar CI do PR;
+3. incorporar `0003_taxonomia` à `main` quando os checks estiverem verdes;
+4. iniciar `feature/biblioteca`;
+5. implementar `0004_biblioteca`;
+6. testar a migration transacionalmente;
+7. aplicar no Supabase;
+8. configurar Storage privado da Biblioteca;
+9. conectar o frontend da Biblioteca aos dados reais;
+10. preparar a camada da OpenAI sem expor segredos;
+11. ativar a integração somente após rotação da chave de projeto.
 
 ---
 
-## 20. Regra de manutenção deste README
+## 21. Histórico de marcos
+
+### 16/09/2026 — Fundação
+
+- novo repositório canônico consolidado;
+- Next.js/React/TypeScript estruturados;
+- sistema visual inicial implementado;
+- CI criado;
+- `0001_fundacao` aplicada;
+- oito schemas canônicos confirmados;
+- `vector`, `unaccent` e `pg_trgm` confirmados.
+
+### 16/09/2026 — Sistema
+
+- `0002_sistema` aplicada;
+- cinco tabelas operacionais criadas;
+- RLS de configurações do usuário validado;
+- advisors limpos;
+- PR #2 aprovado pelo CI e incorporado à `main`;
+- README transformado em painel mestre.
+
+### 16/09/2026 — Taxonomia
+
+- branch `feature/taxonomia` criada;
+- ADRs específicos da Taxonomia registrados;
+- `0003_taxonomia` testada em transação e revertida com sucesso;
+- `0003_taxonomia` aplicada no banco oficial;
+- cinco tabelas da Taxonomia confirmadas;
+- RLS e policies confirmados;
+- advisor de segurança limpo;
+- avisos de índices sem uso registrados como esperados para tabelas recém-criadas.
+
+---
+
+## 22. Regra de manutenção deste README
 
 A partir de 16/09/2026, toda mudança relevante deve atualizar este arquivo no mesmo ciclo de desenvolvimento.
 
