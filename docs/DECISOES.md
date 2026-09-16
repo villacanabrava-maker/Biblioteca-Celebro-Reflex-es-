@@ -443,3 +443,11 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 **Decisão:** usar o test runner nativo do Node e executar `npm test` no CI. A suíte cobre PDF verdadeiro/falso, TXT/Markdown UTF-8, binário disfarçado, DOCX fora do escopo, BOM/UTF-8 inválido/conteúdo vazio e extração real de um PDF textual mínimo preservando página.
 
 **Consequência:** regras determinísticas críticas passam a ser protegidas contra regressão sem adicionar um framework de testes desnecessário nesta fase.
+
+## ADR-056 — Normalização autoral usa NFC e revalida artefatos em replay
+
+**Contexto:** a etapa de normalização precisa reduzir diferenças técnicas de codificação sem apagar sinais que poderão compor identidade linguística, ritmo e estrutura. O Unicode distingue equivalência canônica de equivalência de compatibilidade; Markdown também pode atribuir significado a espaços antes da quebra de linha. Além disso, um registro de artefato no banco não prova sozinho que os bytes privados continuam íntegros.
+
+**Decisão:** `normalizar_conteudo` converte CRLF/CR para LF e normaliza Unicode em NFC. Não usa NFKC/NFKD como regra autoral, não faz `trim`, não colapsa espaços e não reescreve pontuação/caixa/aspas/travessões/vocabulário. Páginas PDF mantêm ordem e número. Antes de criar ou reutilizar `conteudo_normalizado`, o workflow valida bytes, MIME, limites, SHA-256, tamanho, schema e a cadeia de proveniência original → extração → normalização. Em replay de etapa já avançada, o artefato é revalidado mas a transição de estado não é repetida.
+
+**Consequência:** a representação normalizada é tecnicamente consistente sem se tornar uma edição silenciosa do autor; corrupção/troca de artefato é detectada inclusive em replays duráveis.

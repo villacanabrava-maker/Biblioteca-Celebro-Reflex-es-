@@ -91,6 +91,34 @@ Parsing PDF:           até 90 s
 
 Esses limites são decisões técnicas versionadas e poderão mudar com evidência operacional.
 
+## `normalizar_conteudo`
+
+A normalização é **técnica e conservadora**, não editorial. Sua função é produzir representação textual consistente sem corrigir estilo, gramática, argumentação ou escolhas linguísticas do autor.
+
+Política v1:
+
+```text
+CRLF / CR -> LF
+Unicode   -> NFC
+NFKC/NFKD -> não usados como normalização autoral
+```
+
+São preservados:
+
+- caixa;
+- pontuação;
+- aspas e travessões;
+- espaços internos;
+- espaços significativos de Markdown;
+- escolhas lexicais;
+- ordem e fronteira das páginas de PDF.
+
+O motivo para NFC é preservar equivalência canônica sem aplicar equivalência de compatibilidade, que pode apagar distinções úteis do texto. A normalização não faz `trim`, não colapsa espaços e não reescreve frases.
+
+Antes de normalizar, `conteudo_extraido` é baixado do Storage privado e revalidado por MIME, limite, SHA-256, tamanho, schema e vínculo com o hash do original. O resultado vira `conteudo_normalizado.json`, também privado, ligado ao hash do artefato extraído e ao hash do original.
+
+Se já existir `conteudo_normalizado`, o replay **não confia apenas no registro do banco**: baixa novamente os bytes, verifica hash/tamanho/schema/proveniência e só então reutiliza. Quando a máquina de estados já avançou, o replay não repete a transição `normalizar_conteudo -> identificar_estrutura`.
+
 ## Artefatos intermediários
 
 Extração e normalização precisam sobreviver a retry/crash sem transformar conteúdo parcial em Documento Processado. Por isso `0020` criou:
@@ -131,10 +159,10 @@ npm run build
 
 Além disso, um segundo job sobe Supabase local e executa migrations + seed + `db reset`, provando que o banco é reconstruível a partir do GitHub.
 
-A suíte atual cobre detector de formato, spoofing básico, TXT/Markdown e extração de PDF textual mínimo.
+A suíte cobre detector de formato, spoofing básico, TXT/Markdown, extração de PDF textual mínimo, Unicode NFC, preservação de espaços significativos de Markdown, preservação de páginas PDF e validação da cadeia de proveniência da normalização.
 
 ## Próxima etapa
 
-`normalizar_conteudo` deverá ler e verificar o artefato `conteudo_extraido`, aplicar apenas normalizações técnicas determinísticas — sem corrigir estilo, gramática ou pensamento do autor — e persistir `conteudo_normalizado` preservando páginas, parágrafos, ordem e proveniência.
+`identificar_estrutura` deverá consumir somente `conteudo_normalizado` validado. A primeira versão deve privilegiar sinais determinísticos e preservar incerteza em vez de inventar hierarquia. A etapa seguinte, `criar_hierarquia`, materializará a estrutura validada nas entidades canônicas de `processamento.secoes`.
 
 IA só entra quando uma etapa realmente cognitiva exigir interpretação. Nessas etapas, a política prevista é OpenAI server-only, Responses API com `store: false`, Structured Outputs/JSON Schema, validação Zod e auditoria de modelo/prompt/execução.

@@ -6,6 +6,10 @@ import {
   type FormatoConteudoExtraivel,
 } from '@/dominios/processamento/extrair-conteudo'
 import { identificarFormatoDocumento } from '@/dominios/processamento/identificar-formato'
+import {
+  normalizarConteudoStep,
+  type ResultadoNormalizacaoStep,
+} from '@/workflows/normalizar-conteudo-step'
 import { createBackendClient } from '@/infraestrutura/supabase/backend'
 
 type ContextoExecucao = {
@@ -74,6 +78,7 @@ type ResultadoProcessamentoInicial = {
   validacao: ResultadoValidacao
   identificacaoFormato?: ResultadoFormato
   extracao?: ResultadoExtracao
+  normalizacao?: ResultadoNormalizacaoStep
 }
 
 export async function processarObraWorkflow(
@@ -142,12 +147,39 @@ export async function processarObraWorkflow(
     throw error
   }
 
+  if (!extracao.ok) {
+    return {
+      ok: false,
+      execucaoId,
+      validacao,
+      identificacaoFormato,
+      extracao,
+    }
+  }
+
+  let normalizacao: ResultadoNormalizacaoStep
+
+  try {
+    normalizacao = await normalizarConteudoStep(execucaoId)
+  } catch (error) {
+    const tipoErro = error instanceof Error ? error.name : 'erro_desconhecido'
+    await registrarFalhaFinalEtapa(
+      execucaoId,
+      'normalizar_conteudo',
+      'NORMALIZACAO_CONTEUDO_ESGOTOU_RETRIES',
+      'A normalização do conteúdo falhou após as tentativas automáticas do workflow.',
+      tipoErro
+    )
+    throw error
+  }
+
   return {
-    ok: extracao.ok,
+    ok: normalizacao.ok,
     execucaoId,
     validacao,
     identificacaoFormato,
     extracao,
+    normalizacao,
   }
 }
 
