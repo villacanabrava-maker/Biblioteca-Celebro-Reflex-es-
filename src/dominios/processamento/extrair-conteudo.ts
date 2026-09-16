@@ -201,6 +201,20 @@ async function comTimeout<T>(promessa: Promise<T>, limiteMs: number): Promise<T>
   }
 }
 
+async function liberarPdf(pdf: Awaited<ReturnType<typeof getDocumentProxy>>) {
+  const recurso = pdf as unknown as {
+    destroy?: () => Promise<void> | void
+    cleanup?: () => Promise<void> | void
+  }
+
+  if (recurso.destroy) {
+    await recurso.destroy()
+    return
+  }
+
+  if (recurso.cleanup) await recurso.cleanup()
+}
+
 export async function extrairTextoPdf({
   dados,
   nomeArquivo,
@@ -216,7 +230,6 @@ export async function extrairTextoPdf({
 
   try {
     pdf = await getDocumentProxy(dados, {
-      isEvalSupported: false,
       maxImageSize: LIMITES_EXTRACAO.imagemPdfPixels,
     })
 
@@ -285,6 +298,6 @@ export async function extrairTextoPdf({
       },
     }
   } finally {
-    if (pdf) await pdf.destroy()
+    if (pdf) await liberarPdf(pdf)
   }
 }
