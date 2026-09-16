@@ -55,7 +55,7 @@ create table processamento.execucoes (
     check (
       (estado in ('concluido', 'falhou', 'cancelado') and concluido_em is not null)
       or
-      (estado not in ('concluido', 'falhou', 'cancelado'))
+      (estado not in ('concluido', 'falhou', 'cancelado') and concluido_em is null)
     )
 );
 
@@ -72,8 +72,11 @@ create index execucoes_usuario_estado_idx
 create index execucoes_versao_obra_usuario_idx
   on processamento.execucoes (versao_obra_id, usuario_id);
 
-create index execucoes_pipeline_taxonomia_idx
-  on processamento.execucoes (versao_pipeline_id, versao_taxonomia_id);
+create index execucoes_versao_pipeline_idx
+  on processamento.execucoes (versao_pipeline_id);
+
+create index execucoes_versao_taxonomia_idx
+  on processamento.execucoes (versao_taxonomia_id);
 
 create table processamento.etapas_execucao (
   id uuid primary key default gen_random_uuid(),
@@ -130,9 +133,8 @@ comment on column processamento.etapas_execucao.chave_idempotencia is
 comment on column processamento.etapas_execucao.detalhes_auxiliares is
   'Metadados operacionais auxiliares; dados primários do domínio permanecem normalizados.';
 
-create index etapas_execucao_execucao_ordem_idx
-  on processamento.etapas_execucao (execucao_id, ordem);
-
+-- A constraint unique(execucao_id, ordem) já fornece o índice ordenado exigido
+-- pelo Dicionário Mestre; não criamos um índice duplicado.
 create index etapas_execucao_estado_criado_idx
   on processamento.etapas_execucao (estado, criado_em);
 
