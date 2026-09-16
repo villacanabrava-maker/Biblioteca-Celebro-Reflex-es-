@@ -1,0 +1,46 @@
+name: Bootstrap unpdf lockfile
+
+on:
+  push:
+    branches:
+      - feature/processamento-formato-extracao
+
+permissions:
+  contents: write
+
+jobs:
+  atualizar-lockfile:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: feature/processamento-formato-extracao
+
+      - name: Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: npm 11.19.1
+        run: npm install --global npm@11.19.1
+
+      - name: Adicionar unpdf e atualizar lockfile
+        run: npm install --save-exact --package-lock-only unpdf@1.8.1
+
+      - name: Auditar dependências de produção
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Commitar somente package.json e package-lock.json
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "Lockfile já está sincronizado."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "build: adicionar unpdf 1.8.1 com lockfile"
+          git push origin HEAD:feature/processamento-formato-extracao
