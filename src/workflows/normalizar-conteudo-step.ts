@@ -244,25 +244,13 @@ export async function normalizarConteudoStep(
   if (etapaError) throw etapaError
 
   const etapa = Array.isArray(etapaData) ? etapaData[0] : null
+  const deveExecutar = etapa?.deve_executar !== false
   const artefatoNormalizadoExistente = await obterArtefato(
     execucaoId,
     'conteudo_normalizado'
   )
 
-  // Replay de um workflow que já avançou não refaz I/O de uma etapa concluída.
-  if (artefatoNormalizadoExistente && etapa?.deve_executar === false) {
-    return {
-      ok: true,
-      execucaoId,
-      artefatoId: artefatoNormalizadoExistente.artefato_id,
-      caminhoArtefato: artefatoNormalizadoExistente.caminho_arquivo,
-      hashArtefato: artefatoNormalizadoExistente.hash_sha256,
-      tamanhoArtefato: Number(artefatoNormalizadoExistente.tamanho_bytes),
-      reutilizada: true,
-    }
-  }
-
-  if (!artefatoNormalizadoExistente && etapa?.deve_executar === false) {
+  if (!artefatoNormalizadoExistente && !deveExecutar) {
     throw new Error('Etapa de normalização concluída sem artefato normalizado registrado.')
   }
 
@@ -324,7 +312,9 @@ export async function normalizarConteudoStep(
       }
     }
 
-    await concluirNormalizacao(execucaoId, artefatoNormalizadoExistente, true)
+    if (deveExecutar) {
+      await concluirNormalizacao(execucaoId, artefatoNormalizadoExistente, true)
+    }
 
     return {
       ok: true,
