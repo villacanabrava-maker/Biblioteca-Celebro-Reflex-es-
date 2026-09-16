@@ -14,15 +14,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 22.x
 
-      - name: Instalar dependencias
+      - name: Instalar dependências e gerar lockfile
         run: npm install
+
+      - name: Guardar lockfile para estabilização
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Lint
         run: npm run lint
