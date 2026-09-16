@@ -110,15 +110,12 @@ async function enviarArquivoResumivel({
       },
     })
 
-    upload
-      .findPreviousUploads()
-      .then((anteriores) => {
-        if (anteriores.length > 0) {
-          upload.resumeFromPreviousUpload(anteriores[0])
-        }
-        upload.start()
-      })
-      .catch(reject)
+    // Não usamos findPreviousUploads() enquanto obraId/versaoId forem criados
+    // a cada nova submissão. Retomar um fingerprint antigo com UUIDs novos pode
+    // concluir o upload em um caminho diferente daquele validado pela RPC.
+    // Retomada entre reloads será adicionada quando a operação de upload tiver
+    // identificadores persistentes próprios. Os retries TUS desta operação continuam ativos.
+    upload.start()
   })
 }
 
