@@ -114,6 +114,21 @@ export async function cadastrarObra(dadosBrutos: CadastrarObraInput) {
     throw new Error(`Falha ao registrar obra no catálogo: ${error.message}`);
   }
 
+  // Atualiza os eixos canônicos e influências deliberadas
+  const obraCriadaId = (data as any)?.id;
+  if (obraCriadaId) {
+    await admin
+      .schema("biblioteca")
+      .from("obras")
+      .update({
+        papel_fonte: validado.papel_fonte,
+        participacao_cerebro: validado.participacao_cerebro,
+        escopos_influencia: validado.escopos_influencia || [],
+        intensidade_influencia: validado.intensidade_influencia || null,
+      })
+      .eq("id", obraCriadaId);
+  }
+
   try {
     revalidatePath("/biblioteca");
     revalidatePath("/");

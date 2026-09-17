@@ -19,6 +19,16 @@ export type NaturezaObra =
   | "externa_aprovada"  // Influência Externa Deliberada
   | "referencia";       // Consulta técnica / neutra
 
+export type PapelFonte = "autoral" | "externa";
+
+export type ParticipacaoCerebro =
+  | "nucleo_autoral"
+  | "referencia"
+  | "influencia_deliberada"
+  | "excluida";
+
+export type IntensidadeInfluencia = "leve" | "moderada" | "forte";
+
 export type EstadoProcessamento =
   | "pendente"
   | "em_processamento"
@@ -34,6 +44,10 @@ export interface ObraDetalhada {
   autor_nome: string;
   tipo: TipoObra;
   natureza: NaturezaObra;
+  papel_fonte?: PapelFonte;
+  participacao_cerebro?: ParticipacaoCerebro;
+  escopos_influencia?: string[];
+  intensidade_influencia?: IntensidadeInfluencia | null;
   ano_publicacao: number | null;
   descricao: string | null;
   metadados: Record<string, unknown>;

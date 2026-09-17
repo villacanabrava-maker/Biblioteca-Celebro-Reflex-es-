@@ -1,4 +1,4 @@
-import { Metadata } from "next";
+import type { Metadata } from "next";
 import {
   Settings,
   User,
@@ -14,20 +14,63 @@ import {
   LogOut,
   ChevronRight,
   CheckCircle2,
-  Lock,
+  AlertCircle,
+  Database,
+  Activity,
+  Layers,
 } from "lucide-react";
-import { obterPerfilUsuarioAtual } from "@/infraestrutura/auth/usuario-atual";
+import { obterPerfilUsuarioAtual, obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
+import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { fazerLogout } from "@/acoes/auth";
 
 export const metadata: Metadata = {
-  title: "Configurações | Memória Reflexiva",
-  description: "Personalize sua experiência, preferências de IA, perfil e segurança da conta.",
+  title: "Configurações & Diagnóstico | Memória Reflexiva",
+  description: "Parâmetros de inteligência autoral, governança de dados e diagnóstico de saúde do sistema.",
 };
 
 export const dynamic = "force-dynamic";
 
 export default async function PaginaConfiguracoes() {
+  const usuarioId = await obterUsuarioAtualId();
   const perfil = await obterPerfilUsuarioAtual();
+
+  // Diagnóstico Real do Sistema (Health Check v2.0)
+  let statusBanco = false;
+  let totalObras = 0;
+  let totalCaracteristicas = 0;
+  let totalReflexoes = 0;
+
+  try {
+    const admin = criarClienteAdmin();
+    const { count: obrasCount, error: errObras } = await admin
+      .schema("biblioteca")
+      .from("obras")
+      .select("id", { count: "exact", head: true })
+      .eq("usuario_id", usuarioId);
+
+    if (!errObras) {
+      statusBanco = true;
+      totalObras = obrasCount || 0;
+    }
+
+    const { count: caractCount } = await admin
+      .schema("cerebro_autoral")
+      .from("caracteristicas")
+      .select("id", { count: "exact", head: true })
+      .eq("usuario_id", usuarioId);
+    totalCaracteristicas = caractCount || 0;
+
+    const { count: reflexCount } = await admin
+      .schema("reflexoes")
+      .from("entradas")
+      .select("id", { count: "exact", head: true })
+      .eq("usuario_id", usuarioId);
+    totalReflexoes = reflexCount || 0;
+  } catch (err) {
+    console.error("Erro no health check:", err);
+  }
+
+  const openaiConfigurada = !!process.env.OPENAI_API_KEY;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -182,6 +225,82 @@ export default async function PaginaConfiguracoes() {
             </div>
             <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
               Em breve
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. SEÇÃO: DIAGNÓSTICO EM TEMPO REAL & MÉTRICAS DO CÉREBRO */}
+      <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-4">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+          <span>Diagnóstico e Integridade da Plataforma</span>
+          <span className="flex items-center gap-1.5 text-[10px] text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 font-semibold normal-case">
+            <Activity className="w-3 h-3 animate-pulse" /> Telemetria Ativa
+          </span>
+        </h2>
+
+        {/* Métricas Reais do Acervo */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-2xl">
+            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Obras no Acervo</span>
+            <span className="text-lg font-bold text-slate-900">{totalObras}</span>
+          </div>
+          <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-2xl">
+            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Padrões do Cérebro</span>
+            <span className="text-lg font-bold text-blue-600">{totalCaracteristicas}</span>
+          </div>
+          <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-2xl">
+            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Reflexões Ativas</span>
+            <span className="text-lg font-bold text-indigo-600">{totalReflexoes}</span>
+          </div>
+        </div>
+
+        <div className="divide-y divide-slate-100 text-xs">
+          {/* Supabase DB */}
+          <div className="py-3 flex items-center justify-between px-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <Database className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-semibold text-slate-800 block text-xs">Supabase PostgreSQL 17</span>
+                <span className="text-[11px] text-slate-500">
+                  Schemas canônicos, RLS ativo e extensão pgvector 1536d
+                </span>
+              </div>
+            </div>
+            <span
+              className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                statusBanco
+                  ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                  : "text-rose-700 bg-rose-50 border-rose-200"
+              }`}
+            >
+              {statusBanco ? "Operacional" : "Inacessível"}
+            </span>
+          </div>
+
+          {/* OpenAI */}
+          <div className="py-3 flex items-center justify-between px-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <Cpu className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-semibold text-slate-800 block text-xs">AI Orchestrator (OpenAI)</span>
+                <span className="text-[11px] text-slate-500">
+                  Modelos GPT-4o, GPT-4o-mini e text-embedding-3-small
+                </span>
+              </div>
+            </div>
+            <span
+              className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                openaiConfigurada
+                  ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                  : "text-amber-700 bg-amber-50 border-amber-200"
+              }`}
+            >
+              {openaiConfigurada ? "Chave Ativa" : "Chave Pendente"}
             </span>
           </div>
         </div>

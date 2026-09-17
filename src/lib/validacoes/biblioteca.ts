@@ -30,6 +30,13 @@ export const cadastrarObraSchema = z.object({
     .default("Autor"),
   tipo: tipoObraSchema,
   natureza: naturezaObraSchema.default("autoral"),
+  papel_fonte: z.enum(["autoral", "externa"]).optional().default("autoral"),
+  participacao_cerebro: z
+    .enum(["nucleo_autoral", "referencia", "influencia_deliberada", "excluida"])
+    .optional()
+    .default("nucleo_autoral"),
+  escopos_influencia: z.array(z.string()).optional().default([]),
+  intensidade_influencia: z.enum(["leve", "moderada", "forte"]).optional().nullable(),
   ano_publicacao: z
     .number()
     .int()
@@ -54,4 +61,5 @@ export const cadastrarObraSchema = z.object({
   metadados: z.record(z.unknown()).optional().default({}),
 });
 
-export type CadastrarObraInput = z.infer<typeof cadastrarObraSchema>;
+export type CadastrarObraInput = z.input<typeof cadastrarObraSchema>;
+export type CadastrarObraOutput = z.output<typeof cadastrarObraSchema>;

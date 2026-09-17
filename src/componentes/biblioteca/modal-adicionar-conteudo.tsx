@@ -68,6 +68,19 @@ export function ModalAdicionarConteudo({
   const [conteudoTexto, setConteudoTexto] = useState("");
   const [tagsTexto, setTagsTexto] = useState("");
 
+  // Eixos Canônicos de Classificação de Fonte (Master Document v2.0)
+  const [papelFonte, setPapelFonte] = useState<"autoral" | "externa">("autoral");
+  const [participacaoCerebro, setParticipacaoCerebro] = useState<
+    "nucleo_autoral" | "referencia" | "influencia_deliberada" | "excluida"
+  >("nucleo_autoral");
+  const [escoposInfluencia, setEscoposInfluencia] = useState<string[]>([
+    "pensamento",
+    "interpretacao",
+  ]);
+  const [intensidadeInfluencia, setIntensidadeInfluencia] = useState<
+    "leve" | "moderada" | "forte"
+  >("moderada");
+
   // Estados de envio
   const [etapa, setEtapa] = useState<EtapaUpload>("formulario");
   const [progressoEnvio, setProgressoEnvio] = useState(0);
@@ -234,13 +247,24 @@ export function ModalAdicionarConteudo({
       const resultado = await cadastrarObra({
         titulo: titulo.trim(),
         subtitulo: subtitulo.trim() || undefined,
-        autor_nome: autorNome.trim() || "Autor",
+        autor_nome: autorNome.trim() || (papelFonte === "autoral" ? "Autor" : "Fonte Externa"),
         tipo: tipoObra,
-        natureza: "autoral",
+        natureza:
+          papelFonte === "autoral"
+            ? "autoral"
+            : participacaoCerebro === "influencia_deliberada"
+            ? "externa_aprovada"
+            : "referencia",
+        papel_fonte: papelFonte,
+        participacao_cerebro: participacaoCerebro,
+        escopos_influencia:
+          participacaoCerebro === "influencia_deliberada" ? escoposInfluencia : [],
+        intensidade_influencia:
+          participacaoCerebro === "influencia_deliberada" ? intensidadeInfluencia : null,
         ano_publicacao: anoPublicacao,
         descricao: descricao.trim() || undefined,
-        participa_cerebro: true,
-        peso_autoral: 1.0,
+        participa_cerebro: participacaoCerebro !== "excluida",
+        peso_autoral: papelFonte === "autoral" ? 1.0 : 0.0,
         arquivo_caminho: caminhoDestino,
         arquivo_nome_original: arquivoParaUpload.name,
         arquivo_tamanho_bytes: arquivoParaUpload.size,
@@ -498,6 +522,202 @@ export function ModalAdicionarConteudo({
               placeholder="Ex: Esperança, Família, Propósito, Maturidade"
               className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
             />
+          </div>
+
+          {/* Classificação Canônica de Fontes (Dois Eixos - Documento Mestre v2.0) */}
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3.5">
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Classificação da Autoria da Fonte
+              </label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPapelFonte("autoral");
+                    setParticipacaoCerebro("nucleo_autoral");
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all text-left ${
+                    papelFonte === "autoral"
+                      ? "bg-blue-50 border-blue-600 text-blue-800 shadow-sm"
+                      : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  <span className="block font-bold">Meu material (Autoral)</span>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    Produção intelectual própria
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPapelFonte("externa");
+                    setParticipacaoCerebro("referencia");
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all text-left ${
+                    papelFonte === "externa"
+                      ? "bg-purple-50 border-purple-600 text-purple-800 shadow-sm"
+                      : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  <span className="block font-bold">Material de terceiros (Externo)</span>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    Livro, artigo ou autor externo
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Participação no Cérebro Autoral */}
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Participação no Cérebro Autoral
+              </label>
+              {papelFonte === "autoral" ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setParticipacaoCerebro("nucleo_autoral")}
+                    className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
+                      participacaoCerebro === "nucleo_autoral"
+                        ? "bg-blue-600 text-white border-blue-600 font-semibold"
+                        : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    Núcleo Autoral
+                    <span className="block text-[10px] opacity-80 font-normal">
+                      Alimenta metodologias e Cérebro
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setParticipacaoCerebro("excluida")}
+                    className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
+                      participacaoCerebro === "excluida"
+                        ? "bg-slate-800 text-white border-slate-800 font-semibold"
+                        : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    Excluir do Cérebro
+                    <span className="block text-[10px] opacity-80 font-normal">
+                      Apenas arquivado no acervo
+                    </span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setParticipacaoCerebro("referencia")}
+                      className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
+                        participacaoCerebro === "referencia"
+                          ? "bg-purple-600 text-white border-purple-600 font-semibold"
+                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      Somente Referência
+                      <span className="block text-[10px] opacity-80 font-normal">
+                        Consulta técnica/apoio
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setParticipacaoCerebro("influencia_deliberada")}
+                      className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
+                        participacaoCerebro === "influencia_deliberada"
+                          ? "bg-amber-600 text-white border-amber-600 font-semibold"
+                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      Influência Deliberada
+                      <span className="block text-[10px] opacity-80 font-normal">
+                        Autorizada explicitamente
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setParticipacaoCerebro("excluida")}
+                      className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
+                        participacaoCerebro === "excluida"
+                          ? "bg-slate-800 text-white border-slate-800 font-semibold"
+                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      Excluir
+                      <span className="block text-[10px] opacity-80 font-normal">
+                        Não influencia
+                      </span>
+                    </button>
+                  </div>
+
+                  {participacaoCerebro === "influencia_deliberada" && (
+                    <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-amber-900">
+                          Dimensões de Influência Autorizadas:
+                        </span>
+                        <div className="flex items-center gap-1.5 text-[11px] text-amber-900 font-semibold">
+                          <span>Intensidade:</span>
+                          {(["leve", "moderada", "forte"] as const).map((grau) => (
+                            <button
+                              key={grau}
+                              type="button"
+                              onClick={() => setIntensidadeInfluencia(grau)}
+                              className={`px-2 py-0.5 rounded capitalize ${
+                                intensidadeInfluencia === grau
+                                  ? "bg-amber-600 text-white font-bold"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
+                              {grau}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px]">
+                        {[
+                          { id: "pensamento", label: "Pensamento" },
+                          { id: "interpretacao", label: "Interpretação" },
+                          { id: "associacao", label: "Associação" },
+                          { id: "argumentacao", label: "Argumentação" },
+                          { id: "escrita", label: "Escrita" },
+                          { id: "narrativa", label: "Narrativa" },
+                          { id: "retorica", label: "Retórica" },
+                          { id: "universo_conceitual", label: "Universo conceitual" },
+                        ].map((dim) => {
+                          const ativa = escoposInfluencia.includes(dim.id);
+                          return (
+                            <button
+                              key={dim.id}
+                              type="button"
+                              onClick={() => {
+                                if (ativa) {
+                                  setEscoposInfluencia(
+                                    escoposInfluencia.filter((e) => e !== dim.id)
+                                  );
+                                } else {
+                                  setEscoposInfluencia([...escoposInfluencia, dim.id]);
+                                }
+                              }}
+                              className={`px-2 py-1 rounded-lg border text-left transition-all ${
+                                ativa
+                                  ? "bg-amber-600 text-white border-amber-600 font-medium"
+                                  : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                              }`}
+                            >
+                              {ativa ? "✓ " : "+ "}
+                              {dim.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Barra de Progresso durante envio */}

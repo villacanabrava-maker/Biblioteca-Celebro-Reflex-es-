@@ -7,7 +7,6 @@ import { detectarConflitosEMontarDossie } from "@/dominios/reflexoes/detector-co
 import { gerarPlanoReflexao } from "@/dominios/reflexoes/planejador-reflexao";
 import { redigirReflexao } from "@/dominios/reflexoes/redator-reflexao";
 import { auditarVersaoReflexao } from "@/dominios/auditoria/auditor-independente";
-import { incorporarReflexaoComoObra } from "@/dominios/reflexoes/incorporador-memoria";
 import type {
   ResumoReflexao,
   EntradaReflexao,
@@ -358,23 +357,7 @@ export async function incorporarReflexaoMemoria({
   entradaId: string;
   versaoId: string;
 }) {
-  const usuarioId = await obterUsuarioAtualId();
-
-  const { obraId } = await incorporarReflexaoComoObra({
-    entradaId,
-    versaoId,
-    usuarioId,
-  });
-
-  try {
-    revalidatePath("/biblioteca");
-    revalidatePath("/cerebro");
-    revalidatePath("/reflexoes");
-    revalidatePath(`/reflexoes/${entradaId}`);
-    revalidatePath("/");
-  } catch {}
-
-  return { sucesso: true, obraId };
+  return incorporarReflexaoComoObra({ entradaId, versaoId });
 }
 
 /**
@@ -432,4 +415,134 @@ export async function registrarRevisaoAutor({
   } catch {}
 
   return { sucesso: true };
+}
+
+/**
+ * Promove uma reflexão formalmente aprovada pelo autor a uma nova obra autoral
+ * na Biblioteca, gerando arquivo Markdown no Storage e ativando o pipeline.
+ */
+export async function incorporarReflexaoComoObra({
+  entradaId,
+  versaoId,
+}: {
+  entradaId: string;
+  versaoId: string;
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  // 1. Chamar a RPC segura de incorporação com validação de aprovado_autor
+  const { data: obraId, error } = await admin.rpc("incorporar_reflexao_como_obra", {
+    p_entrada_id: entradaId,
+    p_versao_id: versaoId,
+    p_usuario_id: usuarioId,
+  });
+
+  if (error) {
+    console.error("Erro ao incorporar reflexão como obra:", error);
+    throw new Error(`Falha na incorporação da reflexão: ${error.message}`);
+  }
+
+  // 2. Gravar o conteúdo textual em Markdown no Supabase Storage
+  try {
+    const { data: versao } = await admin
+      .schema("reflexoes")
+      .from("versoes_reflexao")
+      .select("conteudo_markdown, numero_versao")
+      .eq("id", versaoId)
+      .single();
+
+    if (versao?.conteudo_markdown) {
+      const caminhoStorage = `reflexoes/${usuarioId}/${entradaId}.md`;
+      await admin.storage
+        .from("originais-biblioteca")
+        .upload(caminhoStorage, Buffer.from(versao.conteudo_markdown, "utf-8"), {
+          contentType: "text/markdown; charset=utf-8",
+          upsert: true,
+        });
+    }
+  } catch (err) {
+    console.warn("Aviso ao persistir arquivo markdown no storage:", err);
+  }
+
+  try {
+    revalidatePath("/biblioteca");
+    revalidatePath(`/reflexoes/${entradaId}`);
+    revalidatePath("/reflexoes");
+  } catch {}
+
+  return { sucesso: true, obraId: obraId as string };
+}
+
+/**
+ * Verificador determinístico de antialucinação e integridade de evidências
+ * conforme Seção 61 do Documento Mestre v2.0.
+ */
+export async function verificarCitacoesRedacao({
+  entradaId,
+  versaoId,
+  redacaoTexto,
+}: {
+  entradaId: string;
+  versaoId: string;
+  redacaoTexto: string;
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  // 1. Obter os fragmentos mobilizados no dossiê de contexto
+  const { data: contexto } = await admin
+    .schema("reflexoes")
+    .from("contextos")
+    .select("fragmentos")
+    .eq("entrada_id", entradaId)
+    .order("criado_em", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const fragmentosDossie = (contexto?.fragmentos as any[]) || [];
+
+  // 2. Extrair potenciais citações no texto (trechos entre aspas)
+  const padraoAspas = /"([^"]{15,})"/g;
+  const correspondencias = [...redacaoTexto.matchAll(padraoAspas)];
+
+  const citacoesParaSalvar: any[] = [];
+
+  for (const match of correspondencias) {
+    const trechoCitado = match[1];
+
+    // Verificar se existe em algum fragmento real do usuário
+    const fragmentoCorrespondente = fragmentosDossie.find(
+      (f: any) =>
+        f.conteudo &&
+        f.conteudo.toLowerCase().includes(trechoCitado.toLowerCase().slice(0, 30))
+    );
+
+    citacoesParaSalvar.push({
+      entrada_id: entradaId,
+      usuario_id: usuarioId,
+      redacao_versao: 1,
+      fragmento_id: fragmentoCorrespondente?.id || null,
+      texto_citado: trechoCitado,
+      texto_original: fragmentoCorrespondente?.conteudo || null,
+      alinhamento_valido: !!fragmentoCorrespondente,
+      tipo_fonte:
+        fragmentoCorrespondente?.papel_fonte === "externa"
+          ? "referencia_externa"
+          : "autoral",
+    });
+  }
+
+  if (citacoesParaSalvar.length > 0) {
+    await admin
+      .schema("reflexoes")
+      .from("citacoes_verificadas")
+      .insert(citacoesParaSalvar);
+  }
+
+  return {
+    totalCitacoes: citacoesParaSalvar.length,
+    validas: citacoesParaSalvar.filter((c) => c.alinhamento_valido).length,
+    invalidas: citacoesParaSalvar.filter((c) => !c.alinhamento_valido).length,
+  };
 }
