@@ -11,12 +11,15 @@ export type NoHierarquia = {
   nivel_hierarquico: number
   pagina_inicial: number | null
   pagina_final: number | null
-  // Posição em caracteres dentro do conteúdo normalizado. Só é preenchida
-  // para texto/markdown (documento é uma única string); em PDF permanece
-  // nula porque cada unidade só conhece sua posição relativa à própria
-  // página, e criar_fragmentos usa concatenação de páginas nesse caso.
+  // Posição global em caracteres. Só é preenchida quando texto/markdown é
+  // uma única string normalizada.
   indice_inicio: number | null
   indice_fim: number | null
+  // Em PDF, identificar_estrutura conhece o offset do título dentro da
+  // própria página. Persistimos esse valor para permitir recorte preciso
+  // quando duas seções começam na mesma página ou quando a próxima seção
+  // começa no meio de uma página.
+  offset_pagina_inicio: number | null
 }
 
 // Nível de aninhamento (container) de cada tipo. Anexo/Prefácio/Posfácio
@@ -72,9 +75,7 @@ function calcularPaginasFinais(nos: NoInterno[], totalPaginas: number) {
 }
 
 // Mesma lógica de "até onde vai antes do próximo limite", mas para posição
-// em caracteres. Diferente de página (unidade discreta, por isso o -1),
-// aqui o fim é um limite de corte exclusivo (como em string.slice), então
-// não se subtrai 1: o próximo início já é o ponto exato onde este nó acaba.
+// global em caracteres de texto/markdown. O fim é exclusivo, como string.slice.
 function calcularIndicesFinais(nos: NoInterno[], totalCaracteres: number) {
   for (let i = 0; i < nos.length; i += 1) {
     const atual = nos[i]!
@@ -128,6 +129,7 @@ export function construirHierarquiaDocumento({
         pagina_final: totalPaginas,
         indice_inicio: totalCaracteres !== null ? 0 : null,
         indice_fim: totalCaracteres,
+        offset_pagina_inicio: totalPaginas !== null ? 0 : null,
       },
     ]
   }
@@ -161,6 +163,7 @@ export function construirHierarquiaDocumento({
       pagina_final: null,
       indice_inicio: totalCaracteres !== null ? unidade.indice_inicio : null,
       indice_fim: null,
+      offset_pagina_inicio: totalPaginas !== null ? unidade.indice_inicio : null,
       tier,
     })
 
@@ -183,6 +186,7 @@ export function construirHierarquiaDocumento({
       pagina_final,
       indice_inicio,
       indice_fim,
+      offset_pagina_inicio,
     } = no
     return {
       id,
@@ -196,6 +200,7 @@ export function construirHierarquiaDocumento({
       pagina_final,
       indice_inicio,
       indice_fim,
+      offset_pagina_inicio,
     }
   })
 }
