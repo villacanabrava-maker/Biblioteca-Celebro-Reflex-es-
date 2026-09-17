@@ -38,6 +38,7 @@ export async function obterPerfilUsuarioAtual() {
       id: usuarioId,
       email: "autor@memoriareflexiva.com",
       nome: "Autor da Memória Reflexiva",
+      papel: "autor",
     };
   }
 
@@ -45,5 +46,6 @@ export async function obterPerfilUsuarioAtual() {
     id: user.user.id,
     email: user.user.email || "autor@memoriareflexiva.com",
     nome: (user.user.user_metadata?.nome_completo as string) || "Autor da Memória Reflexiva",
+    papel: (user.user.user_metadata?.papel as string) || "autor",
   };
 }
