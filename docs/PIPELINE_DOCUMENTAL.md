@@ -143,6 +143,30 @@ Quando nenhum sinal de alta confiança é encontrado, o artefato registra `possu
 
 Para PDF, cada página é analisada separadamente e cada unidade detectada preserva o número da página de origem, sem tratar a quebra de página, por si só, como evidência estrutural.
 
+## `criar_hierarquia`
+
+Consome `estrutura_identificada` (apenas os sinais de `confianca: alta`) e materializa `processamento.documentos_processados` (estado `candidato`) e `processamento.secoes`. É aqui, e não antes, que o sistema se compromete com um `tipo` de seção (`parte`, `capitulo`, `secao`, `subsecao`, `anexo`, `prefacio`, `posfacio`) e com a árvore de pai/filho.
+
+Regras de materialização:
+
+```text
+Parte    → nível 0, pode conter Capítulo
+Capítulo → nível 1 (ou 0, se não houver Parte), pode conter Seção
+Seção    → nível seguinte, pode conter Subseção
+Subseção → nível mais profundo
+
+Anexo/Prefácio/Posfácio → sempre no nível raiz, nunca viram "pai"
+                           de nada, mesmo aparecendo entre capítulos
+```
+
+Cabeçalhos Markdown (que não têm `tipo_sugerido`, apenas `nivel_markdown`) são convertidos aqui: nível 1 → capítulo, nível 2 → seção, nível 3 ou mais → subseção. Essa é uma escolha explícita (não uma medição): trata o nível 1 do Markdown como a divisão principal do texto, por ser mais comum em reflexões/ensaios curtos do que a construção "Parte" de um livro extenso. Está registrada como decisão ajustável (ADR-061).
+
+Quando `possui_indicios_estruturais` é `false`, `criar_hierarquia` cria exatamente **uma** seção (tipo `secao`, nível 0, sem título) cobrindo o documento inteiro — nunca inventa divisão para preencher a ausência de evidência.
+
+Em PDF, cada seção recebe `pagina_inicial`/`pagina_final` calculados a partir de onde a próxima seção (de mesmo nível ou mais externa) começa. Essa é uma aproximação de granularidade por página, documentada como limitação conhecida (não há como saber a linha exata dentro da página apenas com os sinais desta versão).
+
+A etapa é executada por uma função de banco própria (`aplicacao.backend_criar_hierarquia_documento`, migration `0024`), no mesmo padrão de segurança das etapas anteriores (`SECURITY DEFINER`, `search_path` vazio, executável apenas pelo backend). Ela é idempotente: se o Documento Processado já existir para a execução, apenas retorna o identificador existente, sem duplicar seções.
+
 ## Artefatos intermediários
 
 Extração, normalização e identificação de estrutura precisam sobreviver a retry/crash sem transformar conteúdo parcial em Documento Processado. Por isso `0020` criou:
@@ -183,10 +207,12 @@ npm run build
 
 Além disso, um segundo job sobe Supabase local e executa migrations + seed + `db reset`, provando que o banco é reconstruível a partir do GitHub.
 
-A suíte cobre detector de formato, spoofing básico, TXT/Markdown, extração de PDF textual mínimo, Unicode NFC, preservação de espaços significativos de Markdown, preservação de páginas PDF, validação da cadeia de proveniência da normalização e, para `identificar_estrutura`: cabeçalhos Markdown com nível, marcadores numerados válidos versus prosa que apenas menciona a palavra-chave, Prefácio/Posfácio isolados versus mencionados em frase, preservação do número de página em PDF, ausência de invenção de estrutura sem evidência e validação de proveniência do artefato de estrutura.
+A suíte (27 testes) cobre detector de formato, spoofing básico, TXT/Markdown, extração de PDF textual mínimo, Unicode NFC, preservação de espaços significativos de Markdown, preservação de páginas PDF, validação da cadeia de proveniência da normalização, `identificar_estrutura` (cabeçalhos Markdown com nível, marcadores numerados válidos versus prosa que apenas menciona a palavra-chave, Prefácio/Posfácio isolados versus mencionados em frase, preservação do número de página em PDF, ausência de invenção de estrutura sem evidência, proveniência do artefato) e `criar_hierarquia` (fallback de seção única, capítulos irmãos sem Parte, cadeia Parte→Capítulo→Seção→Subseção, nova Parte fechando a anterior, Anexo/Prefácio/Posfácio nunca viram pai, mapeamento de nível Markdown, cálculo de página final em PDF).
+
+A função de banco de `criar_hierarquia` também foi validada manualmente contra o schema real do Supabase oficial, dentro de uma transação com `ROLLBACK` (nenhum dado permanente foi criado): confirmou criação do Documento Processado em estado `candidato`, das 3 seções de teste com o vínculo pai/filho correto, e que uma segunda chamada com a mesma execução é idempotente (retorna o mesmo documento, sem duplicar).
 
 ## Próxima etapa
 
-`criar_hierarquia` deverá consumir `estrutura_identificada` (quando houver indícios de alta confiança) e o `conteudo_normalizado`, e materializar as entidades canônicas de `processamento.secoes`. Quando `possui_indicios_estruturais` for `false`, a primeira versão deve tratar a obra inteira como uma única seção de nível 0 em vez de inventar divisões.
+`criar_fragmentos` deverá consumir `conteudo_normalizado` e as `processamento.secoes` já criadas, dividindo o texto de cada seção em fragmentos com contexto, proveniência (página, seção) e contagem de tokens, preparando a base para sínteses, extração de elementos e embeddings.
 
 IA só entra quando uma etapa realmente cognitiva exigir interpretação. Nessas etapas, a política prevista é OpenAI server-only, Responses API com `store: false`, Structured Outputs/JSON Schema, validação Zod e auditoria de modelo/prompt/execução.

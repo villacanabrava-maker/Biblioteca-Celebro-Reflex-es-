@@ -14,6 +14,10 @@ import {
   identificarEstruturaStep,
   type ResultadoIdentificacaoEstruturaStep,
 } from '@/workflows/identificar-estrutura-step'
+import {
+  criarHierarquiaStep,
+  type ResultadoCriarHierarquiaStep,
+} from '@/workflows/criar-hierarquia-step'
 import { createBackendClient } from '@/infraestrutura/supabase/backend'
 
 type ContextoExecucao = {
@@ -84,6 +88,7 @@ type ResultadoProcessamentoInicial = {
   extracao?: ResultadoExtracao
   normalizacao?: ResultadoNormalizacaoStep
   identificacaoEstrutura?: ResultadoIdentificacaoEstruturaStep
+  criacaoHierarquia?: ResultadoCriarHierarquiaStep
 }
 
 export async function processarObraWorkflow(
@@ -205,14 +210,43 @@ export async function processarObraWorkflow(
     throw error
   }
 
+  if (!identificacaoEstrutura.ok) {
+    return {
+      ok: false,
+      execucaoId,
+      validacao,
+      identificacaoFormato,
+      extracao,
+      normalizacao,
+      identificacaoEstrutura,
+    }
+  }
+
+  let criacaoHierarquia: ResultadoCriarHierarquiaStep
+
+  try {
+    criacaoHierarquia = await criarHierarquiaStep(execucaoId)
+  } catch (error) {
+    const tipoErro = error instanceof Error ? error.name : 'erro_desconhecido'
+    await registrarFalhaFinalEtapa(
+      execucaoId,
+      'criar_hierarquia',
+      'CRIACAO_HIERARQUIA_ESGOTOU_RETRIES',
+      'A criação de hierarquia falhou após as tentativas automáticas do workflow.',
+      tipoErro
+    )
+    throw error
+  }
+
   return {
-    ok: identificacaoEstrutura.ok,
+    ok: criacaoHierarquia.ok,
     execucaoId,
     validacao,
     identificacaoFormato,
     extracao,
     normalizacao,
     identificacaoEstrutura,
+    criacaoHierarquia,
   }
 }
 

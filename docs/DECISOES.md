@@ -483,3 +483,27 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 **Decisão:** habilitar `"allowImportingTsExtensions": true` em `tsconfig.json` (compatível com `noEmit: true`, já vigente) e importar com extensão explícita (`from './normalizar-conteudo.ts'`) apenas quando o import cruza arquivos de domínio com dependência de valor em runtime, como neste caso.
 
 **Consequência:** `npm run typecheck`, `npm test` e `npm run build` passam juntos no mesmo commit; a convenção vale para futuros imports de valor entre módulos de `src/dominios/**` executados diretamente pelo test runner nativo.
+
+## ADR-061 — `criar_hierarquia` monta a árvore por pilha de níveis; Anexo/Prefácio/Posfácio nunca são container
+
+**Contexto:** `identificar_estrutura` apenas detecta sinais; alguém precisa decidir a árvore de pai/filho a partir de uma lista plana e ordenada de marcadores. Um "Capítulo" após uma "Parte" pertence a ela; um "Anexo" ou "Prefácio" no meio de dois capítulos não deveria "engolir" o capítulo seguinte como se fosse filho dele.
+
+**Decisão:** usar o algoritmo clássico de construção de árvore de títulos por pilha de níveis (o mesmo princípio usado para montar sumários a partir de cabeçalhos Markdown): `parte` (nível 0) < `capitulo` (nível 1, ou 0 se não houver Parte) < `secao` < `subsecao`; ao encontrar um marcador, a pilha é esvaziada até sobrar apenas ancestrais de nível mais raso, e o topo restante vira o pai. `anexo`, `prefacio` e `posfacio` nunca entram nessa pilha: são sempre inseridos como filhos diretos do documento (`secao_pai_id = null`), preservando a ordem, mas nunca funcionando como container. Cabeçalho Markdown sem `tipo_sugerido` é convertido por `nivel_markdown` (1→capítulo, 2→seção, 3+→subseção) — uma escolha explícita, não uma medição, registrada como ajustável caso o padrão real de uso do Markdown pelo autor se mostre diferente.
+
+**Consequência:** a árvore resultante é determinística, testável e nunca depende de heurística estatística; o mapeamento Markdown pode ser recalibrado sem alterar o algoritmo de pilha.
+
+## ADR-062 — Página final de uma seção em PDF é estimada pelo início da próxima seção que a encerra
+
+**Contexto:** os sinais só sabem em qual página um marcador de título ocorreu (`pagina_inicial`); a tabela `processamento.secoes` também espera `pagina_final`, mas nada nesta versão mede a linha exata onde uma seção termina dentro da página.
+
+**Decisão:** `pagina_final` de uma seção é a página em que a próxima seção de nível igual ou mais externo começa, menos uma página (nunca menor que a própria `pagina_inicial`); para o último nó do documento, usa-se o total de páginas. Anexo/Prefácio/Posfácio são sempre encerrados pelo item seguinte, qualquer que seja seu tipo.
+
+**Consequência:** o intervalo de páginas é uma aproximação de granularidade por página (documentada como limitação conhecida), suficiente para navegação e para a próxima etapa (`criar_fragmentos`) localizar o texto de origem; poderá ser refinado quando houver sinal mais preciso (ex.: posição de linha dentro da página).
+
+## ADR-063 — `criar_hierarquia` materializa via RPC idempotente única, sem GRANT direto às tabelas internas
+
+**Contexto:** `processamento.documentos_processados` e `processamento.secoes` são schemas internos (ADR-002/036); o backend não tem acesso direto a eles, apenas via RPC `SECURITY DEFINER`. A criação do documento e das seções precisa sobreviver a um retry do Workflow sem duplicar linhas.
+
+**Decisão:** uma única função (`aplicacao.backend_criar_hierarquia_documento`, migration `0024`) recebe a lista de seções já resolvida (com UUIDs e vínculos de pai já calculados no backend) e: (1) deriva `usuario_id`/`obra_id`/`titulo` a partir de `processamento.execucoes` e `biblioteca.*`, nunca confiando em identificadores enviados pelo cliente (ADR-018); (2) se já existir um Documento Processado para a execução, retorna o existente sem tocar nas seções; (3) caso contrário, insere o documento (`estado = 'candidato'`) e percorre a lista de seções em ordem, inserindo pai antes de filho. Validado manualmente contra o Supabase oficial dentro de uma transação com `ROLLBACK` (sem dado permanente criado): documento e 3 seções de teste foram criados corretamente, com vínculo pai/filho certo, e uma segunda chamada confirmou idempotência (retornou o mesmo documento, sem duplicar).
+
+**Consequência:** o mesmo padrão de segurança e idempotência das etapas anteriores é preservado; nenhuma tabela interna nova precisou de GRANT para `anon`/`authenticated`/`service_role` direto.

@@ -77,7 +77,7 @@ Sem PRs abertos; desenvolvimento corrente em claude/confident-cannon-ovdoev
 - PR #10 incorporado: identificação de formato, extração determinística e artefatos intermediários;
 - PR #11 incorporado: sincronização documental pós-PR #10;
 - PR #13 incorporado: normalização determinística/conservadora;
-- `identificar_estrutura` implementado (sinais determinísticos v1) na branch corrente;
+- `identificar_estrutura` e `criar_hierarquia` implementados (sinais determinísticos v1) na branch corrente;
 - `PROCESSAMENTO_WORKFLOW_ATIVO=false` permanece;
 - repositório atualmente **público**, por decisão explícita do proprietário (ADR-029/051 seguem registrando o risco);
 - `main` ainda não possui Ruleset/proteção obrigatória;
@@ -191,8 +191,9 @@ ESLint permanece em `9.39.5` enquanto a combinação atual do ecossistema Next.j
 | `normalizar_conteudo` | implementado e testado (PR #13, incorporado à `main`) |
 | Artefatos intermediários privados | migrations `0020`/`0021`/`0023` aplicadas |
 | Supabase local reproduzível | implementado e testado no CI |
-| `identificar_estrutura` | **implementado e testado; sinais determinísticos v1** |
-| `criar_hierarquia` | próxima etapa |
+| `identificar_estrutura` | implementado e testado; sinais determinísticos v1 |
+| `criar_hierarquia` | **implementado e testado; Documento Processado nasce em estado `candidato`** |
+| `criar_fragmentos` | próxima etapa |
 | OpenAI operacional no Pipeline | pendente por arquitetura, não por credencial |
 | Cérebro Autoral | pendente |
 | Recuperação híbrida | pendente |
@@ -231,6 +232,7 @@ Migration aplicada não é reescrita. Toda correção posterior recebe nova migr
 | `20260916225622` | `0021_politica_negacao_artefatos_processamento` | negação explícita a clientes |
 | `20260917000231` | `0022_rls_catalogos_sistema_taxonomia` | RLS + leitura autenticada nos catálogos globais |
 | `20260917001607` | `0023_artefato_estrutura_identificada` | novo tipo de artefato para sinais de estrutura |
+| `20260917002831` | `0024_api_backend_hierarquia_documento` | RPC que cria o Documento Processado e as seções |
 
 O CI reconstrói um Supabase local do zero com migrations + seed e executa `db reset`, provando reprodutibilidade. Uma falha transitória de container ocorrida no PR #13 foi repetida isoladamente e o mesmo job passou integralmente sem alteração de migration.
 
@@ -387,6 +389,10 @@ Em replay, um artefato existente também é baixado e revalidado; se o workflow 
 
 Consome somente `conteudo_normalizado` validado e produz o artefato `estrutura_identificada`, sem materializar `processamento.secoes`. Sinais de alta confiança: cabeçalhos Markdown; marcadores "Parte"/"Capítulo" + algarismo arábico ou numeral romano **maiúsculo**; "Seção"/"Subseção" + algarismo arábico; "Anexo" + algarismo ou letra; "Prefácio"/"Posfácio" isolados. Uma linha inteiramente maiúscula é candidata de baixa confiança, sem tipo atribuído. Marcadores só valem em linhas de até 120 caracteres, para não confundir prosa que apenas menciona a palavra-chave (ex.: "Parte civil...") com um título real. Sem sinal de alta confiança, `possui_indicios_estruturais` fica `false` e nenhuma hierarquia é inventada. Em PDF, cada página é analisada separadamente e cada unidade preserva seu número de página.
 
+### `criar_hierarquia`
+
+Consome somente os sinais de `confianca: alta` de `estrutura_identificada` e materializa `processamento.documentos_processados` (estado `candidato`) + `processamento.secoes`. Constrói a árvore de pai/filho por uma pilha de níveis: Parte contém Capítulo, Capítulo contém Seção, Seção contém Subseção; uma nova Parte fecha a anterior. Anexo, Prefácio e Posfácio nunca viram "pai" de nada — ficam sempre no nível raiz, mesmo aparecendo entre dois capítulos. Cabeçalho Markdown sem tipo definido é convertido por nível (1→capítulo, 2→seção, 3+→subseção). Sem nenhum sinal de alta confiança, cria exatamente uma seção representando o documento inteiro, em vez de inventar divisão. Em PDF, a página final de cada seção é estimada pelo início da próxima seção que a encerra (limitação conhecida: granularidade de página, não de linha). A função de banco (`aplicacao.backend_criar_hierarquia_documento`) é idempotente: uma segunda chamada para a mesma execução retorna o documento já criado, sem duplicar seções.
+
 A feature flag permanece:
 
 ```text
@@ -408,7 +414,7 @@ npm test
 npm run build
 ```
 
-A suíte (20 testes) cobre detecção/spoofing, TXT/Markdown, binário disfarçado, DOCX fora do escopo, UTF-8/BOM/vazio, extração real de PDF textual, Unicode NFC, preservação de espaços Markdown, preservação de páginas, validação de proveniência da normalização e, para `identificar_estrutura`: cabeçalhos Markdown, marcadores numerados versus prosa ambígua, Prefácio/Posfácio isolados versus mencionados em frase, página de PDF preservada, ausência de invenção de estrutura sem evidência e proveniência do artefato.
+A suíte (27 testes) cobre detecção/spoofing, TXT/Markdown, binário disfarçado, DOCX fora do escopo, UTF-8/BOM/vazio, extração real de PDF textual, Unicode NFC, preservação de espaços Markdown, preservação de páginas, validação de proveniência da normalização, `identificar_estrutura` (cabeçalhos Markdown, marcadores numerados versus prosa ambígua, Prefácio/Posfácio isolados versus mencionados em frase, página de PDF preservada, ausência de invenção de estrutura sem evidência, proveniência do artefato) e `criar_hierarquia` (seção única sem evidência, capítulos irmãos, cadeia Parte→Capítulo→Seção→Subseção, nova Parte fechando a anterior, Anexo/Prefácio/Posfácio nunca como pai, mapeamento de nível Markdown, página final calculada). A função de banco de `criar_hierarquia` também foi validada manualmente contra o Supabase oficial dentro de uma transação com `ROLLBACK` — nenhum dado permanente foi criado.
 
 ### Banco local
 
@@ -423,21 +429,21 @@ No PR #13, a primeira tentativa de `db reset` falhou por erro genérico do conta
 
 ### Limite atual de E2E
 
-Ainda não há obra real no banco oficial. O caminho positivo `upload → workflow → validar → identificar → extrair → normalizar` não foi exercitado com corpus. A flag ficará desligada até esse E2E passar.
+Ainda não há obra real no banco oficial. O caminho positivo `upload → workflow → validar → identificar → extrair → normalizar → identificar estrutura → criar hierarquia` não foi exercitado com corpus. A flag ficará desligada até esse E2E passar.
 
 ---
 
-## 12. Próxima etapa: criar hierarquia
+## 12. Próxima etapa: criar fragmentos
 
-Com `identificar_estrutura` implementado, a próxima implementação é `criar_hierarquia`.
+Com `identificar_estrutura` e `criar_hierarquia` implementados, a próxima implementação é `criar_fragmentos`.
 
 Princípio inicial:
 
-- consumir `estrutura_identificada` (quando `possui_indicios_estruturais = true`) e `conteudo_normalizado`;
-- materializar `processamento.secoes` preservando ordem, nível hierárquico, página inicial/final e proveniência até a unidade de origem;
-- quando não houver indício de alta confiança, tratar a obra inteira como uma única seção de nível 0 em vez de inventar divisões;
-- sinais de baixa confiança (`linha_maiuscula_candidata`) não geram seção sozinhos nesta primeira versão — ficam disponíveis para revisão humana/IA futura;
-- nenhuma estrutura parcial alimenta o Cérebro.
+- consumir `conteudo_normalizado` e as `processamento.secoes` já materializadas;
+- dividir o texto de cada seção em fragmentos com tamanho controlado, preservando fronteiras de página e a ordem de leitura;
+- preencher `conteudo` e `conteudo_contextualizado`, contagem de tokens e o encadeamento `fragmento_anterior_id`/`fragmento_seguinte_id`;
+- manter proveniência completa (seção de origem, página) em cada fragmento;
+- nenhum fragmento parcial alimenta o Cérebro antes de `validar_resultado`/`publicar_documento`.
 
 ---
 
@@ -449,7 +455,7 @@ Princípio inicial:
 | Dicionário/Taxonomia — estrutura | concluída |
 | Biblioteca/Storage/Auth/API | concluídos |
 | Pipeline — modelo de dados | concluído |
-| Pipeline — workflow | **em construção; até `identificar_estrutura`** |
+| Pipeline — workflow | **em construção; até `criar_hierarquia`** |
 | Documentos Processados — execução real | pendente do workflow completo |
 | Taxonomia inteligente | pendente |
 | Recuperação híbrida | pendente |

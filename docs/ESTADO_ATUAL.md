@@ -1,6 +1,6 @@
 # Estado Atual do Projeto
 
-Atualizado em **17/09/2026** após auditoria completa de handoff, correção de RLS (`0022`) e implementação de `identificar_estrutura` (`0023`).
+Atualizado em **17/09/2026** após auditoria completa de handoff, correção de RLS (`0022`) e implementação de `identificar_estrutura` (`0023`) e `criar_hierarquia` (`0024`).
 
 ## Auditoria de handoff — 17/09/2026
 
@@ -17,7 +17,15 @@ O PR #13 já estava incorporado à `main` (não há PRs abertos). Uma nova sess�
 
 ## Nova etapa — `identificar_estrutura` (0023)
 
-Implementada em `src/dominios/processamento/identificar-estrutura.ts` (lógica pura, testada) e `src/workflows/identificar-estrutura-step.ts` (etapa durável, integrada a `processar-obra.ts`). Consome `conteudo_normalizado` validado e produz o artefato `estrutura_identificada` com sinais determinísticos (cabeçalhos Markdown, marcadores "Parte/Capítulo/Seção/Subseção/Anexo" numerados, "Prefácio"/"Posfácio" isolados, candidatos de baixa confiança em maiúsculas) — ver ADR-058/059/060 e `docs/PIPELINE_DOCUMENTAL.md`. Não materializa `processamento.secoes`; isso fica para `criar_hierarquia`, a próxima etapa a implementar. `npm test` agora cobre 20 casos (12 anteriores + 8 novos). O advisor de segurança do Supabase permanece sem achados críticos após a migration `0023`.
+Implementada em `src/dominios/processamento/identificar-estrutura.ts` (lógica pura, testada) e `src/workflows/identificar-estrutura-step.ts` (etapa durável, integrada a `processar-obra.ts`). Consome `conteudo_normalizado` validado e produz o artefato `estrutura_identificada` com sinais determinísticos (cabeçalhos Markdown, marcadores "Parte/Capítulo/Seção/Subseção/Anexo" numerados, "Prefácio"/"Posfácio" isolados, candidatos de baixa confiança em maiúsculas) — ver ADR-058/059/060 e `docs/PIPELINE_DOCUMENTAL.md`. Não materializa `processamento.secoes`; isso ficou para `criar_hierarquia`.
+
+## Nova etapa — `criar_hierarquia` (0024)
+
+Implementada em `src/dominios/processamento/criar-hierarquia.ts` (algoritmo de árvore por pilha de níveis, puro e testado) e `src/workflows/criar-hierarquia-step.ts` (etapa durável). Consome apenas os sinais de `confianca: alta` de `estrutura_identificada` e materializa, pela primeira vez, dados reais em `processamento.documentos_processados` (estado `candidato`) e `processamento.secoes` — via a função de banco `aplicacao.backend_criar_hierarquia_documento` (migration `0024`), no mesmo padrão de segurança das etapas anteriores (SECURITY DEFINER, sem GRANT direto). Ver ADR-061/062/063.
+
+Sem nenhum sinal de alta confiança, cria uma única seção cobrindo o documento inteiro, em vez de inventar divisão. A função de banco foi validada manualmente contra o Supabase oficial dentro de uma transação com `ROLLBACK`: confirmou criação do documento + 3 seções de teste com vínculo pai/filho correto e idempotência em uma segunda chamada — nenhum dado permanente foi criado no banco oficial.
+
+`npm test` agora cobre 27 casos (12 do handoff original + 8 de `identificar_estrutura` + 7 de `criar_hierarquia`). O advisor de segurança do Supabase permanece sem achados críticos após as migrations `0023` e `0024`.
 
 ## Infraestrutura oficial
 
@@ -43,7 +51,9 @@ normalizar_conteudo      ✅ main (PR #13)
   ↓
 identificar_estrutura    ✅ implementado e testado (0023)
   ↓
-criar_hierarquia         próxima etapa
+criar_hierarquia         ✅ implementado e testado (0024)
+  ↓
+criar_fragmentos         próxima etapa
 ```
 
 Nenhum artefato parcial é Documento Processado ativo e nenhum resultado parcial alimenta o Cérebro Autoral.
@@ -163,7 +173,7 @@ A futura camada cognitiva seguirá Responses API com `store:false`, Structured O
 
 ## Próximo passo
 
-Implementar `criar_hierarquia`: consumir `estrutura_identificada` (0023) e `conteudo_normalizado`, materializar `processamento.secoes` preservando ordem/nível/páginas/proveniência, e tratar `possui_indicios_estruturais = false` como uma única seção de nível 0 em vez de inventar divisões. Nenhum Documento Processado parcial deve ser publicado antes de `validar_resultado`.
+Implementar `criar_fragmentos`: consumir `conteudo_normalizado` e as `processamento.secoes` já materializadas, dividindo o texto de cada seção em fragmentos com contexto, proveniência (seção, página) e contagem de tokens. Nenhum Documento Processado parcial deve ser publicado antes de `validar_resultado`/`publicar_documento`.
 
 ## Regra permanente
 

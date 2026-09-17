@@ -14,6 +14,7 @@ import {
   identificarEstruturaArtefatoNormalizado,
   validarArtefatoEstrutura,
 } from '../../src/dominios/processamento/identificar-estrutura.ts'
+import { construirHierarquiaDocumento } from '../../src/dominios/processamento/criar-hierarquia.ts'
 
 const encoder = new TextEncoder()
 
@@ -527,4 +528,153 @@ test('validarArtefatoEstrutura aceita a cadeia correta e rejeita proveniência d
   })
   assert.equal(divergente.ok, false)
   if (!divergente.ok) assert.equal(divergente.codigo, 'ARTEFATO_ESTRUTURA_ORIGEM_DIVERGENTE')
+})
+
+function unidadeAlta({ tipoSugerido = null, nivelMarkdown = null, titulo, pagina = null }) {
+  return {
+    ordem: 0,
+    tipo_sinal: tipoSugerido ? 'marcador_numerado' : 'cabecalho_markdown',
+    tipo_sugerido: tipoSugerido,
+    nivel_markdown: nivelMarkdown,
+    titulo_detectado: titulo,
+    confianca: 'alta',
+    pagina,
+    indice_inicio: 0,
+    indice_fim: 0,
+  }
+}
+
+function unidadeBaixa(titulo) {
+  return {
+    ordem: 0,
+    tipo_sinal: 'linha_maiuscula_candidata',
+    tipo_sugerido: null,
+    nivel_markdown: null,
+    titulo_detectado: titulo,
+    confianca: 'baixa',
+    pagina: null,
+    indice_inicio: 0,
+    indice_fim: 0,
+  }
+}
+
+test('sem sinais de alta confiança, criar_hierarquia produz uma única seção para o documento inteiro', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [unidadeBaixa('TALVEZ UM TÍTULO')],
+    totalPaginas: null,
+  })
+
+  assert.equal(nos.length, 1)
+  assert.equal(nos[0].secao_pai_id, null)
+  assert.equal(nos[0].tipo, 'secao')
+  assert.equal(nos[0].nivel_hierarquico, 0)
+  assert.equal(nos[0].titulo, null)
+})
+
+test('capítulos sem Parte ficam como irmãos no nível raiz', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1' }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 2' }),
+    ],
+    totalPaginas: null,
+  })
+
+  assert.equal(nos.length, 2)
+  assert.equal(nos[0].secao_pai_id, null)
+  assert.equal(nos[1].secao_pai_id, null)
+  assert.equal(nos[0].ordem, 1)
+  assert.equal(nos[1].ordem, 2)
+})
+
+test('Parte > Capítulo > Seção > Subseção formam uma cadeia de ancestrais correta', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ tipoSugerido: 'parte', titulo: 'Parte I' }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1' }),
+      unidadeAlta({ tipoSugerido: 'secao', titulo: 'Seção 1.1' }),
+      unidadeAlta({ tipoSugerido: 'subsecao', titulo: 'Subseção 1.1.1' }),
+    ],
+    totalPaginas: null,
+  })
+
+  const [parte, capitulo, secao, subsecao] = nos
+  assert.equal(parte.secao_pai_id, null)
+  assert.equal(capitulo.secao_pai_id, parte.id)
+  assert.equal(secao.secao_pai_id, capitulo.id)
+  assert.equal(subsecao.secao_pai_id, secao.id)
+  assert.deepEqual(
+    nos.map((n) => n.nivel_hierarquico),
+    [0, 1, 2, 3]
+  )
+})
+
+test('uma nova Parte fecha a Parte anterior; Capítulo depois dela pertence à nova Parte', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ tipoSugerido: 'parte', titulo: 'Parte I' }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1' }),
+      unidadeAlta({ tipoSugerido: 'parte', titulo: 'Parte II' }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 2' }),
+    ],
+    totalPaginas: null,
+  })
+
+  const [parteI, capitulo1, parteII, capitulo2] = nos
+  assert.equal(capitulo1.secao_pai_id, parteI.id)
+  assert.equal(capitulo2.secao_pai_id, parteII.id)
+  assert.notEqual(parteI.id, parteII.id)
+})
+
+test('Prefácio/Posfácio/Anexo nunca viram pai de capítulo, mesmo aparecendo entre eles', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ tipoSugerido: 'prefacio', titulo: 'Prefácio' }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1' }),
+      unidadeAlta({ tipoSugerido: 'posfacio', titulo: 'Posfácio' }),
+      unidadeAlta({ tipoSugerido: 'anexo', titulo: 'Anexo A' }),
+    ],
+    totalPaginas: null,
+  })
+
+  for (const no of nos) {
+    assert.equal(no.secao_pai_id, null)
+  }
+})
+
+test('cabeçalhos Markdown sem tipo_sugerido são mapeados por nível e aninhados', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ nivelMarkdown: 1, titulo: 'Capítulo Um' }),
+      unidadeAlta({ nivelMarkdown: 2, titulo: 'Uma seção' }),
+      unidadeAlta({ nivelMarkdown: 3, titulo: 'Uma subseção' }),
+    ],
+    totalPaginas: null,
+  })
+
+  assert.deepEqual(
+    nos.map((n) => n.tipo),
+    ['capitulo', 'secao', 'subsecao']
+  )
+  assert.equal(nos[1].secao_pai_id, nos[0].id)
+  assert.equal(nos[2].secao_pai_id, nos[1].id)
+})
+
+test('em PDF, a página final de cada seção respeita o início da próxima seção que a encerra', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1', pagina: 1 }),
+      unidadeAlta({ tipoSugerido: 'secao', titulo: 'Seção 1.1', pagina: 2 }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 2', pagina: 5 }),
+    ],
+    totalPaginas: 8,
+  })
+
+  const [capitulo1, secao11, capitulo2] = nos
+  assert.equal(capitulo1.pagina_inicial, 1)
+  assert.equal(capitulo1.pagina_final, 4) // termina antes do próximo capítulo (pág. 5)
+  assert.equal(secao11.pagina_inicial, 2)
+  assert.equal(secao11.pagina_final, 4) // termina antes do próximo capítulo, que também fecha a seção
+  assert.equal(capitulo2.pagina_inicial, 5)
+  assert.equal(capitulo2.pagina_final, 8) // último nó: vai até o fim do documento
 })
