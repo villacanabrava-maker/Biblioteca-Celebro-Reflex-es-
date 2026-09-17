@@ -12,6 +12,25 @@ export const sinteseDocumentalSchema = z
   })
   .strict()
 
+const schemaSaidaSinteseV1Schema = z
+  .object({
+    type: z.literal('object'),
+    properties: z
+      .object({
+        sintese: z
+          .object({
+            type: z.literal('string'),
+            minLength: z.literal(1),
+            maxLength: z.literal(12_000),
+          })
+          .strict(),
+      })
+      .strict(),
+    required: z.tuple([z.literal('sintese')]),
+    additionalProperties: z.literal(false),
+  })
+  .strict()
+
 export type TipoAlvoSintese = 'secao' | 'capitulo' | 'parte' | 'obra'
 
 export type EntradaSinteseDocumental = {
@@ -40,6 +59,14 @@ export type ResultadoSinteseDocumental =
       responseId?: string
       duracaoMs: number
     }
+
+export function schemaSaidaSinteseV1Compativel(schema: unknown): boolean {
+  return schemaSaidaSinteseV1Schema.safeParse(schema).success
+}
+
+export function statusHttpOpenAIRetryable(status: number): boolean {
+  return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500
+}
 
 export function montarEntradaSintese(input: EntradaSinteseDocumental): string {
   return JSON.stringify({
