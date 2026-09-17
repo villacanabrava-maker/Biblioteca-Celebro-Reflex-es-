@@ -13,6 +13,8 @@ import {
 import type { ObraDetalhada, TipoObra } from "@/tipos/biblioteca";
 import { CardObra } from "./card-obra";
 import { ModalAdicionarConteudo } from "./modal-adicionar-conteudo";
+import { ModalProcessamento } from "@/componentes/processamento/modal-processamento";
+import { VisualizadorFragmentos } from "@/componentes/processamento/visualizador-fragmentos";
 
 interface Props {
   obrasIniciais: ObraDetalhada[];
@@ -36,6 +38,8 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
   const [naturezaFiltro, setNaturezaFiltro] = useState<"todas" | "autoral" | "externa_aprovada">("todas");
   const [busca, setBusca] = useState("");
   const [modalAberto, setModalAberto] = useState(false);
+  const [obraProcessamento, setObraProcessamento] = useState<ObraDetalhada | null>(null);
+  const [obraFragmentos, setObraFragmentos] = useState<ObraDetalhada | null>(null);
 
   // Filtragem client-side ágil
   const obrasFiltradas = useMemo(() => {
@@ -151,6 +155,8 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
               key={obra.id}
               obra={obra}
               aoExcluir={lidarExcluirObra}
+              aoIniciarProcessamento={(o) => setObraProcessamento(o)}
+              aoVerFragmentos={(o) => setObraFragmentos(o)}
             />
           ))}
         </div>
@@ -195,6 +201,27 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
         aoFechar={() => setModalAberto(false)}
         aoSalvar={lidarSalvarObra}
         usuarioId={usuarioId}
+      />
+
+      {/* Modal Processamento com IA */}
+      <ModalProcessamento
+        obra={obraProcessamento}
+        aberto={!!obraProcessamento}
+        aoFechar={() => setObraProcessamento(null)}
+        aoConcluir={(obraId) => {
+          setObras((atuais) =>
+            atuais.map((o) =>
+              o.id === obraId ? { ...o, estado_processamento: "processado" } : o
+            )
+          );
+        }}
+      />
+
+      {/* Visualizador de Fragmentos e Seções */}
+      <VisualizadorFragmentos
+        obra={obraFragmentos}
+        aberto={!!obraFragmentos}
+        aoFechar={() => setObraFragmentos(null)}
       />
     </div>
   );

@@ -26,6 +26,7 @@ interface Props {
   obra: ObraDetalhada;
   aoExcluir?: (id: string) => void;
   aoIniciarProcessamento?: (obra: ObraDetalhada) => void;
+  aoVerFragmentos?: (obra: ObraDetalhada) => void;
 }
 
 function obterIconeTipo(tipo: TipoObra) {
@@ -71,7 +72,12 @@ function formatarRotuloTipo(tipo: TipoObra): string {
   return mapa[tipo] || "Obra";
 }
 
-export function CardObra({ obra, aoExcluir, aoIniciarProcessamento }: Props) {
+export function CardObra({
+  obra,
+  aoExcluir,
+  aoIniciarProcessamento,
+  aoVerFragmentos,
+}: Props) {
   const [menuAberto, setMenuAberto] = useState(false);
   const [baixando, setBaixando] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
@@ -175,6 +181,19 @@ export function CardObra({ obra, aoExcluir, aoIniciarProcessamento }: Props) {
                     <Download className="w-3.5 h-3.5 text-neutral-400" />
                   )}
                   Baixar Arquivo Original
+                </button>
+              )}
+
+              {aoVerFragmentos && obra.estado_processamento === "processado" && (
+                <button
+                  onClick={() => {
+                    setMenuAberto(false);
+                    aoVerFragmentos(obra);
+                  }}
+                  className="w-full px-3 py-2 text-xs text-left text-neutral-300 hover:bg-neutral-800 hover:text-emerald-300 flex items-center gap-2 transition-colors"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                  Ver Fragmentos Processados
                 </button>
               )}
 
