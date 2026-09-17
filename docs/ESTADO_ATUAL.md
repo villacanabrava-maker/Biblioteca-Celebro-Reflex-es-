@@ -1,41 +1,45 @@
 # Estado Atual do Projeto
 
-Atualizado em **17/09/2026** após a incorporação auditada do handoff da Fase 3.
+Atualizado em **17/09/2026** durante a implementação auditável de `criar_sinteses`.
 
 ## Infraestrutura oficial
 
 - GitHub: `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`
-- `main`: `1b68ba494e62bc5875868bdf4884620c02264c83`
+- `main`: `46fad3e8b65b59c18c2f77cec727ae8ec917b9d8`
+- desenvolvimento atual: PR #16 — `feature/criar-sinteses-ia`
 - Supabase: `xzkzdaxxmizcgfkjgzoq` — `ACTIVE_HEALTHY`, `us-west-2`, PostgreSQL 17.6
 - Vercel: `cerebro-autoral`
-- Produção: `https://cerebro-autoral.vercel.app`
-- Deployment pós-merge: `dpl_2xo3HF6gsHcKE2DVazD4kousiBQo` — `READY`
+- produção: `https://cerebro-autoral.vercel.app`
 - `PROCESSAMENTO_WORKFLOW_ATIVO=false`
 
-Outros projetos das contas conectadas não pertencem a este aplicativo.
+Outros projetos conectados não pertencem a este aplicativo.
 
-## Marco incorporado
+## Marco atual
 
-O PR #14 foi incorporado por squash merge depois de revisão manual e validação independente em GitHub, Supabase e Vercel.
-
-A parte determinística da Fase 3 está consolidada até `criar_fragmentos`:
+A parte determinística da Fase 3 está consolidada na `main` até `criar_fragmentos`. A primeira etapa cognitiva está sendo implementada no PR #16:
 
 ```text
-validar_arquivo          ✅
-identificar_formato      ✅
-extrair_conteudo         ✅ PDF textual/TXT/Markdown
-normalizar_conteudo      ✅
-identificar_estrutura    ✅
-criar_hierarquia         ✅
-criar_fragmentos         ✅ auditado/hardened
-criar_sinteses           ⬜ próxima etapa cognitiva
+validar_arquivo          ✅ main
+identificar_formato      ✅ main
+extrair_conteudo         ✅ main
+normalizar_conteudo      ✅ main
+identificar_estrutura    ✅ main
+criar_hierarquia         ✅ main
+criar_fragmentos         ✅ main
+criar_sinteses           🟡 implementada/testada sem chamada real; PR #16
+extrair_elementos        ⬜ não iniciada
+classificar_taxonomia    ⬜ não iniciada
+criar_embeddings         ⬜ não iniciada
+criar_relacoes           ⬜ não iniciada
+validar_resultado        ⬜ não iniciada
+publicar_documento       ⬜ não iniciada
 ```
 
-Nenhum resultado parcial é Documento Processado ativo e nenhum resultado parcial alimenta o Cérebro Autoral.
+Nenhum resultado parcial alimenta o Cérebro Autoral.
 
-## Banco oficial
+## Estado dos dados
 
-Última fotografia:
+O banco oficial continua sem corpus real na última auditoria:
 
 - 1 usuário Auth de teste;
 - 0 obras;
@@ -47,129 +51,208 @@ Nenhum resultado parcial é Documento Processado ativo e nenhum resultado parcia
 - 1 versão ativa de Pipeline;
 - 1 versão ativa de Taxonomia.
 
-Portanto, o hardening/migrations recentes não tocaram corpus autoral real.
+Os testes das RPCs de IA usam registros sintéticos dentro de `BEGIN ... ROLLBACK`; nada permanece no banco.
 
-## Migrations recentes
+## OpenAI
+
+A chave antiga foi rotacionada e a chave nova está configurada somente na Vercel. Nenhum segredo foi versionado.
+
+A documentação oficial atual da OpenAI foi revalidada antes desta implementação. O modelo padrão v1 escolhido para síntese é `gpt-5.6-terra`, configurável por `MODELO_IA_ANALISE`.
+
+Política v1:
+
+- Responses API;
+- Structured Outputs + Zod;
+- `store:false`;
+- cliente server-only;
+- `maxRetries:0` no SDK;
+- retries/cobrança controlados pela nossa auditoria;
+- conteúdo do usuário sempre tratado como dado não confiável;
+- nenhuma chamada real paga sem confirmação explícita do proprietário.
+
+Até este momento **nenhuma chamada real à OpenAI foi executada**.
+
+## Nova fundação de IA — migrations `0030–0034`
+
+### `0030_fundacao_ia_sinteses`
+
+Versão real: `20260917020401`.
+
+Criou:
+
+- `auditoria.execucoes_ia`;
+- catálogo ativo do modelo `gpt-5.6-terra` para finalidade `analise`;
+- prompt `sintese_documental_hierarquica` v1 + hash + schema de saída;
+- RPCs server-only para obter configuração, reservar chamada, marcar início, concluir, falhar e listar sínteses.
+
+A auditoria registra modelo, prompt, Pipeline, Taxonomia, tokens, duração, custo estimado, referências, estado, tentativa e erro sem duplicar desnecessariamente o texto privado.
+
+### `0031_recuperacao_reserva_ia`
+
+Versão real: `20260917021001`.
+
+Separa:
+
+- reserva criada mas chamada ainda não iniciada — recuperável após lease curto;
+- chamada externa já iniciada — se ficar ambígua, vira `incerta` e não é repetida automaticamente.
+
+### `0032_listagem_sinteses_auditadas`
+
+Versão real: `20260917021151`.
+
+Permite validar replay por síntese + modelo + versão do prompt + hash exato da entrada que originou o resultado.
+
+### `0033_hardening_auditoria_ia`
+
+Versão real: `20260917021601`.
+
+Adicionou policy RLS explícita de negação a clientes e índices das FKs apontadas pelo advisor.
+
+### `0034_corrige_ambiguidade_tentativa_ia`
+
+Versão real: `20260917022624`.
+
+O teste funcional da `0031` encontrou um bug PostgreSQL real: `tentativa = tentativa + 1` era ambíguo porque a função também possui uma coluna de saída `tentativa`. A `0034` qualifica a coluna da tabela e preserva o histórico imutável de migrations.
+
+## Testes de SQL no banco real
+
+Antes de `apply_migration`, a DDL foi validada em transação revertida.
+
+Depois da `0030`, um teste funcional sintético em `BEGIN ... ROLLBACK` comprovou:
+
+- reserva inicial;
+- bloqueio de reserva duplicada;
+- início da chamada;
+- conclusão da síntese;
+- conclusão repetida idempotente;
+- replay concluído;
+- listagem da síntese;
+- ausência de SELECT direto do `service_role` na tabela de auditoria.
+
+Um teste posterior de recuperação detectou a ambiguidade da `0031`, que foi corrigida pela `0034`. A versão corrigida passou em transação revertida incluindo:
+
+- recuperação de reserva não iniciada após lease;
+- chamada iniciada/abandonada virando `incerta` sem retry automático;
+- conclusão auditada separada;
+- comprovação de hash/modelo/prompt pela RPC `0032`.
+
+Nenhum dado sintético permaneceu.
+
+## Motor de síntese
+
+Arquivos principais:
 
 ```text
-0022  RLS dos catálogos de sistema/taxonomia
-0023  artefato estrutura_identificada
-0024  materialização do Documento Processado candidato + seções
-0025  posições de seção + RPCs de fragmentação
-0026  correção da contagem de fragmentos
-0027  correção de ambiguidade SQL
-0028  offset_pagina_inicio para recorte PDF intrapágina
-0029  leitura backend-only de fragmentos para replay seguro
+src/infraestrutura/openai/cliente.ts
+src/infraestrutura/openai/modelos.ts
+src/ia/motor-documental/gerar-sintese-documental.ts
+src/dominios/processamento/criar-sinteses.ts
+src/workflows/criar-sinteses-step.ts
+prompts/processamento/sintese-documental-hierarquica-v1.md
 ```
 
-Versões reais atribuídas pelo Supabase:
+Características:
 
-- `20260917012837_0028_offsets_pdf_fragmentacao`
-- `20260917014156_0029_listagem_fragmentos_replay`
+- cliente OpenAI compartilhado apenas no servidor;
+- `maxRetries:0` para evitar retries de cobrança escondidos pelo SDK;
+- input determinístico + SHA-256;
+- limite de 400.000 caracteres por chamada v1;
+- Structured Output estrito `{ sintese: string }`;
+- estimativa de custo pelo uso retornado;
+- prompt injection mitigada por prompt de sistema + encapsulamento explícito do conteúdo como dado;
+- composição bottom-up: folhas → capítulos → partes → obra;
+- uma síntese por step durável;
+- replay só reutiliza resultado quando modelo, prompt e hash de entrada coincidem.
 
-## Bugs encontrados e corrigidos na auditoria
+## Política de erro/cobrança
 
-### PDF intrapágina
+- erro HTTP explícito: auditoria `falhou`; Workflow pode repetir dentro do limite controlado;
+- erro de transporte ambíguo depois de início: auditoria `incerta`; não repetir automaticamente;
+- resposta do provedor recebida mas persistência falha: tentar persistir de novo de forma local/idempotente, sem refazer a chamada;
+- reserva não iniciada: pode ser retomada sem risco de cobrança duplicada.
 
-Número de página sozinho não era suficiente para separar títulos na mesma página. Também podia haver perda do prefixo de uma página quando o próximo título começava no meio dela.
+## Testes automatizados
 
-Correção:
+A nova camada adicionou testes sem usar `OPENAI_API_KEY`:
 
-- `identificar_estrutura` já media o offset do título na página;
-- `0028` passou a persistir esse offset em `processamento.secoes`;
-- `criar_fragmentos` usa página + offset para recortar exatamente o texto próprio.
+- hash/input determinístico;
+- `store:false`;
+- Structured Output;
+- tokens + custo estimado;
+- prompt injection permanecendo como dado;
+- limite de entrada antes da chamada;
+- resposta sem `output_parsed` inválida;
+- composição hierárquica;
+- ausência de chamada em seção sem fonte;
+- síntese de obra por sínteses de topo.
 
-Há testes para:
-
-1. duas seções na mesma página sem duplicação;
-2. texto de continuação antes do próximo título na página seguinte sem perda.
-
-### Replay de fragmentos
-
-A primeira implementação podia retornar sucesso quando a máquina de estados informava que a etapa já havia passado, antes de comprovar que o artefato e os fragmentos persistidos continuavam íntegros.
-
-Correção:
-
-- artefato normalizado é baixado/revalidado;
-- fragmentos esperados são recalculados;
-- `0029` lista os fragmentos persistidos por RPC server-only;
-- esperado/persistido são comparados deterministicamente;
-- divergência falha em vez de ser aceita como sucesso.
-
-A escrita normal também é verificada antes da conclusão da etapa.
-
-## Gates do PR #14
-
-No head final:
-
-- `npm ci` ✅
-- `npm audit --omit=dev --audit-level=high` ✅ — 0 vulnerabilidades
-- ESLint ✅
-- TypeScript ✅
-- **39/39 testes** ✅
-- Next.js build ✅
-- Supabase local + todas as migrations/seed ✅
-- `supabase db reset` ✅
-- Preview Vercel ✅ READY
-- advisors do Supabase ✅ sem novo alerta estrutural
-
-## Produção pós-merge
-
-O deployment de produção ligado ao merge `1b68ba4…` está `READY`.
-
-Verificações realizadas:
-
-- `/` responde com autenticação para visitante sem sessão;
-- `/biblioteca` permanece protegida e vai para autenticação sem sessão;
-- nenhum erro de runtime foi encontrado no intervalo pós-deploy.
+Na rodada anterior à `0034` e documentação, a suíte completa chegou a **50/50 testes** com lint, TypeScript e build verdes. O head final deve repetir todos os gates.
 
 ## Segurança
+
+Após `0033`, os advisors voltaram ao estado esperado:
+
+- segurança: apenas `Leaked Password Protection Disabled`;
+- performance: apenas `unused_index` enquanto o banco permanece sem corpus.
 
 Mantido:
 
 - schemas internos fechados;
 - RLS;
 - Storage privado;
-- RPCs backend `SECURITY DEFINER` + `search_path=''`;
-- sem `EXECUTE` de RPC backend para `anon`/`authenticated`;
-- `service_role` somente em operações explicitamente concedidas;
-- sem segredo no GitHub;
-- OpenAI key somente na Vercel.
+- `anon`/`authenticated` sem execução de RPCs backend;
+- `service_role` acessando a auditoria somente por RPCs controladas;
+- `search_path=''` nas funções `SECURITY DEFINER`;
+- segredos somente no ambiente servidor.
 
-Advisor de segurança: único aviso atual é **Leaked Password Protection Disabled**.
+## Gates obrigatórios do PR #16
 
-Advisor de performance: somente `unused_index` informativo enquanto não há corpus.
+Aplicação:
 
-Pendências externas:
+```text
+npm ci
+npm audit --omit=dev --audit-level=high
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
 
-1. Leaked Password Protection do Supabase Auth;
-2. Vercel Dashboard ainda em Node 24.x versus Node 22.x do projeto;
-3. Ruleset de `main` ainda não obrigatório;
-4. E2E com documento controlado antes de ligar o Workflow.
+Banco:
 
-## OpenAI / próxima etapa
+```text
+supabase start
+migrations + seed
+supabase db reset
+supabase status
+supabase stop --no-backup
+```
 
-A chave OpenAI foi rotacionada e a nova chave está configurada na Vercel. Nenhuma chamada paga foi feita nesta auditoria.
+Além disso:
 
-O WIP antigo de `criar_sinteses` (`0b9d739...`) foi revisado apenas como referência e **não será mesclado diretamente** porque:
+- Preview Vercel precisa estar `READY`;
+- advisors Supabase revisados;
+- migrations locais devem bater com o histórico remoto;
+- documentação do mesmo head.
 
-- usava o número `0028`, já ocupado oficialmente;
-- redefinia `backend_listar_fragmentos_documento` com assinatura incompatível com a RPC oficial `0029`;
-- usava `gpt-5.5` como placeholder;
-- não possuía step do workflow nem testes completos;
-- sua migration nunca foi validada contra o banco real.
+## O que ainda NÃO ocorreu
 
-A documentação oficial atual da OpenAI foi reconsultada. A nova implementação deverá escolher explicitamente o modelo por qualidade/custo, usar Responses API, `store:false`, Structured Outputs/JSON Schema e validação Zod.
+- chamada real à OpenAI;
+- cobrança de API produzida por esta etapa;
+- E2E positivo com documento real;
+- ativação de `PROCESSAMENTO_WORKFLOW_ATIVO`;
+- merge do PR #16 enquanto estiver em validação;
+- implementação de `extrair_elementos` e etapas seguintes.
 
-Próximo marco:
+## Próximo marco
 
-1. abrir branch nova de IA a partir da `main` consolidada;
-2. redesenhar/renumerar a migration de auditoria/sínteses após `0029`;
-3. criar testes com cliente OpenAI falso;
-4. validar SQL em `BEGIN ... ROLLBACK`;
-5. criar `criar-sinteses-step.ts` e integrar ao workflow;
-6. somente depois solicitar confirmação do proprietário para a primeira chamada real paga.
+1. fechar CI/local DB/Preview do head final do PR #16;
+2. registrar ADRs da nova arquitetura de IA;
+3. tirar o PR de draft somente se tudo estiver verde;
+4. incorporar a infraestrutura/steps com feature flag ainda OFF;
+5. solicitar confirmação explícita do proprietário para a primeira chamada real paga, com input controlado e custo mínimo;
+6. preparar o primeiro E2E controlado do Pipeline.
 
 ## Regra permanente
 
-Nenhuma migration aplicada é reescrita para esconder correções. Nenhum segredo é commitido. Conteúdo do usuário é tratado como dado, nunca instrução. O proprietário permanece a autoridade final sobre autoria e incorporação ao Cérebro Autoral.
+Nenhuma migration aplicada é reescrita. Nenhum segredo é commitido. Uma saída de IA só pode ser persistida depois de validação estrutural e sempre carrega proveniência suficiente para auditoria/replay. O proprietário permanece autoridade final sobre autoria e incorporação ao Cérebro Autoral.
