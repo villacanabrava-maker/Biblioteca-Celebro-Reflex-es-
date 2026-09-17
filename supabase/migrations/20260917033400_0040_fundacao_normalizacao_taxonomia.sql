@@ -270,7 +270,7 @@ begin
     where c.versao_taxonomia_id = v_versao_taxonomia_id
       and (
         t.termo_normalizado = v_termo_busca
-        or t.termo_normalizado % v_termo_busca
+        or t.termo_normalizado OPERATOR(extensions.%) v_termo_busca
       )
   )
   select
