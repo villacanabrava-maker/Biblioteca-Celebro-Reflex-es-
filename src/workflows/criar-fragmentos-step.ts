@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto'
 import { LIMITES_EXTRACAO } from '@/dominios/processamento/extrair-conteudo'
 import { validarArtefatoNormalizado } from '@/dominios/processamento/normalizar-conteudo'
 import {
+  fragmentosPersistidosCorrespondem,
   montarFragmentosDocumento,
+  type FragmentoPersistido,
   type SecaoDocumento,
 } from '@/dominios/processamento/criar-fragmentos'
 import { createBackendClient } from '@/infraestrutura/supabase/backend'
@@ -51,10 +53,7 @@ async function obterContexto(execucaoId: string) {
 
   if (error) throw error
 
-  const contexto = (Array.isArray(data) ? data[0] : null) as
-    | ContextoExecucao
-    | undefined
-
+  const contexto = (Array.isArray(data) ? data[0] : null) as ContextoExecucao | undefined
   if (!contexto) throw new Error('Execução de processamento não encontrada.')
   return contexto
 }
@@ -94,6 +93,7 @@ async function obterSecoesDocumento(execucaoId: string): Promise<SecaoDocumento[
     pagina_final: number | null
     indice_inicio: number | null
     indice_fim: number | null
+    offset_pagina_inicio: number | null
   }>
 
   return linhas.map((linha) => ({
@@ -107,7 +107,46 @@ async function obterSecoesDocumento(execucaoId: string): Promise<SecaoDocumento[
     pagina_final: linha.pagina_final,
     indice_inicio: linha.indice_inicio,
     indice_fim: linha.indice_fim,
+    offset_pagina_inicio: linha.offset_pagina_inicio,
   }))
+}
+
+async function obterFragmentosPersistidos(execucaoId: string): Promise<{
+  documentoProcessadoId: string | null
+  fragmentos: FragmentoPersistido[]
+}> {
+  const backend = createBackendClient()
+  const { data, error } = await backend
+    .schema('aplicacao')
+    .rpc('backend_listar_fragmentos_documento', { p_execucao_id: execucaoId })
+
+  if (error) throw error
+
+  const linhas = (Array.isArray(data) ? data : []) as Array<{
+    documento_processado_id: string
+    secao_id: string
+    codigo: string
+    ordem: number
+    pagina_inicial: number | null
+    pagina_final: number | null
+    conteudo: string
+    conteudo_contextualizado: string
+    quantidade_tokens: number
+  }>
+
+  return {
+    documentoProcessadoId: linhas[0]?.documento_processado_id ?? null,
+    fragmentos: linhas.map((linha) => ({
+      secao_id: linha.secao_id,
+      codigo: linha.codigo,
+      ordem: linha.ordem,
+      pagina_inicial: linha.pagina_inicial,
+      pagina_final: linha.pagina_final,
+      conteudo: linha.conteudo,
+      conteudo_contextualizado: linha.conteudo_contextualizado,
+      quantidade_tokens: linha.quantidade_tokens,
+    })),
+  }
 }
 
 async function registrarFalhaDeterministica(
@@ -275,9 +314,7 @@ export async function criarFragmentosStep(
   if (etapaError) throw etapaError
 
   const etapa = Array.isArray(etapaData) ? etapaData[0] : null
-  if (etapa?.deve_executar === false) {
-    return { ok: true, execucaoId, reutilizada: true }
-  }
+  const deveExecutar = etapa?.deve_executar !== false
 
   const contexto = await obterContexto(execucaoId)
   const artefatoExtraido = await obterArtefato(execucaoId, 'conteudo_extraido')
@@ -343,6 +380,33 @@ export async function criarFragmentosStep(
     return { ok: false, execucaoId, motivo: 'nenhum_fragmento_extraido' }
   }
 
+  if (!deveExecutar) {
+    const persistidos = await obterFragmentosPersistidos(execucaoId)
+    if (
+      !persistidos.documentoProcessadoId ||
+      !fragmentosPersistidosCorrespondem(fragmentos, persistidos.fragmentos)
+    ) {
+      await registrarFalhaDeterministica(
+        execucaoId,
+        'FRAGMENTOS_REPLAY_DIVERGENTES',
+        'O replay encontrou fragmentos persistidos ausentes ou divergentes do resultado determinístico esperado.',
+        {
+          quantidade_esperada: fragmentos.length,
+          quantidade_persistida: persistidos.fragmentos.length,
+        }
+      )
+      return { ok: false, execucaoId, motivo: 'fragmentos_replay_divergentes' }
+    }
+
+    return {
+      ok: true,
+      execucaoId,
+      documentoProcessadoId: persistidos.documentoProcessadoId,
+      quantidadeFragmentos: persistidos.fragmentos.length,
+      reutilizada: true,
+    }
+  }
+
   const { data: resultadoRpc, error: fragmentosError } = await backend
     .schema('aplicacao')
     .rpc('backend_criar_fragmentos_documento', {
@@ -357,18 +421,32 @@ export async function criarFragmentosStep(
     throw new Error('O banco não retornou o identificador do Documento Processado.')
   }
 
+  const persistidos = await obterFragmentosPersistidos(execucaoId)
+  if (!fragmentosPersistidosCorrespondem(fragmentos, persistidos.fragmentos)) {
+    await registrarFalhaDeterministica(
+      execucaoId,
+      'FRAGMENTOS_PERSISTENCIA_DIVERGENTE',
+      'Os fragmentos persistidos não correspondem ao resultado determinístico calculado.',
+      {
+        quantidade_esperada: fragmentos.length,
+        quantidade_persistida: persistidos.fragmentos.length,
+      }
+    )
+    return { ok: false, execucaoId, motivo: 'fragmentos_persistencia_divergente' }
+  }
+
   await concluirCriacaoFragmentos(
     execucaoId,
     resultado.documento_processado_id,
     resultado.criado === false,
-    resultado.quantidade
+    persistidos.fragmentos.length
   )
 
   return {
     ok: true,
     execucaoId,
     documentoProcessadoId: resultado.documento_processado_id,
-    quantidadeFragmentos: resultado.quantidade,
+    quantidadeFragmentos: persistidos.fragmentos.length,
     reutilizada: resultado.criado === false,
   }
 }
