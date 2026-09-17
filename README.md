@@ -77,7 +77,7 @@ Sem PRs abertos; desenvolvimento corrente em claude/confident-cannon-ovdoev
 - PR #10 incorporado: identificação de formato, extração determinística e artefatos intermediários;
 - PR #11 incorporado: sincronização documental pós-PR #10;
 - PR #13 incorporado: normalização determinística/conservadora;
-- `identificar_estrutura` e `criar_hierarquia` implementados (sinais determinísticos v1) na branch corrente;
+- `identificar_estrutura`, `criar_hierarquia` e `criar_fragmentos` implementados (sinais determinísticos v1) na branch corrente;
 - `PROCESSAMENTO_WORKFLOW_ATIVO=false` permanece;
 - repositório atualmente **público**, por decisão explícita do proprietário (ADR-029/051 seguem registrando o risco);
 - `main` ainda não possui Ruleset/proteção obrigatória;
@@ -192,8 +192,9 @@ ESLint permanece em `9.39.5` enquanto a combinação atual do ecossistema Next.j
 | Artefatos intermediários privados | migrations `0020`/`0021`/`0023` aplicadas |
 | Supabase local reproduzível | implementado e testado no CI |
 | `identificar_estrutura` | implementado e testado; sinais determinísticos v1 |
-| `criar_hierarquia` | **implementado e testado; Documento Processado nasce em estado `candidato`** |
-| `criar_fragmentos` | próxima etapa |
+| `criar_hierarquia` | implementado e testado; Documento Processado nasce em estado `candidato` |
+| `criar_fragmentos` | **implementado e testado; um fragmento por seção, com breadcrumb de contexto** |
+| `criar_sinteses` | próxima etapa (primeira cognitiva; exige camada de IA) |
 | OpenAI operacional no Pipeline | pendente por arquitetura, não por credencial |
 | Cérebro Autoral | pendente |
 | Recuperação híbrida | pendente |
@@ -233,6 +234,9 @@ Migration aplicada não é reescrita. Toda correção posterior recebe nova migr
 | `20260917000231` | `0022_rls_catalogos_sistema_taxonomia` | RLS + leitura autenticada nos catálogos globais |
 | `20260917001607` | `0023_artefato_estrutura_identificada` | novo tipo de artefato para sinais de estrutura |
 | `20260917002831` | `0024_api_backend_hierarquia_documento` | RPC que cria o Documento Processado e as seções |
+| `20260917004841` | `0025_api_backend_fragmentos_documento` | posição em caracteres nas seções + RPCs de fragmentos |
+| `20260917004954` | `0026_corrige_contagem_fragmentos` | corrige contagem que só via a última linha inserida |
+| `20260917005052` | `0027_corrige_ambiguidade_contagem_fragmentos` | corrige ambiguidade de nome de coluna |
 
 O CI reconstrói um Supabase local do zero com migrations + seed e executa `db reset`, provando reprodutibilidade. Uma falha transitória de container ocorrida no PR #13 foi repetida isoladamente e o mesmo job passou integralmente sem alteração de migration.
 
@@ -393,6 +397,10 @@ Consome somente `conteudo_normalizado` validado e produz o artefato `estrutura_i
 
 Consome somente os sinais de `confianca: alta` de `estrutura_identificada` e materializa `processamento.documentos_processados` (estado `candidato`) + `processamento.secoes`. Constrói a árvore de pai/filho por uma pilha de níveis: Parte contém Capítulo, Capítulo contém Seção, Seção contém Subseção; uma nova Parte fecha a anterior. Anexo, Prefácio e Posfácio nunca viram "pai" de nada — ficam sempre no nível raiz, mesmo aparecendo entre dois capítulos. Cabeçalho Markdown sem tipo definido é convertido por nível (1→capítulo, 2→seção, 3+→subseção). Sem nenhum sinal de alta confiança, cria exatamente uma seção representando o documento inteiro, em vez de inventar divisão. Em PDF, a página final de cada seção é estimada pelo início da próxima seção que a encerra (limitação conhecida: granularidade de página, não de linha). A função de banco (`aplicacao.backend_criar_hierarquia_documento`) é idempotente: uma segunda chamada para a mesma execução retorna o documento já criado, sem duplicar seções.
 
+### `criar_fragmentos`
+
+Cria um fragmento por seção (v1 não subdivide seções grandes em fragmentos menores). O texto de cada fragmento vai do início da própria seção até o início da **próxima seção na ordem de leitura** — não até o `pagina_final`/`indice_fim` de `secoes` (que cobre também as subseções) — para não duplicar o texto de uma subseção tanto no fragmento do capítulo quanto no da própria subseção. Uma seção sem texto extraível, ou cujo texto é exatamente igual ao próprio título (título "solto", sem corpo), não gera fragmento algum. Cada fragmento ganha `conteudo_contextualizado` (trilha de ancestrais + texto próprio) e `quantidade_tokens` (estimativa determinística e provisória por tamanho do texto, a ser recalculada quando `MODELO_IA_*` existir). A função de banco (`aplicacao.backend_criar_fragmentos_documento`) é idempotente e também liga `fragmento_anterior_id`/`fragmento_seguinte_id` em sequência.
+
 A feature flag permanece:
 
 ```text
@@ -414,7 +422,9 @@ npm test
 npm run build
 ```
 
-A suíte (27 testes) cobre detecção/spoofing, TXT/Markdown, binário disfarçado, DOCX fora do escopo, UTF-8/BOM/vazio, extração real de PDF textual, Unicode NFC, preservação de espaços Markdown, preservação de páginas, validação de proveniência da normalização, `identificar_estrutura` (cabeçalhos Markdown, marcadores numerados versus prosa ambígua, Prefácio/Posfácio isolados versus mencionados em frase, página de PDF preservada, ausência de invenção de estrutura sem evidência, proveniência do artefato) e `criar_hierarquia` (seção única sem evidência, capítulos irmãos, cadeia Parte→Capítulo→Seção→Subseção, nova Parte fechando a anterior, Anexo/Prefácio/Posfácio nunca como pai, mapeamento de nível Markdown, página final calculada). A função de banco de `criar_hierarquia` também foi validada manualmente contra o Supabase oficial dentro de uma transação com `ROLLBACK` — nenhum dado permanente foi criado.
+A suíte (36 testes) cobre detecção/spoofing, TXT/Markdown, binário disfarçado, DOCX fora do escopo, UTF-8/BOM/vazio, extração real de PDF textual, Unicode NFC, preservação de espaços Markdown, preservação de páginas, validação de proveniência da normalização, `identificar_estrutura` (cabeçalhos Markdown, marcadores numerados versus prosa ambígua, Prefácio/Posfácio isolados versus mencionados em frase, página de PDF preservada, ausência de invenção de estrutura sem evidência, proveniência do artefato), `criar_hierarquia` (seção única sem evidência, capítulos irmãos, cadeia Parte→Capítulo→Seção→Subseção, nova Parte fechando a anterior, Anexo/Prefácio/Posfácio nunca como pai, mapeamento de nível Markdown, página/índice final calculados) e `criar_fragmentos` (fallback sem breadcrumb, seção pai não duplica texto da filha, título sem corpo não gera fragmento, concatenação de páginas em PDF, breadcrumb de ancestrais).
+
+As funções de banco de `criar_hierarquia` e `criar_fragmentos` também foram validadas manualmente contra o Supabase oficial dentro de transações com `ROLLBACK` — nenhum dado permanente foi criado. Esse processo encontrou e corrigiu dois erros reais em `backend_criar_fragmentos_documento` antes de qualquer uso: contagem de fragmentos que só considerava a última linha inserida no laço (`0026`) e uma ambiguidade de nome de coluna que impedia a função de sequer executar (`0027`).
 
 ### Banco local
 
@@ -433,17 +443,16 @@ Ainda não há obra real no banco oficial. O caminho positivo `upload → workfl
 
 ---
 
-## 12. Próxima etapa: criar fragmentos
+## 12. Próxima etapa: criar sínteses
 
-Com `identificar_estrutura` e `criar_hierarquia` implementados, a próxima implementação é `criar_fragmentos`.
+Com `identificar_estrutura`, `criar_hierarquia` e `criar_fragmentos` implementados, a próxima implementação é `criar_sinteses` — a primeira etapa verdadeiramente cognitiva do Pipeline.
 
 Princípio inicial:
 
-- consumir `conteudo_normalizado` e as `processamento.secoes` já materializadas;
-- dividir o texto de cada seção em fragmentos com tamanho controlado, preservando fronteiras de página e a ordem de leitura;
-- preencher `conteudo` e `conteudo_contextualizado`, contagem de tokens e o encadeamento `fragmento_anterior_id`/`fragmento_seguinte_id`;
-- manter proveniência completa (seção de origem, página) em cada fragmento;
-- nenhum fragmento parcial alimenta o Cérebro antes de `validar_resultado`/`publicar_documento`.
+- gerar sínteses hierárquicas (fragmento → seção → capítulo → parte → obra) a partir dos fragmentos já materializados;
+- exigirá a camada de IA (OpenAI Responses API, `store: false`, Structured Outputs/JSON Schema, validação Zod), ainda não ativada nesta versão;
+- registrar modelo/prompt/versão em cada síntese, para auditoria completa;
+- nenhuma síntese parcial alimenta o Cérebro antes de `validar_resultado`/`publicar_documento`.
 
 ---
 
@@ -455,7 +464,7 @@ Princípio inicial:
 | Dicionário/Taxonomia — estrutura | concluída |
 | Biblioteca/Storage/Auth/API | concluídos |
 | Pipeline — modelo de dados | concluído |
-| Pipeline — workflow | **em construção; até `criar_hierarquia`** |
+| Pipeline — workflow | **em construção; até `criar_fragmentos`** |
 | Documentos Processados — execução real | pendente do workflow completo |
 | Taxonomia inteligente | pendente |
 | Recuperação híbrida | pendente |

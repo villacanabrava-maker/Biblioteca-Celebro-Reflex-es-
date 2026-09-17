@@ -1,14 +1,17 @@
 import { createHash } from 'node:crypto'
 import { LIMITES_EXTRACAO } from '@/dominios/processamento/extrair-conteudo'
-import { validarArtefatoEstrutura } from '@/dominios/processamento/identificar-estrutura'
-import { construirHierarquiaDocumento } from '@/dominios/processamento/criar-hierarquia'
+import { validarArtefatoNormalizado } from '@/dominios/processamento/normalizar-conteudo'
+import {
+  montarFragmentosDocumento,
+  type SecaoDocumento,
+} from '@/dominios/processamento/criar-fragmentos'
 import { createBackendClient } from '@/infraestrutura/supabase/backend'
 
-export type ResultadoCriarHierarquiaStep = {
+export type ResultadoCriarFragmentosStep = {
   ok: boolean
   execucaoId: string
   documentoProcessadoId?: string
-  quantidadeSecoes?: number
+  quantidadeFragmentos?: number
   motivo?: string
   reutilizada?: boolean
 }
@@ -58,7 +61,7 @@ async function obterContexto(execucaoId: string) {
 
 async function obterArtefato(
   execucaoId: string,
-  tipo: 'conteudo_extraido' | 'conteudo_normalizado' | 'estrutura_identificada'
+  tipo: 'conteudo_extraido' | 'conteudo_normalizado'
 ) {
   const backend = createBackendClient()
   const { data, error } = await backend
@@ -72,6 +75,41 @@ async function obterArtefato(
   return (Array.isArray(data) ? data[0] : null) as ArtefatoExecucao | null
 }
 
+async function obterSecoesDocumento(execucaoId: string): Promise<SecaoDocumento[]> {
+  const backend = createBackendClient()
+  const { data, error } = await backend
+    .schema('aplicacao')
+    .rpc('backend_listar_secoes_documento', { p_execucao_id: execucaoId })
+
+  if (error) throw error
+
+  const linhas = (Array.isArray(data) ? data : []) as Array<{
+    secao_id: string
+    secao_pai_id: string | null
+    codigo: string
+    tipo: SecaoDocumento['tipo']
+    titulo: string | null
+    ordem: number
+    pagina_inicial: number | null
+    pagina_final: number | null
+    indice_inicio: number | null
+    indice_fim: number | null
+  }>
+
+  return linhas.map((linha) => ({
+    secao_id: linha.secao_id,
+    secao_pai_id: linha.secao_pai_id,
+    codigo: linha.codigo,
+    tipo: linha.tipo,
+    titulo: linha.titulo,
+    ordem: linha.ordem,
+    pagina_inicial: linha.pagina_inicial,
+    pagina_final: linha.pagina_final,
+    indice_inicio: linha.indice_inicio,
+    indice_fim: linha.indice_fim,
+  }))
+}
+
 async function registrarFalhaDeterministica(
   execucaoId: string,
   codigoErro: string,
@@ -83,7 +121,7 @@ async function registrarFalhaDeterministica(
     .schema('aplicacao')
     .rpc('backend_falhar_execucao', {
       p_execucao_id: execucaoId,
-      p_nome_etapa: 'criar_hierarquia',
+      p_nome_etapa: 'criar_fragmentos',
       p_codigo_erro: codigoErro,
       p_mensagem_erro: mensagemErro,
       p_detalhes: detalhes,
@@ -194,34 +232,34 @@ async function baixarArtefatoVerificado(
   return { ok: true, dados }
 }
 
-async function concluirCriacaoHierarquia(
+async function concluirCriacaoFragmentos(
   execucaoId: string,
   documentoProcessadoId: string,
   reutilizado: boolean,
-  quantidadeSecoes: number
+  quantidadeFragmentos: number
 ) {
   const backend = createBackendClient()
   const { error } = await backend
     .schema('aplicacao')
     .rpc('backend_concluir_etapa', {
       p_execucao_id: execucaoId,
-      p_nome_etapa: 'criar_hierarquia',
-      p_percentual: 35,
-      p_proximo_estado: 'segmentando',
-      p_proxima_etapa: 'criar_fragmentos',
+      p_nome_etapa: 'criar_fragmentos',
+      p_percentual: 45,
+      p_proximo_estado: 'analisando',
+      p_proxima_etapa: 'criar_sinteses',
       p_detalhes: {
         documento_processado_id: documentoProcessadoId,
         reutilizado,
-        quantidade_secoes: quantidadeSecoes,
+        quantidade_fragmentos: quantidadeFragmentos,
       },
     })
 
   if (error) throw error
 }
 
-export async function criarHierarquiaStep(
+export async function criarFragmentosStep(
   execucaoId: string
-): Promise<ResultadoCriarHierarquiaStep> {
+): Promise<ResultadoCriarFragmentosStep> {
   'use step'
 
   const backend = createBackendClient()
@@ -229,96 +267,108 @@ export async function criarHierarquiaStep(
     .schema('aplicacao')
     .rpc('backend_iniciar_etapa', {
       p_execucao_id: execucaoId,
-      p_nome_etapa: 'criar_hierarquia',
+      p_nome_etapa: 'criar_fragmentos',
       p_estado_execucao: 'segmentando',
-      p_percentual: 31,
+      p_percentual: 36,
     })
 
   if (etapaError) throw etapaError
 
   const etapa = Array.isArray(etapaData) ? etapaData[0] : null
-  const deveExecutar = etapa?.deve_executar !== false
+  if (etapa?.deve_executar === false) {
+    return { ok: true, execucaoId, reutilizada: true }
+  }
 
   const contexto = await obterContexto(execucaoId)
   const artefatoExtraido = await obterArtefato(execucaoId, 'conteudo_extraido')
   const artefatoNormalizado = await obterArtefato(execucaoId, 'conteudo_normalizado')
-  const artefatoEstrutura = await obterArtefato(execucaoId, 'estrutura_identificada')
 
-  if (!artefatoExtraido || !artefatoNormalizado || !artefatoEstrutura) {
+  if (!artefatoExtraido || !artefatoNormalizado) {
     await registrarFalhaDeterministica(
       execucaoId,
-      'ARTEFATO_ESTRUTURA_AUSENTE',
-      'A criação de hierarquia exige os artefatos extraído, normalizado e de estrutura da execução.'
+      'ARTEFATO_NORMALIZADO_AUSENTE',
+      'A criação de fragmentos exige os artefatos extraído e normalizado da execução.'
     )
-    return { ok: false, execucaoId, motivo: 'artefato_estrutura_ausente' }
+    return { ok: false, execucaoId, motivo: 'artefato_normalizado_ausente' }
   }
 
-  const downloadEstrutura = await baixarArtefatoVerificado(artefatoEstrutura)
-  if (!downloadEstrutura.ok) {
+  const downloadNormalizado = await baixarArtefatoVerificado(artefatoNormalizado)
+  if (!downloadNormalizado.ok) {
     await registrarFalhaDeterministica(
       execucaoId,
-      'ARTEFATO_ESTRUTURA_INTEGRIDADE_DIVERGENTE',
-      'O artefato de estrutura registrado não corresponde aos bytes armazenados.',
-      downloadEstrutura.detalhes
+      'ARTEFATO_NORMALIZADO_INTEGRIDADE_DIVERGENTE',
+      'O artefato normalizado registrado não corresponde aos bytes armazenados.',
+      downloadNormalizado.detalhes
     )
-    return { ok: false, execucaoId, motivo: downloadEstrutura.motivo }
+    return { ok: false, execucaoId, motivo: downloadNormalizado.motivo }
   }
 
-  const validacaoEstrutura = validarArtefatoEstrutura({
-    bytes: downloadEstrutura.dados,
+  const validacaoNormalizado = validarArtefatoNormalizado({
+    bytes: downloadNormalizado.dados,
     hashOriginalEsperado: contexto.hash_sha256,
     hashArtefatoExtraidoEsperado: artefatoExtraido.hash_sha256,
-    hashArtefatoNormalizadoEsperado: artefatoNormalizado.hash_sha256,
   })
 
-  if (!validacaoEstrutura.ok) {
+  if (!validacaoNormalizado.ok) {
     await registrarFalhaDeterministica(
       execucaoId,
-      validacaoEstrutura.codigo,
-      validacaoEstrutura.motivo,
-      validacaoEstrutura.detalhes ?? {}
+      validacaoNormalizado.codigo,
+      validacaoNormalizado.motivo,
+      validacaoNormalizado.detalhes ?? {}
     )
-    return { ok: false, execucaoId, motivo: validacaoEstrutura.codigo.toLowerCase() }
+    return { ok: false, execucaoId, motivo: validacaoNormalizado.codigo.toLowerCase() }
   }
 
-  if (!deveExecutar) {
-    // A etapa já está concluída; apenas relatar o documento já existente,
-    // sem tentar recriar hierarquia nem reconcluir a etapa.
-    return { ok: true, execucaoId, reutilizada: true }
+  const secoes = await obterSecoesDocumento(execucaoId)
+  if (secoes.length === 0) {
+    await registrarFalhaDeterministica(
+      execucaoId,
+      'SECOES_AUSENTES',
+      'A criação de fragmentos exige que criar_hierarquia já tenha materializado as seções da execução.'
+    )
+    return { ok: false, execucaoId, motivo: 'secoes_ausentes' }
   }
 
-  const nos = construirHierarquiaDocumento({
-    unidades: validacaoEstrutura.artefato.unidades,
-    totalPaginas: validacaoEstrutura.artefato.total_paginas,
-    totalCaracteres: validacaoEstrutura.artefato.total_caracteres,
+  const fragmentos = montarFragmentosDocumento({
+    secoes,
+    normalizado: validacaoNormalizado.artefato,
   })
 
-  const { data: resultadoRpc, error: hierarquiaError } = await backend
+  if (fragmentos.length === 0) {
+    await registrarFalhaDeterministica(
+      execucaoId,
+      'NENHUM_FRAGMENTO_EXTRAIDO',
+      'Nenhuma seção produziu conteúdo extraível para fragmentação.'
+    )
+    return { ok: false, execucaoId, motivo: 'nenhum_fragmento_extraido' }
+  }
+
+  const { data: resultadoRpc, error: fragmentosError } = await backend
     .schema('aplicacao')
-    .rpc('backend_criar_hierarquia_documento', {
+    .rpc('backend_criar_fragmentos_documento', {
       p_execucao_id: execucaoId,
-      p_secoes: nos,
+      p_fragmentos: fragmentos,
     })
 
-  if (hierarquiaError) throw hierarquiaError
+  if (fragmentosError) throw fragmentosError
 
   const resultado = Array.isArray(resultadoRpc) ? resultadoRpc[0] : null
   if (!resultado?.documento_processado_id) {
     throw new Error('O banco não retornou o identificador do Documento Processado.')
   }
 
-  await concluirCriacaoHierarquia(
+  await concluirCriacaoFragmentos(
     execucaoId,
     resultado.documento_processado_id,
     resultado.criado === false,
-    nos.length
+    resultado.quantidade
   )
 
   return {
     ok: true,
     execucaoId,
     documentoProcessadoId: resultado.documento_processado_id,
-    quantidadeSecoes: nos.length,
+    quantidadeFragmentos: resultado.quantidade,
     reutilizada: resultado.criado === false,
   }
 }

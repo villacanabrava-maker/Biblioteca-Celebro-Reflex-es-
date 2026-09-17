@@ -15,6 +15,11 @@ import {
   validarArtefatoEstrutura,
 } from '../../src/dominios/processamento/identificar-estrutura.ts'
 import { construirHierarquiaDocumento } from '../../src/dominios/processamento/criar-hierarquia.ts'
+import {
+  montarFragmentosDocumento,
+  construirBreadcrumb,
+  estimarQuantidadeTokens,
+} from '../../src/dominios/processamento/criar-fragmentos.ts'
 
 const encoder = new TextEncoder()
 
@@ -530,7 +535,7 @@ test('validarArtefatoEstrutura aceita a cadeia correta e rejeita proveniência d
   if (!divergente.ok) assert.equal(divergente.codigo, 'ARTEFATO_ESTRUTURA_ORIGEM_DIVERGENTE')
 })
 
-function unidadeAlta({ tipoSugerido = null, nivelMarkdown = null, titulo, pagina = null }) {
+function unidadeAlta({ tipoSugerido = null, nivelMarkdown = null, titulo, pagina = null, indiceInicio = 0 }) {
   return {
     ordem: 0,
     tipo_sinal: tipoSugerido ? 'marcador_numerado' : 'cabecalho_markdown',
@@ -539,8 +544,8 @@ function unidadeAlta({ tipoSugerido = null, nivelMarkdown = null, titulo, pagina
     titulo_detectado: titulo,
     confianca: 'alta',
     pagina,
-    indice_inicio: 0,
-    indice_fim: 0,
+    indice_inicio: indiceInicio,
+    indice_fim: indiceInicio,
   }
 }
 
@@ -562,6 +567,7 @@ test('sem sinais de alta confiança, criar_hierarquia produz uma única seção 
   const nos = construirHierarquiaDocumento({
     unidades: [unidadeBaixa('TALVEZ UM TÍTULO')],
     totalPaginas: null,
+    totalCaracteres: null,
   })
 
   assert.equal(nos.length, 1)
@@ -578,6 +584,7 @@ test('capítulos sem Parte ficam como irmãos no nível raiz', () => {
       unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 2' }),
     ],
     totalPaginas: null,
+    totalCaracteres: null,
   })
 
   assert.equal(nos.length, 2)
@@ -596,6 +603,7 @@ test('Parte > Capítulo > Seção > Subseção formam uma cadeia de ancestrais c
       unidadeAlta({ tipoSugerido: 'subsecao', titulo: 'Subseção 1.1.1' }),
     ],
     totalPaginas: null,
+    totalCaracteres: null,
   })
 
   const [parte, capitulo, secao, subsecao] = nos
@@ -618,6 +626,7 @@ test('uma nova Parte fecha a Parte anterior; Capítulo depois dela pertence à n
       unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 2' }),
     ],
     totalPaginas: null,
+    totalCaracteres: null,
   })
 
   const [parteI, capitulo1, parteII, capitulo2] = nos
@@ -635,6 +644,7 @@ test('Prefácio/Posfácio/Anexo nunca viram pai de capítulo, mesmo aparecendo e
       unidadeAlta({ tipoSugerido: 'anexo', titulo: 'Anexo A' }),
     ],
     totalPaginas: null,
+    totalCaracteres: null,
   })
 
   for (const no of nos) {
@@ -650,6 +660,7 @@ test('cabeçalhos Markdown sem tipo_sugerido são mapeados por nível e aninhado
       unidadeAlta({ nivelMarkdown: 3, titulo: 'Uma subseção' }),
     ],
     totalPaginas: null,
+    totalCaracteres: null,
   })
 
   assert.deepEqual(
@@ -668,6 +679,7 @@ test('em PDF, a página final de cada seção respeita o início da próxima se�
       unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 2', pagina: 5 }),
     ],
     totalPaginas: 8,
+    totalCaracteres: null,
   })
 
   const [capitulo1, secao11, capitulo2] = nos
@@ -677,4 +689,187 @@ test('em PDF, a página final de cada seção respeita o início da próxima se�
   assert.equal(secao11.pagina_final, 4) // termina antes do próximo capítulo, que também fecha a seção
   assert.equal(capitulo2.pagina_inicial, 5)
   assert.equal(capitulo2.pagina_final, 8) // último nó: vai até o fim do documento
+})
+
+test('em texto/markdown, cada seção recebe posição em caracteres para recorte exato do conteúdo', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1', indiceInicio: 0 }),
+      unidadeAlta({ tipoSugerido: 'secao', titulo: 'Seção 1.1', indiceInicio: 20 }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 2', indiceInicio: 50 }),
+    ],
+    totalPaginas: null,
+    totalCaracteres: 80,
+  })
+
+  const [capitulo1, secao11, capitulo2] = nos
+  assert.equal(capitulo1.indice_inicio, 0)
+  assert.equal(capitulo1.indice_fim, 50) // Seção 1.1 é filha dele; só o próximo Capítulo o encerra
+  assert.equal(secao11.indice_inicio, 20)
+  assert.equal(secao11.indice_fim, 50) // o próximo capítulo também encerra a seção
+  assert.equal(capitulo2.indice_inicio, 50)
+  assert.equal(capitulo2.indice_fim, 80) // último nó: vai até o fim do texto
+})
+
+test('sem sinais de alta confiança em texto/markdown, a seção única cobre do início ao fim do texto', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [unidadeBaixa('TALVEZ UM TÍTULO')],
+    totalPaginas: null,
+    totalCaracteres: 42,
+  })
+
+  assert.equal(nos[0].indice_inicio, 0)
+  assert.equal(nos[0].indice_fim, 42)
+})
+
+test('em PDF, a posição em caracteres não é preenchida (usa página, não índice)', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1', pagina: 1 })],
+    totalPaginas: 3,
+    totalCaracteres: null,
+  })
+
+  assert.equal(nos[0].indice_inicio, null)
+  assert.equal(nos[0].indice_fim, null)
+})
+
+function nosParaSecoes(nos) {
+  return nos.map((no) => ({
+    secao_id: no.id,
+    secao_pai_id: no.secao_pai_id,
+    codigo: no.codigo,
+    tipo: no.tipo,
+    titulo: no.titulo,
+    ordem: no.ordem,
+    pagina_inicial: no.pagina_inicial,
+    pagina_final: no.pagina_final,
+    indice_inicio: no.indice_inicio,
+    indice_fim: no.indice_fim,
+  }))
+}
+
+// Usa identificar_estrutura + criar_hierarquia de verdade para gerar seções
+// com indice_inicio/indice_fim reais, evitando calcular offsets à mão.
+function prepararSecoesDeTexto(conteudo, formato = 'texto') {
+  const artefato = artefatoNormalizadoTexto(conteudo, formato)
+  const identificacao = identificarEstrutura(artefato)
+  assert.equal(identificacao.ok, true)
+
+  const nos = construirHierarquiaDocumento({
+    unidades: identificacao.artefato.unidades,
+    totalPaginas: identificacao.artefato.total_paginas,
+    totalCaracteres: identificacao.artefato.total_caracteres,
+  })
+
+  return { artefato, secoes: nosParaSecoes(nos) }
+}
+
+test('estimarQuantidadeTokens é uma aproximação determinística por tamanho do texto', () => {
+  assert.equal(estimarQuantidadeTokens('abcd'), 1)
+  assert.equal(estimarQuantidadeTokens('a'.repeat(400)), 100)
+  assert.equal(estimarQuantidadeTokens(''), 1)
+})
+
+test('documento sem indícios estruturais gera um único fragmento, sem breadcrumb', () => {
+  const { artefato, secoes } = prepararSecoesDeTexto(
+    'Um texto corrido, sem capítulos nem seções nomeadas, apenas reflexão contínua.'
+  )
+
+  const fragmentos = montarFragmentosDocumento({ secoes, normalizado: artefato })
+
+  assert.equal(fragmentos.length, 1)
+  assert.equal(fragmentos[0].codigo, 'FRAG-0001')
+  assert.equal(fragmentos[0].conteudo, artefato.conteudo)
+  assert.equal(fragmentos[0].conteudo_contextualizado, artefato.conteudo)
+})
+
+test('cada seção real vira um fragmento com breadcrumb de ancestrais e texto recortado corretamente', () => {
+  const { artefato, secoes } = prepararSecoesDeTexto(
+    [
+      'Capítulo 1',
+      '',
+      'Texto do capítulo um.',
+      '',
+      'Seção 1.1',
+      '',
+      'Texto da seção um ponto um.',
+    ].join('\n')
+  )
+
+  const fragmentos = montarFragmentosDocumento({ secoes, normalizado: artefato })
+
+  assert.equal(fragmentos.length, 2)
+  assert.match(fragmentos[0].conteudo, /Texto do capítulo um\./)
+  assert.equal(fragmentos[0].conteudo.includes('Seção 1.1'), false)
+  assert.equal(fragmentos[0].conteudo_contextualizado.startsWith('Capítulo 1\n\n'), true)
+
+  assert.match(fragmentos[1].conteudo, /Texto da seção um ponto um\./)
+  assert.equal(fragmentos[1].conteudo_contextualizado.startsWith('Capítulo 1 > Seção 1.1\n\n'), true)
+})
+
+test('uma seção sem nenhum texto entre dois títulos não gera fragmento', () => {
+  const { artefato, secoes } = prepararSecoesDeTexto(
+    ['Capítulo 1', '', 'Capítulo 2', '', 'Texto do capítulo dois.'].join('\n')
+  )
+
+  const fragmentos = montarFragmentosDocumento({ secoes, normalizado: artefato })
+
+  assert.equal(fragmentos.length, 1)
+  assert.match(fragmentos[0].conteudo, /Texto do capítulo dois\./)
+  assert.equal(fragmentos[0].conteudo_contextualizado.startsWith('Capítulo 2\n\n'), true)
+})
+
+test('em PDF, o fragmento de uma seção concatena as páginas do seu intervalo', () => {
+  const artefato = artefatoNormalizadoPdf([
+    { numero: 1, conteudo: 'Primeira página do capítulo.' },
+    { numero: 2, conteudo: 'Segunda página do mesmo capítulo.' },
+    { numero: 3, conteudo: 'Página do próximo capítulo.' },
+  ])
+
+  const secoes = [
+    {
+      secao_id: 'sec-1',
+      secao_pai_id: null,
+      codigo: 'SEC-0001',
+      tipo: 'capitulo',
+      titulo: 'Capítulo 1',
+      ordem: 1,
+      pagina_inicial: 1,
+      pagina_final: 2,
+      indice_inicio: null,
+      indice_fim: null,
+    },
+    {
+      secao_id: 'sec-2',
+      secao_pai_id: null,
+      codigo: 'SEC-0002',
+      tipo: 'capitulo',
+      titulo: 'Capítulo 2',
+      ordem: 2,
+      pagina_inicial: 3,
+      pagina_final: 3,
+      indice_inicio: null,
+      indice_fim: null,
+    },
+  ]
+
+  const fragmentos = montarFragmentosDocumento({ secoes, normalizado: artefato })
+
+  assert.equal(fragmentos.length, 2)
+  assert.match(fragmentos[0].conteudo, /Primeira página/)
+  assert.match(fragmentos[0].conteudo, /Segunda página/)
+  assert.equal(fragmentos[0].conteudo.includes('próximo capítulo'), false)
+  assert.match(fragmentos[1].conteudo, /próximo capítulo/)
+})
+
+test('construirBreadcrumb ignora ancestrais sem título e não quebra sem pai', () => {
+  const mapa = new Map([
+    ['raiz', { secao_id: 'raiz', secao_pai_id: null, titulo: null, tipo: 'secao' }],
+  ])
+
+  const secaoSemTitulo = mapa.get('raiz')
+  assert.equal(construirBreadcrumb(secaoSemTitulo, mapa), '')
+
+  const secaoComTitulo = { secao_id: 'a', secao_pai_id: null, titulo: 'Prefácio', tipo: 'prefacio' }
+  assert.equal(construirBreadcrumb(secaoComTitulo, new Map([['a', secaoComTitulo]])), 'Prefácio')
 })

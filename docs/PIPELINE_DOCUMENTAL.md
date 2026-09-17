@@ -167,6 +167,34 @@ Em PDF, cada seção recebe `pagina_inicial`/`pagina_final` calculados a partir 
 
 A etapa é executada por uma função de banco própria (`aplicacao.backend_criar_hierarquia_documento`, migration `0024`), no mesmo padrão de segurança das etapas anteriores (`SECURITY DEFINER`, `search_path` vazio, executável apenas pelo backend). Ela é idempotente: se o Documento Processado já existir para a execução, apenas retorna o identificador existente, sem duplicar seções.
 
+## `criar_fragmentos`
+
+Consome `conteudo_normalizado` e as `processamento.secoes` já materializadas por `criar_hierarquia`, e cria **um fragmento por seção** (v1 não subdivide seções grandes em fragmentos menores — fica para quando a camada de IA exigir blocos de tamanho controlado).
+
+O texto de cada fragmento é o texto **próprio** da seção — do início dela até o início da **próxima seção na ordem de leitura do documento**, não até `pagina_final`/`indice_fim` guardados em `secoes` (que representam a extensão de toda a subárvore, incluindo subseções). Usar o span da subárvore duplicaria texto entre o fragmento de um capítulo e o de sua seção interna; usar "até a próxima seção, seja ela filha ou não" resolve isso corretamente e de forma simples, porque para uma seção-folha (sem filhas) os dois cálculos coincidem.
+
+Duas situações não geram fragmento algum, para não persistir lixo nem inventar conteúdo:
+
+```text
+seção sem nenhum texto extraível (ex.: original vazio nesse trecho)
+seção cujo texto extraído é exatamente igual ao próprio título
+  (um título "solto", sem nenhum corpo depois dele, não agrega
+  informação além do que já está em secoes.titulo)
+```
+
+Cada fragmento recebe também `conteudo_contextualizado`: uma trilha de ancestrais (ex.: `Parte I > Capítulo 1 > Seção 1.1`) seguida do texto próprio, para dar contexto hierárquico a buscas e, futuramente, a embeddings. `quantidade_tokens` é uma **estimativa determinística e provisória** (comprimento do texto ÷ 4) — não é a tokenização real de nenhum modelo; será recalculada quando `MODELO_IA_*` for definido.
+
+A materialização usa uma RPC própria (`aplicacao.backend_criar_fragmentos_documento`), mesmo padrão de segurança e idempotência das etapas anteriores: se o documento já tiver algum fragmento, a chamada apenas informa quantos existem, sem duplicar.
+
+### Dois erros encontrados e corrigidos antes de qualquer uso real
+
+Como em todas as etapas anteriores, a função de banco foi validada manualmente contra o Supabase oficial dentro de uma transação com `ROLLBACK`. Esse teste pegou dois erros reais na primeira versão da função:
+
+1. **Contagem errada de fragmentos criados.** `GET DIAGNOSTICS ... = row_count` logo após o laço de inserção só reflete a última linha inserida, não o total do lote — com 2 fragmentos inseridos, a função relatava e gravava `1`. Corrigido contando de verdade com `select count(*)` depois do laço (migration `0026`).
+2. **Erro de ambiguidade de coluna.** A correção acima usava `documento_processado_id` sem qualificar a tabela; como esse também é o nome de uma coluna de saída da própria função, o Postgres recusava a consulta com `column reference "documento_processado_id" is ambiguous`. Corrigido qualificando a tabela (migration `0027`).
+
+Nenhuma das duas falhas chegou a rodar contra dado real — foram encontradas e corrigidas antes de a etapa ser usada, exatamente porque o teste é feito dentro de uma transação revertida contra o schema real, e não apenas com simulações em memória.
+
 ## Artefatos intermediários
 
 Extração, normalização e identificação de estrutura precisam sobreviver a retry/crash sem transformar conteúdo parcial em Documento Processado. Por isso `0020` criou:
@@ -207,12 +235,12 @@ npm run build
 
 Além disso, um segundo job sobe Supabase local e executa migrations + seed + `db reset`, provando que o banco é reconstruível a partir do GitHub.
 
-A suíte (27 testes) cobre detector de formato, spoofing básico, TXT/Markdown, extração de PDF textual mínimo, Unicode NFC, preservação de espaços significativos de Markdown, preservação de páginas PDF, validação da cadeia de proveniência da normalização, `identificar_estrutura` (cabeçalhos Markdown com nível, marcadores numerados válidos versus prosa que apenas menciona a palavra-chave, Prefácio/Posfácio isolados versus mencionados em frase, preservação do número de página em PDF, ausência de invenção de estrutura sem evidência, proveniência do artefato) e `criar_hierarquia` (fallback de seção única, capítulos irmãos sem Parte, cadeia Parte→Capítulo→Seção→Subseção, nova Parte fechando a anterior, Anexo/Prefácio/Posfácio nunca viram pai, mapeamento de nível Markdown, cálculo de página final em PDF).
+A suíte (36 testes) cobre detector de formato, spoofing básico, TXT/Markdown, extração de PDF textual mínimo, Unicode NFC, preservação de espaços significativos de Markdown, preservação de páginas PDF, validação da cadeia de proveniência da normalização, `identificar_estrutura` (cabeçalhos Markdown com nível, marcadores numerados válidos versus prosa que apenas menciona a palavra-chave, Prefácio/Posfácio isolados versus mencionados em frase, preservação do número de página em PDF, ausência de invenção de estrutura sem evidência, proveniência do artefato), `criar_hierarquia` (fallback de seção única, capítulos irmãos sem Parte, cadeia Parte→Capítulo→Seção→Subseção, nova Parte fechando a anterior, Anexo/Prefácio/Posfácio nunca viram pai, mapeamento de nível Markdown, cálculo de página/índice final) e `criar_fragmentos` (fallback sem breadcrumb, seção pai não duplica texto da seção filha, título sem corpo não gera fragmento, concatenação de páginas em PDF, breadcrumb de ancestrais).
 
-A função de banco de `criar_hierarquia` também foi validada manualmente contra o schema real do Supabase oficial, dentro de uma transação com `ROLLBACK` (nenhum dado permanente foi criado): confirmou criação do Documento Processado em estado `candidato`, das 3 seções de teste com o vínculo pai/filho correto, e que uma segunda chamada com a mesma execução é idempotente (retorna o mesmo documento, sem duplicar).
+As funções de banco de `criar_hierarquia` e `criar_fragmentos` também foram validadas manualmente contra o schema real do Supabase oficial, dentro de transações com `ROLLBACK` (nenhum dado permanente foi criado). Esse processo encontrou e corrigiu, antes de qualquer uso real, dois erros na primeira versão de `backend_criar_fragmentos_documento`: contagem de fragmentos que só via a última linha inserida (migration `0026`) e uma ambiguidade de nome de coluna que impedia a função de executar (migration `0027`).
 
 ## Próxima etapa
 
-`criar_fragmentos` deverá consumir `conteudo_normalizado` e as `processamento.secoes` já criadas, dividindo o texto de cada seção em fragmentos com contexto, proveniência (página, seção) e contagem de tokens, preparando a base para sínteses, extração de elementos e embeddings.
+`criar_sinteses` deverá gerar, a partir dos fragmentos já materializados, sínteses hierárquicas (fragmento → seção → capítulo → parte → obra). Essa é a primeira etapa verdadeiramente cognitiva do Pipeline: exigirá a camada de IA (OpenAI Responses API, `store: false`, Structured Outputs/JSON Schema, validação Zod e auditoria de modelo/prompt), ainda não ativada.
 
 IA só entra quando uma etapa realmente cognitiva exigir interpretação. Nessas etapas, a política prevista é OpenAI server-only, Responses API com `store: false`, Structured Outputs/JSON Schema, validação Zod e auditoria de modelo/prompt/execução.

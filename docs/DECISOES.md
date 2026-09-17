@@ -507,3 +507,37 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 **Decisão:** uma única função (`aplicacao.backend_criar_hierarquia_documento`, migration `0024`) recebe a lista de seções já resolvida (com UUIDs e vínculos de pai já calculados no backend) e: (1) deriva `usuario_id`/`obra_id`/`titulo` a partir de `processamento.execucoes` e `biblioteca.*`, nunca confiando em identificadores enviados pelo cliente (ADR-018); (2) se já existir um Documento Processado para a execução, retorna o existente sem tocar nas seções; (3) caso contrário, insere o documento (`estado = 'candidato'`) e percorre a lista de seções em ordem, inserindo pai antes de filho. Validado manualmente contra o Supabase oficial dentro de uma transação com `ROLLBACK` (sem dado permanente criado): documento e 3 seções de teste foram criados corretamente, com vínculo pai/filho certo, e uma segunda chamada confirmou idempotência (retornou o mesmo documento, sem duplicar).
 
 **Consequência:** o mesmo padrão de segurança e idempotência das etapas anteriores é preservado; nenhuma tabela interna nova precisou de GRANT para `anon`/`authenticated`/`service_role` direto.
+
+## ADR-064 — `secoes` ganha `indice_inicio`/`indice_fim` porque `pagina_final`/`indice_fim` de container não serve para recorte de texto
+
+**Contexto:** `criar_fragmentos` precisa saber exatamente qual trecho do `conteudo_normalizado` pertence a cada seção. O Dicionário Mestre não previa colunas de posição em caractere em `secoes` (só `pagina_inicial`/`pagina_final`, pensadas para PDF). Em texto/markdown não há páginas, então nada permitia recortar o texto de uma seção sem adivinhar.
+
+**Decisão:** `0025` adiciona `indice_inicio`/`indice_fim` (inteiros, nulos em PDF) a `processamento.secoes`, com o mesmo significado de `pagina_inicial`/`pagina_final`: a extensão de **toda a subárvore** (incluindo subseções), útil para exibir "este capítulo ocupa estas posições/páginas". Essa é uma extensão aditiva do schema (duas colunas nulas por padrão), não uma alteração de nome/vocabulário do Dicionário.
+
+**Consequência:** `criar_fragmentos` **não usa diretamente** `pagina_final`/`indice_fim` para recortar texto (ver ADR-065) — usa-os apenas para saber "até onde vai a estrutura", que é uma pergunta diferente de "até onde vai o texto próprio desta seção, sem incluir o das filhas".
+
+## ADR-065 — Texto próprio de uma seção vai até a próxima seção na ordem de leitura, não até o fim da sua subárvore
+
+**Contexto:** o primeiro esboço de `criar_fragmentos` recortava o texto de cada seção usando diretamente `pagina_final`/`indice_fim` (a extensão da subárvore inteira, calculada em `criar_hierarquia`). Um teste unitário pegou o problema de imediato: o fragmento de "Capítulo 1" incluía o texto inteiro de "Seção 1.1" (sua filha), e a "Seção 1.1" também gerava seu próprio fragmento com o mesmo texto — duplicação real de conteúdo entre fragmentos.
+
+**Decisão:** o texto **próprio** de uma seção (o que vira fragmento) vai do início dela até o início da **seção seguinte na ordem de leitura do documento inteiro** (`ordem + 1`), qualquer que seja o tipo dela — filha ou não. Para uma seção-folha (sem filhas), esse cálculo coincide exatamente com o "fim da subárvore", porque nada se intromete antes do próximo título; a diferença só aparece em seções-container, que corretamente passam a gerar um fragmento curto (só sua introdução, se houver) em vez de repetir o conteúdo das filhas.
+
+**Consequência:** nenhuma duplicação de texto entre o fragmento de uma seção-pai e o de suas seções-filhas. Testado explicitamente (`cada seção real vira um fragmento... texto recortado corretamente`, que verifica que o fragmento do capítulo não contém o texto da seção interna).
+
+## ADR-066 — Um título sem nenhum corpo depois dele não gera fragmento
+
+**Contexto:** um documento pode ter dois títulos em sequência (ex.: "Capítulo 1" imediatamente seguido de "Capítulo 2", sem nenhum parágrafo entre eles). O texto "próprio" de "Capítulo 1" nesse caso é apenas a própria linha do título, tecnicamente não vazia.
+
+**Decisão:** quando o texto extraído de uma seção é exatamente igual ao seu próprio `titulo`, nenhum fragmento é criado para ela — o título já está registrado em `secoes.titulo`, e um fragmento idêntico a ele não agregaria informação nova. Isso não cobre o caso equivalente em cabeçalho Markdown (cujo título armazenado não inclui os `#`), uma limitação conhecida e aceitável para a v1.
+
+**Consequência:** fragmentos "vazios de conteúdo" (só repetindo um título) não poluem a base, sem inventar nem descartar informação real.
+
+## ADR-067 — Dois erros de `backend_criar_fragmentos_documento` encontrados e corrigidos pela validação manual contra o Supabase real
+
+**Contexto:** como nas etapas anteriores, a função de banco foi validada manualmente contra o schema real do Supabase oficial dentro de uma transação com `ROLLBACK` antes de ser considerada pronta.
+
+**Decisão/achados:**
+1. `GET DIAGNOSTICS ... = row_count` logo após o laço `for ... loop insert ...` só reflete a última linha inserida no laço, não o total do lote — com 2 fragmentos inseridos, a função relatava e gravava `quantidade_fragmentos = 1`. Corrigido contando de verdade com `select count(*)` após o laço inteiro (`0026`).
+2. A correção acima usava `documento_processado_id` sem qualificar a tabela; como esse nome também é uma coluna de saída da própria função (`returns table (documento_processado_id uuid, ...)`), o Postgres recusava a execução com `column reference "documento_processado_id" is ambiguous` (42702). Corrigido qualificando a tabela com alias (`0027`).
+
+**Consequência:** nenhuma das duas falhas chegou a rodar contra dado real — nenhuma migration aplicada foi reescrita (ADR-025); cada correção é uma nova migration, exatamente a disciplina que o projeto já seguia. Reforça a prática de validar manualmente toda função `SECURITY DEFINER` nova contra o schema real, dentro de uma transação revertida, antes de confiar nela.

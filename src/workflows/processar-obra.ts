@@ -18,6 +18,10 @@ import {
   criarHierarquiaStep,
   type ResultadoCriarHierarquiaStep,
 } from '@/workflows/criar-hierarquia-step'
+import {
+  criarFragmentosStep,
+  type ResultadoCriarFragmentosStep,
+} from '@/workflows/criar-fragmentos-step'
 import { createBackendClient } from '@/infraestrutura/supabase/backend'
 
 type ContextoExecucao = {
@@ -89,6 +93,7 @@ type ResultadoProcessamentoInicial = {
   normalizacao?: ResultadoNormalizacaoStep
   identificacaoEstrutura?: ResultadoIdentificacaoEstruturaStep
   criacaoHierarquia?: ResultadoCriarHierarquiaStep
+  criacaoFragmentos?: ResultadoCriarFragmentosStep
 }
 
 export async function processarObraWorkflow(
@@ -238,8 +243,37 @@ export async function processarObraWorkflow(
     throw error
   }
 
+  if (!criacaoHierarquia.ok) {
+    return {
+      ok: false,
+      execucaoId,
+      validacao,
+      identificacaoFormato,
+      extracao,
+      normalizacao,
+      identificacaoEstrutura,
+      criacaoHierarquia,
+    }
+  }
+
+  let criacaoFragmentos: ResultadoCriarFragmentosStep
+
+  try {
+    criacaoFragmentos = await criarFragmentosStep(execucaoId)
+  } catch (error) {
+    const tipoErro = error instanceof Error ? error.name : 'erro_desconhecido'
+    await registrarFalhaFinalEtapa(
+      execucaoId,
+      'criar_fragmentos',
+      'CRIACAO_FRAGMENTOS_ESGOTOU_RETRIES',
+      'A criação de fragmentos falhou após as tentativas automáticas do workflow.',
+      tipoErro
+    )
+    throw error
+  }
+
   return {
-    ok: criacaoHierarquia.ok,
+    ok: criacaoFragmentos.ok,
     execucaoId,
     validacao,
     identificacaoFormato,
@@ -247,6 +281,7 @@ export async function processarObraWorkflow(
     normalizacao,
     identificacaoEstrutura,
     criacaoHierarquia,
+    criacaoFragmentos,
   }
 }
 

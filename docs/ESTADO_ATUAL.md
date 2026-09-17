@@ -1,6 +1,6 @@
 # Estado Atual do Projeto
 
-Atualizado em **17/09/2026** após auditoria completa de handoff, correção de RLS (`0022`) e implementação de `identificar_estrutura` (`0023`) e `criar_hierarquia` (`0024`).
+Atualizado em **17/09/2026** após auditoria completa de handoff, correção de RLS (`0022`) e implementação de `identificar_estrutura` (`0023`), `criar_hierarquia` (`0024`) e `criar_fragmentos` (`0025`–`0027`).
 
 ## Auditoria de handoff — 17/09/2026
 
@@ -25,7 +25,13 @@ Implementada em `src/dominios/processamento/criar-hierarquia.ts` (algoritmo de �
 
 Sem nenhum sinal de alta confiança, cria uma única seção cobrindo o documento inteiro, em vez de inventar divisão. A função de banco foi validada manualmente contra o Supabase oficial dentro de uma transação com `ROLLBACK`: confirmou criação do documento + 3 seções de teste com vínculo pai/filho correto e idempotência em uma segunda chamada — nenhum dado permanente foi criado no banco oficial.
 
-`npm test` agora cobre 27 casos (12 do handoff original + 8 de `identificar_estrutura` + 7 de `criar_hierarquia`). O advisor de segurança do Supabase permanece sem achados críticos após as migrations `0023` e `0024`.
+## Nova etapa — `criar_fragmentos` (0025–0027)
+
+Implementada em `src/dominios/processamento/criar-fragmentos.ts` e `src/workflows/criar-fragmentos-step.ts`. Cria um fragmento por seção (v1 não subdivide seções grandes), usando o texto **próprio** de cada seção — até a próxima seção na ordem de leitura, nunca até `pagina_final`/`indice_fim` (que cobre também as subseções, e duplicaria texto). Ver ADR-064/065/066.
+
+A validação manual contra o Supabase oficial (dentro de transação com `ROLLBACK`, sem dado permanente criado) encontrou e corrigiu **dois erros reais** na primeira versão de `aplicacao.backend_criar_fragmentos_documento`, antes de qualquer uso: contagem de fragmentos que só via a última linha inserida no laço (`0026`), e um erro de ambiguidade de coluna que impedia a função de sequer executar (`0027`). Ver ADR-067 para o detalhe técnico completo — é um bom exemplo de por que toda função nova é testada contra o schema real antes de ser considerada pronta, e não apenas simulada em memória.
+
+`npm test` agora cobre 36 casos (12 do handoff original + 8 de `identificar_estrutura` + 10 de `criar_hierarquia` + 6 de `criar_fragmentos`). O advisor de segurança do Supabase permanece sem achados críticos após as migrations `0023`–`0027`.
 
 ## Infraestrutura oficial
 
@@ -53,7 +59,9 @@ identificar_estrutura    ✅ implementado e testado (0023)
   ↓
 criar_hierarquia         ✅ implementado e testado (0024)
   ↓
-criar_fragmentos         próxima etapa
+criar_fragmentos         ✅ implementado e testado (0025–0027)
+  ↓
+criar_sinteses           próxima etapa (primeira cognitiva; exige IA)
 ```
 
 Nenhum artefato parcial é Documento Processado ativo e nenhum resultado parcial alimenta o Cérebro Autoral.
@@ -173,7 +181,7 @@ A futura camada cognitiva seguirá Responses API com `store:false`, Structured O
 
 ## Próximo passo
 
-Implementar `criar_fragmentos`: consumir `conteudo_normalizado` e as `processamento.secoes` já materializadas, dividindo o texto de cada seção em fragmentos com contexto, proveniência (seção, página) e contagem de tokens. Nenhum Documento Processado parcial deve ser publicado antes de `validar_resultado`/`publicar_documento`.
+Implementar `criar_sinteses`, a primeira etapa verdadeiramente cognitiva do Pipeline: gerar sínteses hierárquicas (fragmento → seção → capítulo → parte → obra) a partir dos fragmentos já materializados. Isso exigirá ativar a camada de IA (OpenAI Responses API, `store: false`, Structured Outputs/JSON Schema, validação Zod, modelos centralizados por `MODELO_IA_*`), ainda não ligada nesta versão. Nenhum Documento Processado parcial deve ser publicado antes de `validar_resultado`/`publicar_documento`.
 
 ## Regra permanente
 

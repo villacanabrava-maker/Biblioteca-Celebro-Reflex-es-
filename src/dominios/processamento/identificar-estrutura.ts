@@ -56,6 +56,7 @@ const artefatoEstruturaSchema = z
     formato: z.enum(['texto', 'markdown', 'pdf']),
     fonte: fonteEstruturaSchema,
     total_paginas: z.number().int().positive().nullable(),
+    total_caracteres: z.number().int().nonnegative().nullable(),
     possui_indicios_estruturais: z.boolean(),
     unidades: z.array(unidadeEstruturalSchema),
     estatisticas: z
@@ -276,6 +277,13 @@ export function identificarEstruturaArtefatoNormalizado({
   const altaConfianca = unidades.filter((unidade) => unidade.confianca === 'alta').length
   const baixaConfianca = unidades.length - altaConfianca
 
+  // Só faz sentido um total de caracteres "global" quando o conteúdo é uma
+  // única string (texto/markdown). Em PDF, indice_inicio/indice_fim de cada
+  // unidade são relativos à página onde ela ocorre, não ao documento inteiro,
+  // por isso criar_hierarquia usa concatenação de páginas para PDF em vez de
+  // corte por caractere.
+  const totalCaracteres = normalizado.conteudo !== undefined ? normalizado.conteudo.length : null
+
   return {
     ok: true,
     artefato: {
@@ -290,6 +298,7 @@ export function identificarEstruturaArtefatoNormalizado({
         hash_sha256_artefato_normalizado: hashArtefatoNormalizado.toLowerCase(),
       },
       total_paginas: normalizado.total_paginas,
+      total_caracteres: totalCaracteres,
       possui_indicios_estruturais: altaConfianca > 0,
       unidades,
       estatisticas: {

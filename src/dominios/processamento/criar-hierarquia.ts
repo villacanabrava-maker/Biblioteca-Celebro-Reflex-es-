@@ -11,6 +11,12 @@ export type NoHierarquia = {
   nivel_hierarquico: number
   pagina_inicial: number | null
   pagina_final: number | null
+  // Posição em caracteres dentro do conteúdo normalizado. Só é preenchida
+  // para texto/markdown (documento é uma única string); em PDF permanece
+  // nula porque cada unidade só conhece sua posição relativa à própria
+  // página, e criar_fragmentos usa concatenação de páginas nesse caso.
+  indice_inicio: number | null
+  indice_fim: number | null
 }
 
 // Nível de aninhamento (container) de cada tipo. Anexo/Prefácio/Posfácio
@@ -42,7 +48,9 @@ function resolverTipo(unidade: UnidadeEstruturalDetectada): TipoSecaoSugerido {
   return tipoDeCabecalhoMarkdown(unidade.nivel_markdown ?? 3)
 }
 
-function calcularPaginasFinais(nos: Array<NoHierarquia & { tier: number | null }>, totalPaginas: number) {
+type NoInterno = NoHierarquia & { tier: number | null }
+
+function calcularPaginasFinais(nos: NoInterno[], totalPaginas: number) {
   for (let i = 0; i < nos.length; i += 1) {
     const atual = nos[i]!
     let paginaFinal = totalPaginas
@@ -63,6 +71,31 @@ function calcularPaginasFinais(nos: Array<NoHierarquia & { tier: number | null }
   }
 }
 
+// Mesma lógica de "até onde vai antes do próximo limite", mas para posição
+// em caracteres. Diferente de página (unidade discreta, por isso o -1),
+// aqui o fim é um limite de corte exclusivo (como em string.slice), então
+// não se subtrai 1: o próximo início já é o ponto exato onde este nó acaba.
+function calcularIndicesFinais(nos: NoInterno[], totalCaracteres: number) {
+  for (let i = 0; i < nos.length; i += 1) {
+    const atual = nos[i]!
+    let indiceFim = totalCaracteres
+
+    for (let j = i + 1; j < nos.length; j += 1) {
+      const proximo = nos[j]!
+      const proximoEncerraAtual = atual.tier === null || (proximo.tier ?? 0) <= atual.tier
+
+      if (proximoEncerraAtual) {
+        const inicioAtual = atual.indice_inicio ?? 0
+        const inicioProximo = proximo.indice_inicio ?? totalCaracteres
+        indiceFim = Math.max(inicioAtual, inicioProximo)
+        break
+      }
+    }
+
+    atual.indice_fim = indiceFim
+  }
+}
+
 /**
  * Materializa a hierarquia de seções a partir dos sinais de alta confiança
  * detectados por identificar_estrutura. Nunca inventa divisão: quando não
@@ -73,9 +106,11 @@ function calcularPaginasFinais(nos: Array<NoHierarquia & { tier: number | null }
 export function construirHierarquiaDocumento({
   unidades,
   totalPaginas,
+  totalCaracteres,
 }: {
   unidades: UnidadeEstruturalDetectada[]
   totalPaginas: number | null
+  totalCaracteres: number | null
 }): NoHierarquia[] {
   const altaConfianca = unidades.filter((unidade) => unidade.confianca === 'alta')
 
@@ -91,11 +126,12 @@ export function construirHierarquiaDocumento({
         nivel_hierarquico: 0,
         pagina_inicial: totalPaginas !== null ? 1 : null,
         pagina_final: totalPaginas,
+        indice_inicio: totalCaracteres !== null ? 0 : null,
+        indice_fim: totalCaracteres,
       },
     ]
   }
 
-  type NoInterno = NoHierarquia & { tier: number | null }
   const nos: NoInterno[] = []
   const pilha: Array<{ tier: number; id: string }> = []
 
@@ -123,6 +159,8 @@ export function construirHierarquiaDocumento({
       nivel_hierarquico: tier !== null ? tier - 1 : 0,
       pagina_inicial: unidade.pagina,
       pagina_final: null,
+      indice_inicio: totalCaracteres !== null ? unidade.indice_inicio : null,
+      indice_fim: null,
       tier,
     })
 
@@ -130,9 +168,34 @@ export function construirHierarquiaDocumento({
   })
 
   if (totalPaginas !== null) calcularPaginasFinais(nos, totalPaginas)
+  if (totalCaracteres !== null) calcularIndicesFinais(nos, totalCaracteres)
 
   return nos.map((no) => {
-    const { id, secao_pai_id, codigo, tipo, titulo, ordem, nivel_hierarquico, pagina_inicial, pagina_final } = no
-    return { id, secao_pai_id, codigo, tipo, titulo, ordem, nivel_hierarquico, pagina_inicial, pagina_final }
+    const {
+      id,
+      secao_pai_id,
+      codigo,
+      tipo,
+      titulo,
+      ordem,
+      nivel_hierarquico,
+      pagina_inicial,
+      pagina_final,
+      indice_inicio,
+      indice_fim,
+    } = no
+    return {
+      id,
+      secao_pai_id,
+      codigo,
+      tipo,
+      titulo,
+      ordem,
+      nivel_hierarquico,
+      pagina_inicial,
+      pagina_final,
+      indice_inicio,
+      indice_fim,
+    }
   })
 }
