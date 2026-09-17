@@ -170,7 +170,7 @@ async function marcarEstadoIa(
   auditoriaId: string,
   estado: 'falhou' | 'incerta' | 'cancelada',
   erroSeguro: string,
-  duracaoMs: number | null
+  duracaoMs: number | null | undefined
 ) {
   const backend = createBackendClient()
   const { error } = await backend
@@ -179,7 +179,7 @@ async function marcarEstadoIa(
       p_auditoria_id: auditoriaId,
       p_estado: estado,
       p_erro: erroSeguro,
-      p_duracao_ms: duracaoMs,
+      p_duracao_ms: duracaoMs ?? null,
     })
   if (error) throw error
 }
