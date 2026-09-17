@@ -1,5 +1,6 @@
 export const MODELO_IA_ANALISE_PADRAO = 'gpt-5.6-terra'
 export const MODELO_IA_EXTRACAO_PADRAO = 'gpt-5.6-terra'
+export const MODELO_IA_TAXONOMIA_PADRAO = 'gpt-5.6-terra'
 
 export type UsoTokens = {
   tokensEntrada: number
@@ -39,6 +40,10 @@ export function obterModeloAnalise(): string {
 
 export function obterModeloExtracao(): string {
   return process.env.MODELO_IA_EXTRACAO?.trim() || MODELO_IA_EXTRACAO_PADRAO
+}
+
+export function obterModeloTaxonomia(): string {
+  return process.env.MODELO_IA_TAXONOMIA?.trim() || MODELO_IA_TAXONOMIA_PADRAO
 }
 
 export function estimarCustoUsd(modelo: string, uso: UsoTokens): number | null {
