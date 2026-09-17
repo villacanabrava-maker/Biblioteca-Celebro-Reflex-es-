@@ -1,4 +1,5 @@
 import * as tus from "tus-js-client";
+import { criarClienteBrowser } from "@/infraestrutura/supabase/cliente-browser";
 
 export interface OpcoesUploadTus {
   arquivo: File;
@@ -8,6 +9,23 @@ export interface OpcoesUploadTus {
   aoProgredir?: (porcentagem: number, bytesEnviados: number, bytesTotal: number) => void;
   aoSucesso?: (caminhoFinal: string) => void;
   aoErro?: (erro: Error) => void;
+}
+
+/**
+ * Obtém o access_token da sessão do Supabase no browser para autenticação no Storage
+ */
+export async function obterTokenAutenticadoBrowser(): Promise<{ token: string; usuarioId: string }> {
+  const supabase = criarClienteBrowser();
+  const { data: { session }, error } = await supabase.auth.getSession();
+
+  if (error || !session || !session.access_token) {
+    throw new Error("Você precisa estar autenticado para enviar arquivos. Faça login novamente.");
+  }
+
+  return {
+    token: session.access_token,
+    usuarioId: session.user.id,
+  };
 }
 
 /**
@@ -26,7 +44,7 @@ export async function calcularHashSha256(arquivo: File): Promise<string> {
  * O arquivo NUNCA passa pelo servidor da aplicação (Next.js/Vercel),
  * eliminando o limite de 4.5MB e suportando arquivos de centenas de megabytes.
  */
-export function iniciarUploadTus({
+export async function iniciarUploadTus({
   arquivo,
   caminhoDestino,
   bucket = "originais-biblioteca",
@@ -34,7 +52,7 @@ export function iniciarUploadTus({
   aoProgredir,
   aoSucesso,
   aoErro,
-}: OpcoesUploadTus): tus.Upload {
+}: OpcoesUploadTus): Promise<tus.Upload> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -42,8 +60,19 @@ export function iniciarUploadTus({
     throw new Error("Variáveis de ambiente do Supabase não configuradas no cliente.");
   }
 
+  // Se não foi passado explicitamente, busca o token ativo da sessão
+  let bearerToken = tokenAutenticacao;
+  if (!bearerToken) {
+    try {
+      const authInfo = await obterTokenAutenticadoBrowser();
+      bearerToken = authInfo.token;
+    } catch (err: any) {
+      // Se não conseguiu obter sessão autenticada, usa a anonKey (fallback)
+      bearerToken = anonKey;
+    }
+  }
+
   const endpoint = `${supabaseUrl}/storage/v1/upload/resumable`;
-  const bearerToken = tokenAutenticacao || anonKey;
 
   const upload = new tus.Upload(arquivo, {
     endpoint,

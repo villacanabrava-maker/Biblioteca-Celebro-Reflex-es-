@@ -183,3 +183,80 @@ export async function obterUrlDownloadOriginal(arquivoCaminho: string): Promise<
 
   return data.signedUrl;
 }
+
+/**
+ * Obtém os detalhes completos de uma obra pelo seu ID.
+ */
+export async function obterObraPorId(obraId: string): Promise<{
+  obra: ObraDetalhada | null;
+  fragmentos: Array<{ id: string; indice_sequencial: number; conteudo_texto: string; total_tokens: number }>;
+}> {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const { data: obra, error } = await admin
+    .from("v_obras_detalhadas")
+    .select("*")
+    .eq("id", obraId)
+    .eq("usuario_id", usuarioId)
+    .maybeSingle();
+
+  if (error || !obra) {
+    return { obra: null, fragmentos: [] };
+  }
+
+  // Buscar fragmentos processados se houver
+  const { data: fragmentos } = await admin
+    .schema("processamento")
+    .from("fragmentos")
+    .select("id, indice_sequencial, conteudo_texto, total_tokens")
+    .eq("obra_id", obraId)
+    .order("indice_sequencial", { ascending: true })
+    .limit(50);
+
+  return {
+    obra: obra as ObraDetalhada,
+    fragmentos: fragmentos || [],
+  };
+}
+
+/**
+ * Salva anotações pessoais do autor sobre a obra.
+ */
+export async function salvarAnotacoesObra(obraId: string, anotacoes: string) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const { data: obraExistente } = await admin
+    .schema("biblioteca")
+    .from("obras")
+    .select("metadados")
+    .eq("id", obraId)
+    .eq("usuario_id", usuarioId)
+    .single();
+
+  const metadadosAtuais = (obraExistente?.metadados as Record<string, any>) || {};
+  const novosMetadados = {
+    ...metadadosAtuais,
+    anotacoes_autor: anotacoes,
+    anotacoes_atualizadas_em: new Date().toISOString(),
+  };
+
+  const { error } = await admin
+    .schema("biblioteca")
+    .from("obras")
+    .update({ metadados: novosMetadados, atualizado_em: new Date().toISOString() })
+    .eq("id", obraId)
+    .eq("usuario_id", usuarioId);
+
+  if (error) {
+    throw new Error(`Falha ao salvar anotações: ${error.message}`);
+  }
+
+  try {
+    revalidatePath(`/biblioteca/${obraId}`);
+  } catch {}
+
+  return { sucesso: true };
+}
+

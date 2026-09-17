@@ -4,11 +4,11 @@ import { useState, useMemo } from "react";
 import {
   Search,
   Plus,
-  Filter,
+  ArrowUpDown,
   BookOpen,
   Sparkles,
-  Compass,
-  FileQuestion,
+  Inbox,
+  Filter,
 } from "lucide-react";
 import type { ObraDetalhada, TipoObra } from "@/tipos/biblioteca";
 import { CardObra } from "./card-obra";
@@ -27,49 +27,57 @@ const ABAS_TIPO: { id: string; rotulo: string }[] = [
   { id: "reflexao", rotulo: "Reflexões" },
   { id: "carta", rotulo: "Cartas" },
   { id: "relato", rotulo: "Relatos" },
-  { id: "ensaio", rotulo: "Ensaios" },
-  { id: "artigo", rotulo: "Artigos" },
-  { id: "caderno_notas", rotulo: "Cadernos" },
+  { id: "outros", rotulo: "Outros" },
 ];
 
 export function ListaObras({ obrasIniciais, usuarioId }: Props) {
   const [obras, setObras] = useState<ObraDetalhada[]>(obrasIniciais);
   const [abaAtiva, setAbaAtiva] = useState("todos");
-  const [naturezaFiltro, setNaturezaFiltro] = useState<"todas" | "autoral" | "externa_aprovada">("todas");
   const [busca, setBusca] = useState("");
+  const [ordenacao, setOrdenacao] = useState<"recentes" | "antigos" | "titulo">("recentes");
   const [modalAberto, setModalAberto] = useState(false);
   const [obraProcessamento, setObraProcessamento] = useState<ObraDetalhada | null>(null);
   const [obraFragmentos, setObraFragmentos] = useState<ObraDetalhada | null>(null);
 
-  // Filtragem client-side ágil
+  // Filtragem e ordenação
   const obrasFiltradas = useMemo(() => {
-    return obras.filter((obra) => {
-      // Filtro por tipo
-      if (abaAtiva !== "todos" && obra.tipo !== abaAtiva) {
-        return false;
-      }
-
-      // Filtro por natureza epistemológica
-      if (naturezaFiltro !== "todas" && obra.natureza !== naturezaFiltro) {
-        return false;
-      }
-
-      // Filtro de busca textual
-      if (busca.trim().length > 0) {
-        const termo = busca.toLowerCase().trim();
-        const coincideTitulo = obra.titulo.toLowerCase().includes(termo);
-        const coincideSubtitulo = obra.subtitulo?.toLowerCase().includes(termo);
-        const coincideAutor = obra.autor_nome.toLowerCase().includes(termo);
-        const coincideDescricao = obra.descricao?.toLowerCase().includes(termo);
-
-        if (!coincideTitulo && !coincideSubtitulo && !coincideAutor && !coincideDescricao) {
-          return false;
+    return obras
+      .filter((obra) => {
+        // Filtro por tipo de aba
+        if (abaAtiva !== "todos") {
+          if (abaAtiva === "outros") {
+            const principais = ["livro", "reflexao", "carta", "relato"];
+            if (principais.includes(obra.tipo)) return false;
+          } else if (obra.tipo !== abaAtiva) {
+            return false;
+          }
         }
-      }
 
-      return true;
-    });
-  }, [obras, abaAtiva, naturezaFiltro, busca]);
+        // Filtro de busca textual
+        if (busca.trim().length > 0) {
+          const termo = busca.toLowerCase().trim();
+          const coincideTitulo = obra.titulo.toLowerCase().includes(termo);
+          const coincideSubtitulo = obra.subtitulo?.toLowerCase().includes(termo);
+          const coincideAutor = obra.autor_nome.toLowerCase().includes(termo);
+          const coincideDescricao = obra.descricao?.toLowerCase().includes(termo);
+
+          if (!coincideTitulo && !coincideSubtitulo && !coincideAutor && !coincideDescricao) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (ordenacao === "recentes") {
+          return new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime();
+        }
+        if (ordenacao === "antigos") {
+          return new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime();
+        }
+        return a.titulo.localeCompare(b.titulo);
+      });
+  }, [obras, abaAtiva, busca, ordenacao]);
 
   function lidarExcluirObra(id: string) {
     setObras((atuais) => atuais.filter((o) => o.id !== id));
@@ -80,65 +88,19 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
   }
 
   return (
-    <div>
-      {/* Barra de Controles e Filtros */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mb-6">
-        {/* Campo de Busca */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-          <input
-            type="text"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por título, autor, fragmento ou tema..."
-            className="w-full pl-10 pr-4 py-2.5 bg-neutral-900/80 border border-neutral-800 rounded-xl text-sm text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 transition-colors"
-          />
-          {busca && (
-            <button
-              onClick={() => setBusca("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-500 hover:text-neutral-300"
-            >
-              Limpar
-            </button>
-          )}
-        </div>
-
-        {/* Filtro por Natureza e Botão Adicionar */}
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <select
-              value={naturezaFiltro}
-              onChange={(e) => setNaturezaFiltro(e.target.value as any)}
-              className="bg-neutral-900 border border-neutral-800 text-xs font-medium text-neutral-300 rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500/50"
-            >
-              <option value="todas">Todas as Fontes</option>
-              <option value="autoral">Apenas Núcleo Autoral</option>
-              <option value="externa_aprovada">Apenas Influências Externas</option>
-            </select>
-          </div>
-
-          <button
-            onClick={() => setModalAberto(true)}
-            className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-medium text-sm transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Adicionar Conteúdo</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Abas Horizontais de Tipos */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-6 scrollbar-none border-b border-neutral-800/60">
+    <div className="space-y-6">
+      {/* 1. Abas de Pílulas Claras (Todos, Livros, Reflexões, Cartas, Relatos, Outros) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
         {ABAS_TIPO.map((aba) => {
           const ativa = abaAtiva === aba.id;
           return (
             <button
               key={aba.id}
               onClick={() => setAbaAtiva(aba.id)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
                 ativa
-                  ? "bg-neutral-100 text-neutral-950 shadow-md"
-                  : "bg-neutral-900/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60"
+                  ? "bg-blue-600 text-white shadow-sm shadow-blue-500/20"
+                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900"
               }`}
             >
               {aba.rotulo}
@@ -147,9 +109,79 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
         })}
       </div>
 
-      {/* Grid de Obras */}
-      {obrasFiltradas.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {/* 2. Barra de Busca e Botão Azul "+ Adicionar" */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-xl">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar na biblioteca..."
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm transition-colors"
+          />
+          {busca && (
+            <button
+              onClick={() => setBusca("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
+            >
+              Limpar
+            </button>
+          )}
+        </div>
+
+        <button
+          onClick={() => setModalAberto(true)}
+          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all active:scale-95 shrink-0"
+        >
+          <Plus className="w-4 h-4 stroke-[2.5px]" />
+          <span>+ Adicionar</span>
+        </button>
+      </div>
+
+      {/* 3. Contador de Documentos e Ordenação */}
+      <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+        <span>
+          <strong className="font-bold text-slate-800">{obrasFiltradas.length}</strong>{" "}
+          {obrasFiltradas.length === 1 ? "documento encontrado" : "documentos encontrados"}
+        </span>
+
+        <div className="flex items-center gap-2">
+          <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+          <select
+            value={ordenacao}
+            onChange={(e) => setOrdenacao(e.target.value as any)}
+            className="bg-white border border-slate-200 rounded-xl px-2.5 py-1 text-xs text-slate-700 focus:outline-none focus:border-blue-500"
+          >
+            <option value="recentes">Mais recentes</option>
+            <option value="antigos">Mais antigos</option>
+            <option value="titulo">Título (A-Z)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* 4. Lista de Documentos em Cards */}
+      {obrasFiltradas.length === 0 ? (
+        <div className="p-12 text-center bg-white border border-slate-200 rounded-3xl space-y-3 shadow-sm">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 mx-auto flex items-center justify-center">
+            <Inbox className="w-6 h-6" />
+          </div>
+          <h3 className="font-bold text-slate-800 text-sm">Nenhum documento encontrado</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            {busca
+              ? "Nenhum resultado corresponde à sua pesquisa. Tente outros termos."
+              : "Seu acervo ainda não possui documentos cadastrados nesta categoria."}
+          </p>
+          <button
+            onClick={() => setModalAberto(true)}
+            className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Adicionar Primeiro Conteúdo
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {obrasFiltradas.map((obra) => (
             <CardObra
               key={obra.id}
@@ -160,42 +192,9 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
             />
           ))}
         </div>
-      ) : (
-        /* Empty State */
-        <div className="text-center py-16 px-4 bg-neutral-900/40 border border-neutral-800/80 rounded-2xl">
-          <div className="w-14 h-14 rounded-2xl bg-neutral-800/60 border border-neutral-700/60 mx-auto flex items-center justify-center text-neutral-400 mb-4">
-            {busca || abaAtiva !== "todos" || naturezaFiltro !== "todas" ? (
-              <FileQuestion className="w-7 h-7 text-neutral-500" />
-            ) : (
-              <BookOpen className="w-7 h-7 text-amber-400" />
-            )}
-          </div>
-
-          <h3 className="font-serif text-lg text-neutral-200 font-medium mb-1">
-            {busca || abaAtiva !== "todos" || naturezaFiltro !== "todas"
-              ? "Nenhuma obra encontrada para estes filtros"
-              : "Seu acervo de obras está vazio"}
-          </h3>
-
-          <p className="text-sm text-neutral-400 max-w-md mx-auto mb-6">
-            {busca || abaAtiva !== "todos" || naturezaFiltro !== "todas"
-              ? "Tente ajustar o termo de busca ou selecionar outra categoria para ver os itens catalogados."
-              : "Adicione seus livros, ensaios, reflexões ou influências deliberadas para formar a base do seu Cérebro Autoral."}
-          </p>
-
-          {!(busca || abaAtiva !== "todos" || naturezaFiltro !== "todas") && (
-            <button
-              onClick={() => setModalAberto(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-medium text-sm transition-all shadow-lg shadow-amber-500/20"
-            >
-              <Plus className="w-4 h-4" />
-              Adicionar Primeiro Conteúdo
-            </button>
-          )}
-        </div>
       )}
 
-      {/* Modal Adicionar Conteúdo */}
+      {/* Modais Funcionais */}
       <ModalAdicionarConteudo
         aberto={modalAberto}
         aoFechar={() => setModalAberto(false)}
@@ -203,26 +202,29 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
         usuarioId={usuarioId}
       />
 
-      {/* Modal Processamento com IA */}
-      <ModalProcessamento
-        obra={obraProcessamento}
-        aberto={!!obraProcessamento}
-        aoFechar={() => setObraProcessamento(null)}
-        aoConcluir={(obraId) => {
-          setObras((atuais) =>
-            atuais.map((o) =>
-              o.id === obraId ? { ...o, estado_processamento: "processado" } : o
-            )
-          );
-        }}
-      />
+      {obraProcessamento && (
+        <ModalProcessamento
+          aberto={true}
+          obra={obraProcessamento}
+          aoFechar={() => setObraProcessamento(null)}
+          aoConcluir={(obraId) => {
+            setObras((atuais) =>
+              atuais.map((o) =>
+                o.id === obraId ? { ...o, estado_processamento: "processado" } : o
+              )
+            );
+            setObraProcessamento(null);
+          }}
+        />
+      )}
 
-      {/* Visualizador de Fragmentos e Seções */}
-      <VisualizadorFragmentos
-        obra={obraFragmentos}
-        aberto={!!obraFragmentos}
-        aoFechar={() => setObraFragmentos(null)}
-      />
+      {obraFragmentos && (
+        <VisualizadorFragmentos
+          aberto={true}
+          obra={obraFragmentos}
+          aoFechar={() => setObraFragmentos(null)}
+        />
+      )}
     </div>
   );
 }
