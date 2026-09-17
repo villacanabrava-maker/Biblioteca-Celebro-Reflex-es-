@@ -63,6 +63,19 @@ function comoSecoes(nos) {
   }))
 }
 
+function comoPersistidos(fragmentos) {
+  return fragmentos.map((fragmento) => ({
+    secao_id: fragmento.secao_id,
+    codigo: fragmento.codigo,
+    ordem: fragmento.ordem,
+    pagina_inicial: fragmento.pagina_inicial,
+    pagina_final: fragmento.pagina_final,
+    conteudo: fragmento.conteudo,
+    conteudo_contextualizado: fragmento.conteudo_contextualizado,
+    quantidade_tokens: fragmento.quantidade_tokens,
+  }))
+}
+
 test('PDF com duas seções na mesma página usa offsets e não duplica conteúdo', () => {
   const conteudo = 'Capítulo 1\nTexto A.\nSeção 1.1\nTexto B.'
   const offsetSecao = conteudo.indexOf('Seção 1.1')
@@ -129,7 +142,7 @@ test('replay só aceita fragmentos persistidos que correspondem exatamente ao re
     totalCaracteres: null,
   })
   const esperados = montarFragmentosDocumento({ secoes: comoSecoes(nos), normalizado })
-  const persistidos = esperados.map(({ id: _id, ...fragmento }) => fragmento)
+  const persistidos = comoPersistidos(esperados)
 
   assert.equal(fragmentosPersistidosCorrespondem(esperados, persistidos), true)
 
