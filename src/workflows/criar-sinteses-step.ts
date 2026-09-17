@@ -76,10 +76,6 @@ type PreparacaoIa = {
   sintese_id: string | null
 }
 
-function chaveSintese(tipoAlvo: TipoAlvoSintese, alvoId: string): string {
-  return `${tipoAlvo}:${alvoId}`
-}
-
 function sinteseComposta(linha: SinteseAuditadaRpc, tituloAlvo: string | null): SinteseComposta {
   return {
     tipoAlvo: linha.tipo_alvo,
