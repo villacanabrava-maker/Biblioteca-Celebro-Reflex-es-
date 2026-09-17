@@ -38,6 +38,58 @@ export const decisaoTaxonomiaSchema = z
   })
   .strict()
 
+export const SCHEMA_SAIDA_NORMALIZACAO_TAXONOMIA_V1 = {
+  type: 'object',
+  properties: {
+    decisao: {
+      type: 'string',
+      enum: ['reutilizar_conceito', 'propor_conceito'],
+    },
+    conceito_id: {
+      anyOf: [{ type: 'string', format: 'uuid' }, { type: 'null' }],
+    },
+    proposta: {
+      anyOf: [
+        {
+          type: 'object',
+          properties: {
+            termo_preferencial: { type: 'string', minLength: 1, maxLength: 200 },
+            definicao: { type: 'string', minLength: 1, maxLength: 2_000 },
+            dominio: { type: 'string', enum: [...DOMINIOS_TAXONOMIA] },
+          },
+          required: ['termo_preferencial', 'definicao', 'dominio'],
+          additionalProperties: false,
+        },
+        { type: 'null' },
+      ],
+    },
+    papel: { type: 'string', enum: [...PAPEIS_CLASSIFICACAO] },
+    confianca: { type: 'number', minimum: 0, maximum: 1 },
+    justificativa: { type: 'string', minLength: 1, maxLength: 2_000 },
+  },
+  required: ['decisao', 'conceito_id', 'proposta', 'papel', 'confianca', 'justificativa'],
+  additionalProperties: false,
+} as const
+
+function normalizarJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizarJson)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([chave, valor]) => [chave, normalizarJson(valor)])
+    )
+  }
+  return value
+}
+
+export function schemaSaidaNormalizacaoTaxonomiaV1Compativel(schema: unknown): boolean {
+  return (
+    JSON.stringify(normalizarJson(schema)) ===
+    JSON.stringify(normalizarJson(SCHEMA_SAIDA_NORMALIZACAO_TAXONOMIA_V1))
+  )
+}
+
 export type DecisaoTaxonomia = z.infer<typeof decisaoTaxonomiaSchema>
 
 export type CandidatoTaxonomia = {
