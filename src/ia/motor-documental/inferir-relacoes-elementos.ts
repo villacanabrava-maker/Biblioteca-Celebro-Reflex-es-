@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import type OpenAI from 'openai'
 import { zodTextFormat } from 'openai/helpers/zod'
 import { z } from 'zod'
-import { estimarCustoUsd } from '@/infraestrutura/openai/modelos'
+import { estimarCustoUsd } from '../../infraestrutura/openai/modelos.ts'
 
 export const TIPOS_RELACAO_INTELECTUAL = [
   'sustenta',
