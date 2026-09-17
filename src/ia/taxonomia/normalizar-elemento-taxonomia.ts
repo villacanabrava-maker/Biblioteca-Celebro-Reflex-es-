@@ -149,7 +149,16 @@ export function calcularHashEntradaTaxonomia(input: EntradaNormalizacaoTaxonomia
 export function obterMatchExatoDeterministico(
   candidatos: CandidatoTaxonomia[]
 ): CandidatoTaxonomia | null {
-  return candidatos.find((candidato) => candidato.tipoCorrespondencia === 'exata') ?? null
+  const exatosPorConceito = new Map<string, CandidatoTaxonomia>()
+
+  for (const candidato of candidatos) {
+    if (candidato.tipoCorrespondencia === 'exata') {
+      exatosPorConceito.set(candidato.conceitoId, candidato)
+    }
+  }
+
+  if (exatosPorConceito.size !== 1) return null
+  return exatosPorConceito.values().next().value ?? null
 }
 
 export function validarDecisaoContraCandidatos(
@@ -202,7 +211,7 @@ export async function normalizarElementoTaxonomia({
         proposta: null,
         papel: 'principal' as const,
         confianca: 1,
-        justificativa: 'Termo normalizado coincide exatamente com termo canônico/associado da Taxonomia ativa.',
+        justificativa: 'Termo normalizado coincide exatamente com um único conceito da Taxonomia ativa.',
       },
       hashEntrada,
       responseId: null,
