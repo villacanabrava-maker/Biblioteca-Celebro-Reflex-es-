@@ -1,4 +1,4 @@
-import type { EntradaSinteseDocumental, TipoAlvoSintese } from '@/ia/motor-documental/gerar-sintese-documental'
+import type { EntradaSinteseDocumental, TipoAlvoSintese } from '../../ia/motor-documental/gerar-sintese-documental.ts'
 
 export type SecaoParaSintese = {
   secao_id: string
