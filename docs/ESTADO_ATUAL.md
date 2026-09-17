@@ -1,235 +1,251 @@
 # Estado Atual do Projeto
 
-Atualizado em **17/09/2026** após a auditoria final da primeira implementação de `criar_sinteses`, ainda sem chamada real à OpenAI.
+Atualizado em **17/09/2026** após a implementação, integração e auditoria da etapa `normalizar_taxonomia`, ainda com `PROCESSAMENTO_WORKFLOW_ATIVO=false` e sem chamada real paga à OpenAI.
 
 ## Infraestrutura oficial
 
 - GitHub: `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`
-- `main`: `46fad3e8b65b59c18c2f77cec727ae8ec917b9d8`
-- desenvolvimento atual: PR #16 — `feature/criar-sinteses-ia`
-- Supabase: `xzkzdaxxmizcgfkjgzoq` — `ACTIVE_HEALTHY`, `us-west-2`, PostgreSQL 17.6
+- desenvolvimento atual: PR #20 — `feature/normalizar-taxonomia`
+- Supabase: `xzkzdaxxmizcgfkjgzoq` — `us-west-2`, PostgreSQL 17.6
 - Vercel: `cerebro-autoral`
 - produção: `https://cerebro-autoral.vercel.app`
-- `PROCESSAMENTO_WORKFLOW_ATIVO=false`
+- feature flag: `PROCESSAMENTO_WORKFLOW_ATIVO=false`
 
 Outros projetos conectados não pertencem a este aplicativo.
 
-## Marco atual
-
-A parte determinística da Fase 3 está consolidada na `main` até `criar_fragmentos`. A primeira etapa cognitiva está implementada e validada no PR #16:
+## Marco atual do Pipeline
 
 ```text
-validar_arquivo          ✅ main
-identificar_formato      ✅ main
-extrair_conteudo         ✅ main
-normalizar_conteudo      ✅ main
-identificar_estrutura    ✅ main
-criar_hierarquia         ✅ main
-criar_fragmentos         ✅ main
-criar_sinteses           ✅ implementada/testada sem chamada real; PR #16
-extrair_elementos        ⬜ não iniciada
-classificar_taxonomia    ⬜ não iniciada
-criar_embeddings         ⬜ não iniciada
-criar_relacoes           ⬜ não iniciada
-validar_resultado        ⬜ não iniciada
-publicar_documento       ⬜ não iniciada
+validar_arquivo                  ✅
+identificar_formato              ✅
+extrair_conteudo                 ✅
+normalizar_conteudo              ✅
+identificar_estrutura            ✅
+criar_hierarquia                 ✅
+criar_fragmentos                 ✅
+criar_sinteses                   ✅ implementada/auditada; sem chamada real
+extrair_elementos                ✅ implementada/auditada; sem chamada real
+normalizar_taxonomia             ✅ implementada/auditada; sem chamada real
+criar_relacoes                   ⬜ próxima etapa
+gerar_embeddings                 ⬜ não iniciada
+criar_indices                    ⬜ não iniciada
+realizar_analise_autoral_local   ⬜ não iniciada
+validar_processamento            ⬜ não iniciada
+publicar_documento_processado    ⬜ não iniciada
+avaliar_participacao_cerebro     ⬜ não iniciada
+atualizar_cerebro                ⬜ não iniciada
+```
+
+A criação de novas execuções foi alinhada ao workflow canônico de 18 etapas. Em especial:
+
+```text
+extrair_elementos
+→ normalizar_taxonomia
+→ criar_relacoes
+→ gerar_embeddings
 ```
 
 Nenhum resultado parcial alimenta o Cérebro Autoral.
 
-## Estado dos dados
+## Estado real dos dados
 
-A auditoria final do Supabase oficial confirmou:
+Auditoria do Supabase oficial após `0040–0046`:
 
 ```text
-execuções de IA:          0
-sínteses:                 0
-fragmentos:               0
-Documentos Processados:   0
 execuções de processamento: 0
+Documentos Processados:     0
+elementos:                  0
+classificações:             0
+propostas taxonômicas:      0
+conceitos canônicos:        0
+termos taxonômicos:         0
+execuções de IA:            0
 ```
 
-Existe 1 usuário Auth de teste, 1 versão ativa de Pipeline e 1 versão ativa de Taxonomia. Os testes funcionais das RPCs de IA usaram registros sintéticos dentro de transações com `ROLLBACK`; nada permaneceu no banco.
+Não existe corpus real processado e nenhum seed intelectual foi inventado.
+
+## `normalizar_taxonomia` — objetivo
+
+A etapa transforma elementos já extraídos em ligações taxonômicas controladas, sem permitir que similaridade textual ou uma resposta de IA crie silenciosamente verdade canônica.
+
+Fluxo:
+
+```text
+elemento
+→ normalização determinística
+→ busca na Taxonomia Mestre ativa
+→ shortlist
+→ match exato único OU decisão estruturada por IA
+→ classificação existente OU proposta revisável
+→ proveniência
+```
+
+### Match exato
+
+Quando o termo do elemento aponta exatamente para **um único conceito ativo** na versão de Taxonomia da execução:
+
+- não há chamada à OpenAI;
+- a classificação é determinística;
+- replay é somente leitura;
+- reexecução não cria uma nova classificação silenciosamente.
+
+Se houver mais de um conceito exato, o caso é considerado ambíguo e segue para decisão estruturada.
+
+### Shortlist
+
+A recuperação consulta somente conceitos ativos da versão correta. `pg_trgm` e correspondências lexicais produzem candidatos, nunca confirmação automática.
+
+A shortlist é limitada a 20 conceitos e, antes de uma chamada de IA, é congelada em `auditoria.execucoes_ia`.
+
+O PostgreSQL rejeita:
+
+- shortlist com duplicatas;
+- ID fora da Taxonomia/versão ativa;
+- shortlist divergente da reserva original;
+- `conceito_id` retornado pela IA que não estava na shortlist congelada.
+
+### Decisão por IA
+
+Contrato fechado:
+
+```text
+decisao = reutilizar_conceito | propor_conceito
+papel = principal | secundario | contextual | oposicao
+```
+
+A saída passa por Responses API + Structured Outputs + JSON Schema + Zod e por validações determinísticas antes da persistência.
+
+`propor_conceito` nunca grava diretamente em `taxonomia.conceitos`. A sugestão fica em `taxonomia.propostas_conceitos`, com proveniência em `taxonomia.fontes_propostas_conceitos`, para futura revisão humana.
+
+### Auditoria, replay e cobrança
+
+A operação de IA é `normalizacao_taxonomica_elemento`.
+
+- reserva local antes da chamada;
+- chamada externa explicitamente marcada como iniciada;
+- chave idempotente inclui execução, elemento, modelo, prompt e hash da entrada;
+- replay exige modelo + prompt + hash exatos;
+- HTTP transitório conhecido (`408`, `409`, `425`, `429`, `5xx`) pode ser repetido de forma controlada;
+- HTTP permanente não é repetido automaticamente;
+- transporte ambíguo após início vira `incerta`;
+- resposta inválida vira estado terminal sem nova cobrança automática;
+- persistência pós-resposta pode ser repetida localmente sem nova chamada externa.
+
+## Migrations oficiais da etapa
+
+Os arquivos do GitHub foram alinhados às versões reais registradas pelo Supabase:
+
+```text
+20260917040851_0040_fundacao_normalizacao_taxonomia.sql
+20260917040918_0041_catalogo_normalizacao_taxonomia.sql
+20260917040937_0042_hardening_taxonomia_ativa.sql
+20260917041025_0043_auditoria_normalizacao_taxonomia.sql
+20260917041039_0044_replay_match_exato_taxonomia.sql
+20260917041057_0045_alinha_etapas_pipeline_canonico.sql
+20260917041526_0046_hardening_propostas_taxonomia.sql
+```
+
+Resumo:
+
+- `0040`: normalização de termos, pg_trgm, staging de propostas, proveniência e RPCs de recuperação;
+- `0041`: catálogo do modelo/prompt/schema e classificação determinística exata;
+- `0042`: somente conceitos ativos + preservação de `papel_proposto`;
+- `0043`: auditoria/idempotência da IA, shortlist congelada e persistência atômica;
+- `0044`: replay somente leitura do match exato;
+- `0045`: alinhamento das 18 etapas do pipeline canônico;
+- `0046`: policies explícitas de negação e índices completos das novas FKs.
+
+Nenhuma migration aplicada é reescrita.
+
+## Segurança auditada
+
+As RPCs taxonômicas sensíveis foram verificadas no Supabase oficial:
+
+- `SECURITY DEFINER=true`;
+- `search_path=''`;
+- `anon`: sem `EXECUTE`;
+- `authenticated`: sem `EXECUTE`;
+- `service_role`: permitido somente pelas RPCs previstas.
+
+As duas tabelas de propostas possuem RLS ativo, acesso direto revogado e policies explícitas de negação ao cliente.
+
+Advisor de segurança após `0046`:
+
+- único aviso restante: `Leaked Password Protection Disabled` no Supabase Auth.
+
+Advisor de performance após `0046`:
+
+- somente `unused_index`;
+- não há mais FKs novas sem índice;
+- o banco está vazio, portanto índices ainda não usados são esperados e não devem ser removidos especulativamente.
 
 ## OpenAI
 
-A chave antiga foi rotacionada e a chave nova está configurada somente no ambiente servidor/Vercel. Nenhum segredo foi versionado.
+Configuração server-only e centralizada:
 
-A documentação oficial atual da OpenAI foi revalidada antes desta implementação. O modelo padrão v1 escolhido para síntese é `gpt-5.6-terra`, configurável por `MODELO_IA_ANALISE`.
+```text
+MODELO_IA_ANALISE
+MODELO_IA_EXTRACAO
+MODELO_IA_TAXONOMIA
+```
 
-Política v1:
+Padrão atual da Taxonomia: `gpt-5.6-terra`.
 
-- Responses API;
-- Structured Outputs + Zod;
+Política permanente:
+
 - `store:false`;
-- cliente server-only;
 - `maxRetries:0` no SDK;
-- retries e idempotência controlados pela nossa camada auditável;
-- conteúdo do usuário sempre tratado como dado não confiável, nunca como instrução;
-- nenhuma chamada real paga sem confirmação explícita do proprietário.
+- retry e idempotência controlados pela aplicação;
+- conteúdo intelectual tratado como dado não confiável;
+- nenhuma chave versionada;
+- nenhuma chamada real paga sem autorização explícita do proprietário.
 
-Até este momento **nenhuma chamada real à OpenAI foi executada**.
+Até este estado, **0 execuções de IA existem no banco oficial**.
 
-## Fundação de IA — migrations `0030–0035`
+## Gates de validação
 
-### `0030_fundacao_ia_sinteses`
-
-Versão real: `20260917020401`.
-
-Criou `auditoria.execucoes_ia`, catálogo do `gpt-5.6-terra`, prompt `sintese_documental_hierarquica` v1, schema estruturado e RPCs server-only para configuração, reserva, início, conclusão, falha e listagem.
-
-A auditoria registra modelo, prompt, Pipeline, Taxonomia, tokens, duração, custo estimado, referências, estado, tentativa e erro sem duplicar desnecessariamente o texto privado.
-
-### `0031_recuperacao_reserva_ia`
-
-Versão real: `20260917021001`.
-
-Separa reserva local ainda não iniciada de chamada externa já iniciada. Reserva abandonada pode ser recuperada; chamada já iniciada e abandonada vira `incerta` em vez de ser repetida automaticamente.
-
-### `0032_listagem_sinteses_auditadas`
-
-Versão real: `20260917021151`.
-
-Permite validar replay por síntese + modelo + versão do prompt + hash exato da entrada que originou o resultado.
-
-### `0033_hardening_auditoria_ia`
-
-Versão real: `20260917021601`.
-
-Adicionou policy RLS explícita de negação a clientes e índices das FKs da auditoria.
-
-### `0034_corrige_ambiguidade_tentativa_ia`
-
-Versão real: `20260917022624`.
-
-Corrige a referência ambígua a `tentativa` dentro de `backend_preparar_sintese_ia`, preservando o histórico imutável das migrations.
-
-### `0035_contrato_schema_sintese`
-
-Versão real: `20260917023206`.
-
-Endurece `backend_obter_config_sintese`: a configuração só é entregue ao backend quando o JSON Schema ativo no catálogo corresponde exatamente ao contrato v1 esperado (`{ sintese: string }`, mínimo 1 e máximo 12.000 caracteres, sem propriedades extras).
-
-A `0035` já existia no histórico do Supabase e foi recuperada desse histórico para o GitHub durante a auditoria final. O CI do head final reconstruiu o banco local do zero incluindo `0030–0035`, eliminando novamente o drift GitHub ↔ Supabase.
-
-## Testes de SQL no banco real
-
-Antes das migrations estruturais, a DDL foi validada em transações revertidas. Os testes funcionais sintéticos comprovaram, sem deixar dados permanentes:
-
-- reserva inicial e proteção contra reserva duplicada;
-- recuperação de reserva não iniciada;
-- marcação explícita de início da chamada externa;
-- chamada iniciada/abandonada classificada como `incerta` sem retry automático;
-- conclusão de síntese e conclusão repetida idempotente;
-- replay auditado por hash/modelo/prompt;
-- ausência de SELECT direto do `service_role` na tabela interna de auditoria.
-
-A auditoria final confirmou que as seis RPCs de IA são `SECURITY DEFINER`, usam `search_path=''`, negam execução a `anon`/`authenticated` e permitem somente o backend `service_role`.
-
-## Motor de síntese
-
-Arquivos principais:
+Os heads de implementação da PR #20 passaram progressivamente por:
 
 ```text
-src/infraestrutura/openai/cliente.ts
-src/infraestrutura/openai/modelos.ts
-src/ia/motor-documental/gerar-sintese-documental.ts
-src/dominios/processamento/criar-sinteses.ts
-src/workflows/criar-sinteses-step.ts
-prompts/processamento/sintese-documental-hierarquica-v1.md
+npm ci
+npm audit --omit=dev --audit-level=high
+npm run lint
+npm run typecheck
+npm test
+npm run build
+Supabase local + aplicação das migrations
+supabase db reset
+supabase status / stop
+Vercel Preview
 ```
 
-Características:
+O head final da PR só poderá ser incorporado depois de repetir esses gates sobre a versão documental consolidada.
 
-- cliente OpenAI compartilhado apenas no servidor;
-- `maxRetries:0` para evitar retries de cobrança escondidos pelo SDK;
-- input determinístico + SHA-256;
-- limite de 400.000 caracteres por chamada v1;
-- Structured Output estrito `{ sintese: string }`;
-- estimativa de custo a partir do uso retornado;
-- defesa contra prompt injection por instrução de sistema + encapsulamento explícito do conteúdo como dado;
-- composição bottom-up: folhas → capítulos → partes → obra;
-- uma síntese por step durável;
-- replay só reutiliza resultado quando modelo, prompt e hash de entrada coincidem.
+## Vercel
 
-## Política de erro e cobrança
+Os Previews da implementação integrada, inclusive o hardening `0046`, chegaram a `READY`.
 
-- HTTP transitório (`408`, `409`, `425`, `429` e `5xx`): registra a tentativa como `falhou` e permite que o Workflow aplique retry controlado;
-- HTTP não transitório (`400`, `401`, `403`, `404`, `422` etc.): registra `falhou` e **não** repete automaticamente;
-- erro de transporte sem status depois de marcar a chamada como iniciada: registra `incerta` e não repete automaticamente, porque não é possível provar que o provedor não processou a requisição;
-- resposta conhecida sem saída estruturada válida: a síntese é rejeitada; a implementação atual mantém tratamento conservador sem persistir saída livre nem refazer a chamada automaticamente;
-- resposta válida recebida mas persistência local falha: tenta persistir novamente de forma local/idempotente, sem refazer a chamada ao provedor;
-- reserva ainda não iniciada pode ser retomada sem risco de cobrança duplicada.
-
-## Testes automatizados e gates finais
-
-A camada de IA usa cliente falso nos testes; `OPENAI_API_KEY` não é usada e não existe cobrança.
-
-Cobertura nova inclui:
-
-- hash/input determinístico;
-- `store:false`;
-- Structured Output;
-- tokens + custo estimado;
-- prompt injection permanecendo como dado;
-- limite de entrada antes da chamada;
-- resposta sem `output_parsed` inválida;
-- compatibilidade exata do schema persistido;
-- classificação de status HTTP retryable vs. não retryable;
-- composição hierárquica;
-- ausência de chamada em seção sem fonte;
-- síntese de obra por sínteses de topo.
-
-No head final auditado do PR #16, o GitHub Actions passou integralmente:
-
-```text
-npm ci                                      ✅
-npm audit --omit=dev --audit-level=high     ✅
-npm run lint                                ✅
-npm run typecheck                           ✅
-npm test                                    ✅
-npm run build                               ✅
-Supabase local + migrations 0001–0035       ✅
-supabase db reset                           ✅
-supabase status / stop                      ✅
-```
-
-O Preview Vercel do mesmo head também está `READY`.
-
-## Segurança
-
-Após `0035`, os advisors permanecem no estado esperado:
-
-- segurança: apenas `Leaked Password Protection Disabled`;
-- performance: somente `unused_index` enquanto o banco não possui corpus.
-
-Mantido:
-
-- schemas internos fechados;
-- RLS;
-- Storage privado;
-- `anon`/`authenticated` sem execução de RPCs backend;
-- `service_role` acessando a auditoria somente por RPCs controladas;
-- `search_path=''` nas funções `SECURITY DEFINER`;
-- segredos somente no ambiente servidor;
-- `PROCESSAMENTO_WORKFLOW_ATIVO=false` bloqueando o início do Pipeline em produção.
+O projeto continua usando Node 22.x por causa de `package.json#engines`, mesmo que o Dashboard ainda mostre configuração 24.x. Isso é uma pendência externa de configuração, não um desvio do runtime efetivamente usado no build.
 
 ## O que ainda NÃO ocorreu
 
 - chamada real à OpenAI;
-- cobrança de API produzida por esta etapa;
-- E2E positivo com documento real;
+- cobrança de API gerada por este Pipeline;
 - ativação de `PROCESSAMENTO_WORKFLOW_ATIVO`;
-- implementação de `extrair_elementos` e etapas seguintes.
+- E2E positivo com documento real;
+- criação de relações intelectuais (`criar_relacoes`);
+- embeddings e etapas posteriores;
+- publicação de Documento Processado ativo;
+- alimentação do Cérebro Autoral por corpus real.
 
 ## Próximo marco
 
-1. incorporar o PR #16 com a feature flag ainda OFF;
-2. confirmar deployment de produção e ausência de erros de runtime;
-3. manter a primeira chamada real paga bloqueada até confirmação explícita do proprietário;
-4. preparar E2E controlado com documento pequeno e custo mínimo quando houver essa confirmação;
-5. seguir para `extrair_elementos` sem permitir que uma saída parcial alimente o Cérebro Autoral.
+1. concluir o CI/Preview do head final da PR #20;
+2. incorporar a PR mantendo a feature flag OFF;
+3. verificar deployment de produção e ausência de regressões;
+4. iniciar `criar_relacoes` conforme o grafo intelectual canônico;
+5. manter a primeira chamada real paga bloqueada até autorização explícita do proprietário.
 
 ## Regra permanente
 
-Nenhuma migration aplicada é reescrita. Nenhum segredo é commitido. Uma saída de IA só pode ser persistida depois de validação estrutural e sempre carrega proveniência suficiente para auditoria/replay. O proprietário permanece autoridade final sobre autoria e incorporação ao Cérebro Autoral.
+Nenhum segredo é commitido. Nenhuma migration aplicada é alterada retrospectivamente. Saída de IA só pode ser persistida depois de validação estrutural e sempre carrega proveniência suficiente para auditoria/replay. O proprietário permanece autoridade final sobre autoria e incorporação ao Cérebro Autoral.
