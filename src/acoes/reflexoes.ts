@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
+import { detectarConflitosEMontarDossie } from "@/dominios/reflexoes/detector-conflitos";
 import { gerarPlanoReflexao } from "@/dominios/reflexoes/planejador-reflexao";
 import { redigirReflexao } from "@/dominios/reflexoes/redator-reflexao";
 import { auditarVersaoReflexao } from "@/dominios/auditoria/auditor-independente";
+import { incorporarReflexaoComoObra } from "@/dominios/reflexoes/incorporador-memoria";
 import type {
   ResumoReflexao,
   EntradaReflexao,
@@ -13,6 +15,9 @@ import type {
   VersaoReflexao,
   CitacaoEvidencia,
   FormatoReflexao,
+  TipoOrigemExterna,
+  ConflitoDetectado,
+  DossieContextual,
 } from "@/tipos/reflexoes";
 import type { RelatorioAuditoria } from "@/tipos/auditoria";
 
@@ -117,6 +122,81 @@ export async function obterReflexaoCompleta(entradaId: string): Promise<{
 }
 
 /**
+ * Inicia a esteira metodológica de reflexão:
+ * 1. Salva estímulo externo e comentário do autor.
+ * 2. Consulta memórias, regras e detecta tensões dialéticas e oportunidades conceituais.
+ */
+export async function iniciarEsteiraReflexao({
+  reflexaoExterna,
+  tipoOrigemExterna = "texto",
+  comentarioAutor,
+  temaCentral,
+  titulo,
+  formatoDesejado = "ensaio",
+}: {
+  reflexaoExterna: string;
+  tipoOrigemExterna?: TipoOrigemExterna;
+  comentarioAutor: string;
+  temaCentral?: string;
+  titulo?: string;
+  formatoDesejado?: FormatoReflexao;
+}): Promise<{
+  sucesso: boolean;
+  entradaId: string;
+  conflitos: ConflitoDetectado[];
+  dossie: DossieContextual;
+}> {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const tema = (temaCentral || titulo || reflexaoExterna.slice(0, 60)).trim();
+  const tit = (titulo || `Reflexão sobre ${tema}`).trim();
+
+  // 1. Detectar tensões cognitivas e montar dossiê de memórias
+  const { conflitos, dossie } = await detectarConflitosEMontarDossie({
+    usuarioId,
+    reflexaoExterna,
+    comentarioAutor,
+    temaCentral: tema,
+  });
+
+  // 2. Salvar entrada de reflexão com o dossiê e conflitos
+  const { data: entrada, error } = await admin
+    .schema("reflexoes")
+    .from("entradas")
+    .insert({
+      usuario_id: usuarioId,
+      titulo: tit,
+      tema_central: tema,
+      provocacao_inicial: reflexaoExterna,
+      reflexao_externa: reflexaoExterna,
+      tipo_origem_externa: tipoOrigemExterna,
+      comentario_autor: comentarioAutor,
+      dossie_contexto: dossie,
+      conflitos_detectados: conflitos,
+      formato_desejado: formatoDesejado,
+      estado: "criada",
+    })
+    .select()
+    .single();
+
+  if (error || !entrada) {
+    throw new Error(`Falha ao iniciar esteira de reflexão: ${error?.message}`);
+  }
+
+  try {
+    revalidatePath("/reflexoes");
+  } catch {}
+
+  return {
+    sucesso: true,
+    entradaId: entrada.id,
+    conflitos,
+    dossie,
+  };
+}
+
+/**
  * Cria uma nova entrada de reflexão e dispara o planejamento cognitivo com IA.
  */
 export async function criarNovaReflexao({
@@ -139,7 +219,6 @@ export async function criarNovaReflexao({
   const usuarioId = await obterUsuarioAtualId();
   const admin = criarClienteAdmin();
 
-  // 1. Inserir entrada
   const { data: entrada, error: errEntrada } = await admin
     .schema("reflexoes")
     .from("entradas")
@@ -148,6 +227,7 @@ export async function criarNovaReflexao({
       titulo: titulo.trim(),
       tema_central: temaCentral.trim(),
       provocacao_inicial: provocacaoInicial.trim(),
+      reflexao_externa: provocacaoInicial.trim(),
       objetivo_comunicativo: objetivoComunicativo?.trim() || null,
       publico_alvo: publicoAlvo?.trim() || null,
       formato_desejado: formatoDesejado,
@@ -161,7 +241,6 @@ export async function criarNovaReflexao({
     throw new Error(`Falha ao criar entrada de reflexão: ${errEntrada?.message}`);
   }
 
-  // 2. Disparar Planejador Cognitivo
   try {
     const plano = await gerarPlanoReflexao({
       entradaId: entrada.id,
@@ -184,6 +263,47 @@ export async function criarNovaReflexao({
     console.error("Erro no planejamento automático:", err);
     return { sucesso: true, entradaId: entrada.id, planoId: null, aviso: err.message };
   }
+}
+
+/**
+ * Gera o plano metodológico da reflexão com base na entrada e seu dossiê.
+ */
+export async function gerarPlanoParaEntrada(entradaId: string) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const { data: entrada, error } = await admin
+    .schema("reflexoes")
+    .from("entradas")
+    .select("*")
+    .eq("id", entradaId)
+    .eq("usuario_id", usuarioId)
+    .single();
+
+  if (error || !entrada) {
+    throw new Error("Entrada de reflexão não encontrada.");
+  }
+
+  const plano = await gerarPlanoReflexao({
+    entradaId: entrada.id,
+    usuarioId,
+    titulo: entrada.titulo,
+    temaCentral: entrada.tema_central,
+    provocacaoInicial: entrada.provocacao_inicial,
+    reflexaoExterna: entrada.reflexao_externa,
+    comentarioAutor: entrada.comentario_autor,
+    objetivoComunicativo: entrada.objetivo_comunicativo,
+    publicoAlvo: entrada.publico_alvo,
+    formatoDesejado: entrada.formato_desejado,
+    restricoesEspecificas: entrada.restricoes_especificas,
+  });
+
+  try {
+    revalidatePath(`/reflexoes/${entradaId}`);
+    revalidatePath("/reflexoes");
+  } catch {}
+
+  return { sucesso: true, plano };
 }
 
 /**
@@ -225,6 +345,36 @@ export async function acionarRedacaoReflexao({
   } catch {}
 
   return { sucesso: true, versaoId: versao.id, auditoriaId: auditoria.id };
+}
+
+/**
+ * Incorpora a reflexão aprovada como Obra Autoral na Biblioteca,
+ * alimentando permanentemente o Cérebro Autoral.
+ */
+export async function incorporarReflexaoMemoria({
+  entradaId,
+  versaoId,
+}: {
+  entradaId: string;
+  versaoId: string;
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+
+  const { obraId } = await incorporarReflexaoComoObra({
+    entradaId,
+    versaoId,
+    usuarioId,
+  });
+
+  try {
+    revalidatePath("/biblioteca");
+    revalidatePath("/cerebro");
+    revalidatePath("/reflexoes");
+    revalidatePath(`/reflexoes/${entradaId}`);
+    revalidatePath("/");
+  } catch {}
+
+  return { sucesso: true, obraId };
 }
 
 /**

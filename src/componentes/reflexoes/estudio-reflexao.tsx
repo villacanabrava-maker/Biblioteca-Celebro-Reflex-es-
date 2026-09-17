@@ -10,8 +10,10 @@ import {
   FileText,
   ShieldCheck,
   UserCheck,
-  Layers,
   ChevronRight,
+  ShieldAlert,
+  BookOpen,
+  CheckCircle2,
 } from "lucide-react";
 import type {
   EntradaReflexao,
@@ -37,7 +39,6 @@ interface Props {
 export function EstudioReflexao({ entrada, plano, versoes }: Props) {
   const router = useRouter();
 
-  // Aba inicial baseada no progresso da reflexão
   const abaPadrao =
     versoes.length > 0
       ? "texto"
@@ -57,65 +58,73 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
     versoes.find((v) => v.id === versaoSelecionadaId) || versoes[0];
 
   const relatorioAuditoriaAtual = versaoAtual?.auditoria || null;
+  const conflitos = (entrada.conflitos_detectados as any[]) || [];
+  const dossie = (entrada.dossie_contexto as any) || {};
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl mx-auto">
       {/* Breadcrumb & Cabeçalho */}
-      <div className="space-y-3 border-b border-neutral-800 pb-5">
-        <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono">
+      <div className="space-y-3 border-b border-slate-200 pb-5">
+        <div className="flex items-center gap-2 text-xs text-slate-500">
           <Link
             href="/reflexoes"
-            className="flex items-center gap-1 hover:text-amber-400 transition-colors"
+            className="flex items-center gap-1 hover:text-blue-600 transition-colors font-medium"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Reflexões</span>
           </Link>
-          <ChevronRight className="w-3.5 h-3.5 text-neutral-600" />
-          <span className="text-neutral-200 truncate">{entrada.titulo}</span>
+          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+          <span className="text-slate-800 font-semibold truncate">{entrada.titulo}</span>
         </div>
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium uppercase tracking-wider bg-amber-500/15 border border-amber-500/30 text-amber-300">
-                {entrada.formato_desejado}
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <span className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider bg-blue-50 border border-blue-200 text-blue-700">
+                Formato: {entrada.formato_desejado}
               </span>
-              <span className="text-[10px] px-2.5 py-0.5 rounded-full border border-neutral-700 bg-neutral-800 text-neutral-300 capitalize">
-                {entrada.estado.replace("_", " ")}
+              <span className="text-[10px] px-2.5 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-slate-700 font-medium capitalize">
+                Estado: {entrada.estado.replace("_", " ")}
               </span>
+              {entrada.incorporado_biblioteca && (
+                <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Obra na Biblioteca
+                </span>
+              )}
             </div>
-            <h1 className="font-serif text-2xl md:text-3xl font-medium text-neutral-100">
+            <h1 className="font-serif text-2xl md:text-3xl font-bold text-slate-900">
               {entrada.titulo}
             </h1>
-            <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
-              Tema: <span className="text-neutral-200">{entrada.tema_central}</span>
+            <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+              Tema Central: <span className="text-slate-800 font-medium">{entrada.tema_central}</span>
             </p>
           </div>
         </div>
       </div>
 
       {/* Navegação por Etapas do Estúdio */}
-      <div className="flex items-center gap-2 border-b border-neutral-800 overflow-x-auto pb-1 text-xs">
+      <div className="flex items-center gap-1.5 border-b border-slate-200 overflow-x-auto pb-1 text-xs">
         <button
           type="button"
           onClick={() => setAbaAtiva("intencao")}
-          className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-medium transition-all whitespace-nowrap ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold transition-all whitespace-nowrap ${
             abaAtiva === "intencao"
-              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm"
-              : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900"
+              ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-xs"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
           }`}
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>1. Intenção</span>
+          <span>1. Estímulo & Dossiê</span>
         </button>
 
         <button
           type="button"
           onClick={() => setAbaAtiva("plano")}
-          className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-medium transition-all whitespace-nowrap ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold transition-all whitespace-nowrap ${
             abaAtiva === "plano"
-              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm"
-              : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900"
+              ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-xs"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
           }`}
         >
           <Brain className="w-3.5 h-3.5" />
@@ -125,10 +134,10 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
         <button
           type="button"
           onClick={() => setAbaAtiva("texto")}
-          className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-medium transition-all whitespace-nowrap ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold transition-all whitespace-nowrap ${
             abaAtiva === "texto"
-              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm"
-              : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900"
+              ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-xs"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
           }`}
         >
           <FileText className="w-3.5 h-3.5" />
@@ -138,10 +147,10 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
         <button
           type="button"
           onClick={() => setAbaAtiva("auditoria")}
-          className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-medium transition-all whitespace-nowrap ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold transition-all whitespace-nowrap ${
             abaAtiva === "auditoria"
-              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm"
-              : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900"
+              ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-xs"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
           }`}
         >
           <ShieldCheck className="w-3.5 h-3.5" />
@@ -151,79 +160,103 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
         <button
           type="button"
           onClick={() => setAbaAtiva("revisao")}
-          className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-medium transition-all whitespace-nowrap ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold transition-all whitespace-nowrap ${
             abaAtiva === "revisao"
-              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm"
-              : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900"
+              ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-xs"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
           }`}
         >
           <UserCheck className="w-3.5 h-3.5" />
-          <span>5. Revisão do Autor</span>
+          <span>5. Decisão & Incorporação</span>
         </button>
       </div>
 
       {/* Conteúdo da Aba Selecionada */}
       {abaAtiva === "intencao" && (
-        <div className="bg-neutral-900/70 border border-neutral-800 rounded-2xl p-6 space-y-5">
-          <h3 className="font-serif text-lg font-medium text-neutral-100">
-            Intenção Comunicativa do Autor
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-1">
-              <span className="text-[10px] font-mono uppercase text-neutral-500 block">
-                Tema Central:
-              </span>
-              <p className="text-neutral-200 font-medium">{entrada.tema_central}</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-1">
-              <span className="text-[10px] font-mono uppercase text-neutral-500 block">
-                Formato:
-              </span>
-              <p className="text-neutral-200 font-medium capitalize">
-                {entrada.formato_desejado}
-              </p>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-1 text-xs">
-            <span className="text-[10px] font-mono uppercase text-amber-400 font-semibold block">
-              Provocação Inicial (Centelha):
-            </span>
-            <p className="text-neutral-200 leading-relaxed font-serif text-sm">
-              "{entrada.provocacao_inicial}"
+        <div className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">
+              Estímulo Externo e Comentário Atual do Autor
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Ponto de partida ontológico para a formulação do pensamento novo
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-1">
-              <span className="text-[10px] font-mono uppercase text-neutral-500 block">
-                Objetivo Comunicativo:
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block">
+                Reflexão / Estímulo Externo:
               </span>
-              <p className="text-neutral-300">
-                {entrada.objetivo_comunicativo || "Defesa e provocação de tese autoral"}
+              <p className="text-slate-800 leading-relaxed font-serif text-sm">
+                "{entrada.reflexao_externa || entrada.provocacao_inicial}"
               </p>
+              {entrada.tipo_origem_externa && (
+                <span className="inline-block text-[10px] text-slate-400">
+                  Origem: {entrada.tipo_origem_externa}
+                </span>
+              )}
             </div>
 
-            <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-1">
-              <span className="text-[10px] font-mono uppercase text-neutral-500 block">
-                Público-Alvo:
+            <div className="p-4 rounded-2xl bg-blue-50/40 border border-blue-100 space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 block">
+                Comentário Atual do Autor:
               </span>
-              <p className="text-neutral-300">
-                {entrada.publico_alvo || "Interlocutores atentos"}
+              <p className="text-slate-800 leading-relaxed font-serif text-sm">
+                "{entrada.comentario_autor || "Nenhum comentário pessoal adicional registrado."}"
               </p>
             </div>
           </div>
 
-          {entrada.restricoes_especificas && (
-            <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-1 text-xs">
-              <span className="text-[10px] font-mono uppercase text-rose-400 font-semibold block">
-                Restrições Específicas / Vetos:
-              </span>
-              <p className="text-neutral-300 leading-relaxed">
-                {entrada.restricoes_especificas}
-              </p>
+          {/* Conflitos Dialéticos Identificados */}
+          {conflitos.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-800">
+                <ShieldAlert className="w-4 h-4 text-amber-600" />
+                <span>Tensões e Conflitos Dialéticos Mapeados ({conflitos.length})</span>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                {conflitos.map((c, i) => (
+                  <div key={i} className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-amber-900 capitalize">{c.tipo}</span>
+                    </div>
+                    <p className="text-slate-800 font-medium">{c.descricao}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px]">
+                      <div className="bg-white/80 p-2 rounded-xl border border-amber-200/50">
+                        <strong className="text-slate-500 block text-[10px] uppercase">Posição Externa:</strong>
+                        <span className="text-slate-700">{c.posicao_externa}</span>
+                      </div>
+                      <div className="bg-white/80 p-2 rounded-xl border border-amber-200/50">
+                        <strong className="text-blue-600 block text-[10px] uppercase">Posição Autoral:</strong>
+                        <span className="text-slate-700">{c.posicao_autoral}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Memórias Recuperadas do Dossiê */}
+          {dossie.fragmentos_selecionados && dossie.fragmentos_selecionados.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                <BookOpen className="w-4 h-4 text-blue-600" />
+                <span>Memórias do Acervo Mobilizadas no Dossiê ({dossie.fragmentos_selecionados.length})</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {dossie.fragmentos_selecionados.map((m: any, idx: number) => (
+                  <div key={idx} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                    <span className="text-[10px] font-bold text-blue-600 block truncate">
+                      {m.obra_titulo}
+                    </span>
+                    <p className="text-slate-600 font-serif line-clamp-3 text-[11px] leading-relaxed">
+                      "{m.conteudo}"
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -253,7 +286,6 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
         <PainelAuditoriaCritica
           relatorio={relatorioAuditoriaAtual}
           versaoId={versaoAtual?.id}
-          entradaId={entrada.id}
           aoReexecutar={() => router.refresh()}
         />
       )}
@@ -263,6 +295,8 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
           versaoId={versaoAtual?.id}
           entradaId={entrada.id}
           estadoEntrada={entrada.estado}
+          incorporado={entrada.incorporado_biblioteca}
+          obraIncorporadaId={entrada.obra_incorporada_id}
           aoSalvar={() => router.refresh()}
         />
       )}

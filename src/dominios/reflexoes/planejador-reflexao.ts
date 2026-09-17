@@ -1,32 +1,32 @@
 /**
- * Motor Cognitivo: Planejador de Reflexão
- * Orquestra o repertório do autor, taxonomia e regras para desenhar a arquitetura prévia de raciocínio.
+ * Motor Cognitivo: Planejador Metodológico de Reflexão
+ * Mobiliza a taxonomia, regras ativas e o repertório autoral para desenhar a arquitetura de raciocínio prévia.
+ *
  * Idioma: Português do Brasil
  */
 
-import { OpenAI } from "openai";
-import { zodResponseFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
+import { executarChamadaEstruturada, protegerEntradaDeDados, PAPEIS_IA } from "@/ia/orquestrador";
 import type { FormatoReflexao, MovimentoArgumentativo, ContraArgumentoAntecipado } from "@/tipos/reflexoes";
 
 const EsquemaPlanoZod = z.object({
-  tese_central: z.string().describe("Tese autoral profunda e provocativa que o autor defenderá"),
+  tese_central: z.string().describe("Tese autoral profunda, assertiva e provocativa que o autor defenderá"),
   movimentos_argumentativos: z.array(
     z.object({
       ordem: z.number(),
-      tipo: z.string().describe("Ex: Abertura provocativa, Problematização ontológica, Contraste conceitual, Clímax argumentativo, Fechamento reflexivo"),
-      descricao: z.string().describe("Como o autor desenvolve esse movimento específico"),
-      dimensao_metodologica: z.string().nullable().describe("Dimensão do cérebro mobilizada, ex: formas_de_abertura, padroes_de_tensao"),
+      tipo: z.string().describe("Ex: (1) Ponto de Partida, (2) Observação do Fenômeno, (3) Tensão Dialética, (4) Questionamento Radical, (5) Associação Conceitual, (6) Argumentação Rigorosa, (7) Elaboração, (8) Síntese Autoral, (9) Provocação Conclusiva"),
+      descricao: z.string().describe("Como o autor desenvolve esse movimento específico de forma densa"),
+      dimensao_metodologica: z.string().nullable().describe("Dimensão metodológica mobilizada: formas_de_abertura, padroes_de_tensao, etc."),
       conceitos_chave: z.array(z.string()).nullable().describe("Conceitos da taxonomia mobilizados nesta etapa"),
     })
   ),
-  conceitos_mobilizados: z.array(z.string()).describe("Lista de termos ou códigos conceituais da taxonomia ativados"),
+  conceitos_mobilizados: z.array(z.string()).describe("Lista de termos conceituais da taxonomia ativados"),
   regras_acionadas: z.array(z.string()).describe("Enunciados de regras prescritivas e anti-regras que regem a reflexão"),
   contra_argumentos_antecipados: z.array(
     z.object({
-      objecao: z.string().describe("Objeção ou contra-argumento previsível de um interlocutor crítico"),
-      resposta_autoral: z.string().describe("Como o autor refuta ou incorpora a tensão mantendo sua postura original"),
+      objecao: z.string().describe("Objeção ou contra-argumento previsível de interlocutores críticos"),
+      resposta_autoral: z.string().describe("Como o autor refuta ou incorpora a objeção mantendo sua postura epistemológica"),
       grau_relevancia: z.enum(["alta", "media", "baixa"]),
     })
   ),
@@ -38,6 +38,8 @@ export async function gerarPlanoReflexao({
   titulo,
   temaCentral,
   provocacaoInicial,
+  reflexaoExterna,
+  comentarioAutor,
   objetivoComunicativo,
   publicoAlvo,
   formatoDesejado,
@@ -48,6 +50,8 @@ export async function gerarPlanoReflexao({
   titulo: string;
   temaCentral: string;
   provocacaoInicial: string;
+  reflexaoExterna?: string | null;
+  comentarioAutor?: string | null;
   objetivoComunicativo?: string | null;
   publicoAlvo?: string | null;
   formatoDesejado: FormatoReflexao;
@@ -55,7 +59,19 @@ export async function gerarPlanoReflexao({
 }) {
   const admin = criarClienteAdmin();
 
-  // 1. Obter fragmentos autorais para embasamento (busca híbrida ou mais recentes)
+  // 1. Obter entrada atual para recuperar dossiê e tensões pré-salvas
+  const { data: entradaDb } = await admin
+    .schema("reflexoes")
+    .from("entradas")
+    .select("reflexao_externa, comentario_autor, dossie_contexto, conflitos_detectados")
+    .eq("id", entradaId)
+    .single();
+
+  const textoExterno = reflexaoExterna || entradaDb?.reflexao_externa || provocacaoInicial;
+  const textoComentario = comentarioAutor || entradaDb?.comentario_autor || "";
+  const conflitos = (entradaDb?.conflitos_detectados as any[]) || [];
+
+  // 2. Obter memórias autorais
   const { data: fragmentos } = await admin
     .from("v_fragmentos_detalhados")
     .select("id, conteudo, obra_titulo")
@@ -64,12 +80,12 @@ export async function gerarPlanoReflexao({
     .limit(10);
 
   const corpusAmostra = (fragmentos || [])
-    .map((f, i) => `[Fragmento ${i + 1} - Obra: "${f.obra_titulo}"]\n${f.conteudo}`)
+    .map((f, i) => `[Memória ${i + 1} - Obra: "${f.obra_titulo}"]\n${f.conteudo}`)
     .join("\n\n---\n\n");
 
   const fontesIds = (fragmentos || []).map((f) => f.id);
 
-  // 2. Obter conceitos da taxonomia
+  // 3. Obter conceitos da taxonomia
   const { data: conceitos } = await admin
     .from("v_taxonomia_conceitos")
     .select("termo_preferencial, definicao, dominio")
@@ -79,7 +95,7 @@ export async function gerarPlanoReflexao({
     .map((c) => `- ${c.termo_preferencial} (${c.dominio}): ${c.definicao}`)
     .join("\n");
 
-  // 3. Obter regras ativas do Cérebro
+  // 4. Obter regras ativas do Cérebro
   const { data: regras } = await admin
     .from("v_cerebro_regras_ativas")
     .select("tipo_regra, enunciado, peso")
@@ -90,54 +106,66 @@ export async function gerarPlanoReflexao({
     .map((r) => `- [${r.tipo_regra.toUpperCase()}] (Peso ${r.peso}/10): ${r.enunciado}`)
     .join("\n");
 
-  const promptSistema = `Você é o Planejador Cognitivo do sistema "Memória Reflexiva" (motor "Cérebro Autoral").
-Sua missão é conceber a arquitetura prévia de raciocínio de uma nova reflexão autoral a partir da intenção e provocação do autor.
+  const promptSistema = `Você é o Planejador Metodológico do "Cérebro Autoral".
+Sua missão é conceber a arquitetura prévia de raciocínio de uma nova reflexão a partir da metodologia intelectual do autor.
 
-DIRETRIZES INEGOCIÁVEIS:
-1. Toda resposta deve ser formulada em Português do Brasil com sofisticação conceitual e rigor epistemológico.
-2. O plano NÃO é o texto final, mas o mapa mental e arquitetônico que estrutura a tese, os movimentos dialéticos, as tensões e os contra-argumentos.
-3. Respeite as regras prescritivas e jamais incorra nas anti-regras (vetos absolutos).
-4. Mobilize os conceitos canônicos da taxonomia do autor.
+GRAFO METODOLÓGICO DE 9 PASSOS:
+Estruture os movimentos argumentativos contemplando a progressão autoral:
+1. Ponto de Partida / Experiência Concreta
+2. Observação Atenta do Fenômeno
+3. Tensão Cognitiva / Paradoxo Identificado
+4. Questionamento Radical
+5. Associação e Conexão Inesperada
+6. Argumentação Rigorosa e Fundamentação
+7. Elaboração e Desdobramento Conceitual
+8. Síntese Autoral Assertiva
+9. Conclusão Aberta e Provocação Futura
 
-TAXONOMIA DISPONÍVEL:
-${conceitosTexto || "Nenhum conceito cadastrado previamente."}
+REGRAS INEGOCIÁVEIS:
+1. Formule tudo em Português do Brasil com altíssimo rigor conceitual.
+2. O plano NÃO é o texto final, mas o esqueleto dialético e ontológico da reflexão.
+3. Respeite as regras prescritivas e jamais incorra nas anti-regras.`;
 
-CATÁLOGO DE REGRAS E ANTI-REGRAS DO AUTOR:
-${regrasTexto || "Regra geral: escrita densa, sem clichês motivacionais, foco na precisão conceitual."}
+  const conflitosTexto = conflitos.length > 0
+    ? conflitos.map((c: any) => `- [${c.tipo}] ${c.descricao} (Atrito: "${c.posicao_externa}" vs "${c.posicao_autoral}")`).join("\n")
+    : "Nenhum conflito explícito registrado. Explorar dialética interna.";
 
-CORPUS DE FRAGMENTOS AUTORAIS DE REFERÊNCIA:
-${corpusAmostra || "Sem fragmentos prévios. Adote tom ensaístico denso e analítico."}`;
-
-  const promptUsuario = `PLANEJE A REFLEXÃO COM BASE NA SEGUINTE INTENÇÃO DO AUTOR:
+  const promptUsuario = `PLANEJE A ARQUITETURA COGNITIVA DA REFLEXÃO:
 - Título Proposto: "${titulo}"
 - Tema Central: "${temaCentral}"
-- Provocação Inicial: "${provocacaoInicial}"
 - Formato Desejado: "${formatoDesejado}"
-- Objetivo Comunicativo: "${objetivoComunicativo || "Provocação reflexiva e defesa de tese"}"
-- Público-Alvo: "${publicoAlvo || "Leitores atentos e interlocutores críticos"}"
+- Objetivo Comunicativo: "${objetivoComunicativo || "Desestabilizar certezas e fundar nova posição"}"
+- Público-Alvo: "${publicoAlvo || "Leitores reflexivos e críticos"}"
 - Restrições Específicas: "${restricoesEspecificas || "Nenhuma informada"}"
 
-Gere a estrutura completa do Plano de Reflexão respeitando rigorosamente o schema estruturado.`;
+${protegerEntradaDeDados(textoExterno, "ESTIMULO_EXTERNO")}
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+${protegerEntradaDeDados(textoComentario, "PENSAMENTO_PRESENTE_DO_AUTOR")}
 
-  const resposta = await openai.beta.chat.completions.parse({
-    model: "gpt-4o",
-    messages: [
-      { role: "system", content: promptSistema },
-      { role: "user", content: promptUsuario },
-    ],
-    response_format: zodResponseFormat(EsquemaPlanoZod, "plano_reflexao"),
-    temperature: 0.4,
+TENSÕES E CONFLITOS MAPEADOS:
+${conflitosTexto}
+
+TAXONOMIA DISPONÍVEL DO AUTOR:
+${conceitosTexto || "Sem conceitos prévios."}
+
+CATÁLOGO DE REGRAS E ANTI-REGRAS DO AUTOR:
+${regrasTexto || "Escrita densa, sem clichês motivacionais, foco na ontologia das questões."}
+
+MEMÓRIAS HISTÓRICAS DO AUTOR:
+${corpusAmostra || "Sem memórias anteriores. Formule raciocínio analítico autônomo."}
+
+Gere o Plano de Reflexão estruturado.`;
+
+  const planoGerado = await executarChamadaEstruturada({
+    papel: PAPEIS_IA.CEREBRO,
+    sistema: promptSistema,
+    usuario: promptUsuario,
+    esquemaZod: EsquemaPlanoZod,
+    nomeEsquema: "plano_reflexao",
+    temperatura: 0.35,
   });
 
-  const planoGerado = resposta.choices[0]?.message.parsed;
-
-  if (!planoGerado) {
-    throw new Error("O modelo não retornou um plano de reflexão estruturado válido.");
-  }
-
-  // 4. Gravar o plano no Supabase Postgres
+  // Gravar o plano no Supabase Postgres
   const { data: planoSalvo, error: errPlano } = await admin
     .schema("reflexoes")
     .from("planos_reflexao")

@@ -1,23 +1,23 @@
 /**
  * Motor Cognitivo: Redator Autoral de Reflexão
- * Redige a reflexão completa seguindo o plano de raciocínio, voz autoral e vinculando proveniência de evidências.
+ * Dá corpo e voz ao plano aprovado pelo autor, vinculando citações e proveniência estrita.
+ *
  * Idioma: Português do Brasil
  */
 
-import { OpenAI } from "openai";
-import { zodResponseFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
+import { executarChamadaEstruturada, protegerEntradaDeDados, PAPEIS_IA } from "@/ia/orquestrador";
 
 const EsquemaRedacaoZod = z.object({
-  titulo_gerado: z.string().describe("Título definitivo, autoral e expressivo para a reflexão"),
+  titulo_gerado: z.string().describe("Título definitivo, autoral, impactante e expressivo para a reflexão"),
   sumario_executivo: z.string().describe("Síntese executiva densa e provocativa do ensaio"),
   conteudo_markdown: z.string().describe("Texto integral da reflexão redigido em Markdown"),
   citacoes_identificadas: z.array(
     z.object({
       fragmento_index: z.number().describe("Índice do fragmento autoral (1-based) que embasa este trecho"),
       trecho_afirmacao_gerada: z.string().describe("Trecho ou argumento formulado no texto gerado"),
-      trecho_original_citado: z.string().describe("Trecho correspondente do fragmento original do autor"),
+      trecho_original_citado: z.string().describe("Trecho correspondente da memória original do autor"),
       grau_aderencia: z.number().min(0).max(1).describe("Grau de correspondência conceitual (0.0 a 1.0)"),
     })
   ),
@@ -71,7 +71,6 @@ export async function redigirReflexao({
     fragmentos = (frags as any) || [];
   }
 
-  // Se não houver fragmentos específicos no plano, buscar os fragmentos autorais mais recentes
   if (fragmentos.length === 0) {
     const { data: fragsRecentes } = await admin
       .from("v_fragmentos_detalhados")
@@ -85,7 +84,7 @@ export async function redigirReflexao({
   const fragmentosFormatados = fragmentos
     .map(
       (f, idx) =>
-        `[Fragmento ${idx + 1} - ID: ${f.id} - Obra: "${f.obra_titulo || "Autoral"}"]\n${f.conteudo}`
+        `[Fragmento ${idx + 1} - Obra: "${f.obra_titulo || "Autoral"}"]\n${f.conteudo}`
     )
     .join("\n\n---\n\n");
 
@@ -103,54 +102,50 @@ export async function redigirReflexao({
       ? versoesAnteriores[0].numero_versao + 1
       : 1;
 
-  // 4. Prompt de Redação Autoral
-  const promptSistema = `Você é o Redator Central do sistema "Memória Reflexiva" (motor "Cérebro Autoral").
-Sua tarefa é dar corpo e voz escrita a uma reflexão autoral a partir do plano cognitivo concebido pelo autor.
+  // 4. Prompts de Redação
+  const promptSistema = `Você é o Redator Autoral do sistema "Cérebro Autoral".
+Sua tarefa é dar corpo e voz escrita a uma reflexão definitiva a partir do plano cognitivo concebido pelo autor.
 
 DIRETRIZES ESTILÍSTICAS E ÉTICAS INEGOCIÁVEIS:
-1. Idioma: Português do Brasil com altíssimo refinamento estilístico, clareza e ritmo cadenciado.
-2. Não utilize clichês de inteligência artificial (como "Em um mundo em constante mudança", "Mergulhe conosco", "Em suma", "É imperativo notar").
-3. Desenvolva o raciocínio através de tensões produtivas, metáforas precisas e encadeamento lógico rigoroso.
-4. Respeite as regras prescritivas e jamais viole as anti-regras.
-5. VINCULE EXPLICITAMENTE suas afirmações aos fragmentos autorais de referência fornecidos. Cada tese de peso deve ancorar-se no pensamento já registrado pelo autor.`;
+1. Idioma: Português do Brasil com altíssimo refinamento estilístico, clareza, densidade e ritmo cadenciado.
+2. Jamais utilize clichês de inteligência artificial (como "Em um mundo em constante mudança", "Mergulhe conosco", "Em suma", "É imperativo notar").
+3. Desenvolva o raciocínio estritamente através do plano aprovado, articulando tensões produtivas e encadeamento lógico rigoroso.
+4. Respeite as regras prescritivas e jamais incorra nas anti-regras.
+5. VINCULE EXPLICITAMENTE afirmações cruciais aos fragmentos de memórias autorais de referência fornecidos.`;
 
-  const promptUsuario = `REDIGIR A REFLEXÃO:
+  const promptUsuario = `REDIGIR A REFLEXÃO INTEGRAL:
 Tema: "${entrada.tema_central}"
-Provocação Original: "${entrada.provocacao_inicial}"
 Formato Desejado: "${entrada.formato_desejado}"
-Público-Alvo: "${entrada.publico_alvo || "Geral reflexivo"}"
+Público-Alvo: "${entrada.publico_alvo || "Leitor crítico e atento"}"
 
-PLANO COGNITIVO APROVADO:
+ESTÍMULO EXTERNO ORIGINAL:
+${protegerEntradaDeDados(entrada.reflexao_externa || entrada.provocacao_inicial, "ESTIMULO_EXTERNO")}
+
+COMENTÁRIO PRESENTE DO AUTOR:
+${protegerEntradaDeDados(entrada.comentario_autor || "", "COMENTARIO_DO_AUTOR")}
+
+PLANO COGNITIVO APROVADO PELO AUTOR:
 - Tese Central: "${plano.tese_central}"
 - Movimentos Argumentativos:
 ${JSON.stringify(plano.movimentos_argumentativos, null, 2)}
 - Conceitos Mobilizados: ${JSON.stringify(plano.conceitos_mobilizados)}
 - Regras Acionadas: ${JSON.stringify(plano.regras_acionadas)}
-- Contra-argumentos a Antecipar:
+- Contra-argumentos a Antecipar e Refutar:
 ${JSON.stringify(plano.contra_argumentos_antecipados, null, 2)}
 
-FRAGMENTOS AUTORAIS DISPONÍVEIS PARA EMBASAMENTO E CITAÇÃO:
-${fragmentosFormatados || "Nenhum fragmento registrado. Escreva em tom ensaístico rigoroso."}
+MEMÓRIAS HISTÓRICAS DISPONÍVEIS PARA ANCORAGEM:
+${fragmentosFormatados || "Nenhum fragmento anterior disponível. Escreva com originalidade ensaística rigorosa."}
 
-Gere o texto completo em Markdown e aponte os trechos de proveniência correspondentes.`;
+Gere o texto completo em Markdown e indique os vínculos de proveniência correspondentes.`;
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-  const resposta = await openai.beta.chat.completions.parse({
-    model: "gpt-4o",
-    messages: [
-      { role: "system", content: promptSistema },
-      { role: "user", content: promptUsuario },
-    ],
-    response_format: zodResponseFormat(EsquemaRedacaoZod, "redacao_reflexao"),
-    temperature: 0.5,
+  const redacao = await executarChamadaEstruturada({
+    papel: PAPEIS_IA.REDACAO,
+    sistema: promptSistema,
+    usuario: promptUsuario,
+    esquemaZod: EsquemaRedacaoZod,
+    nomeEsquema: "redacao_reflexao",
+    temperatura: 0.45,
   });
-
-  const redacao = resposta.choices[0]?.message.parsed;
-
-  if (!redacao) {
-    throw new Error("O redator não retornou uma redação estruturada válida.");
-  }
 
   const totalPalavras = redacao.conteudo_markdown
     .trim()
@@ -190,7 +185,7 @@ Gere o texto completo em Markdown e aponte os trechos de proveniência correspon
         tipo_fonte: "nucleo_autoral",
         trecho_afirmacao_gerada: c.trecho_afirmacao_gerada,
         trecho_original_citado: c.trecho_original_citado,
-        obra_titulo: fragRef?.obra_titulo || "Corpus Autoral",
+        obra_titulo: fragRef?.obra_titulo || "Memória Autoral",
         grau_aderencia: c.grau_aderencia,
       });
     }

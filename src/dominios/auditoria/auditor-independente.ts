@@ -2,13 +2,13 @@
  * Agente Auditor Crítico Independente
  * Avalia o rascunho produzido contra a taxonomia, dimensões metodológicas, catálogo de regras e evidências.
  * Emite veredito, notas por pilar, aponta infrações e recomendações concretas.
+ *
  * Idioma: Português do Brasil
  */
 
-import { OpenAI } from "openai";
-import { zodResponseFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
+import { executarChamadaEstruturada, protegerEntradaDeDados, PAPEIS_IA } from "@/ia/orquestrador";
 import type { VereditoAuditoria } from "@/tipos/auditoria";
 
 const EsquemaAuditoriaZod = z.object({
@@ -90,7 +90,7 @@ export async function auditarVersaoReflexao({
     .join("\n\n");
 
   // 4. Prompt do Auditor Crítico Independente
-  const promptSistema = `Você é o Auditor Crítico Independente da plataforma "Memória Reflexiva".
+  const promptSistema = `Você é o Auditor Crítico Independente da plataforma "Cérebro Autoral / Memória Reflexiva".
 Sua missão NÃO É ser complacente ou elogioso. Você atua como o crítico mais rigoroso, atento e implacável do autor.
 
 SEU OBJETIVO:
@@ -113,7 +113,7 @@ Título: "${versao.titulo_gerado}"
 Total de Palavras: ${versao.total_palavras}
 
 TEXTO DA REFLEXÃO:
-${versao.conteudo_markdown}
+${protegerEntradaDeDados(versao.conteudo_markdown, "TEXTO_REFLEXAO_AUDITADA")}
 
 CATÁLOGO DE REGRAS E ANTI-REGRAS A VERIFICAR:
 ${regrasFormatadas || "Nenhuma regra cadastrada. Aplicar padrão autoral de alta densidade e rigor crítico."}
@@ -121,25 +121,16 @@ ${regrasFormatadas || "Nenhuma regra cadastrada. Aplicar padrão autoral de alta
 EVIDÊNCIAS DE SUPORTE APRESENTADAS:
 ${citacoesFormatadas || "Nenhuma evidência vinculada formalmente."}
 
-Emita seu relatório de auditoria completo e objetivo conforme o schema estabelecido.`;
+Emita seu relatório de auditoria completo e objetivo conforme o schema estruturado.`;
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-  const resposta = await openai.beta.chat.completions.parse({
-    model: "gpt-4o",
-    messages: [
-      { role: "system", content: promptSistema },
-      { role: "user", content: promptUsuario },
-    ],
-    response_format: zodResponseFormat(EsquemaAuditoriaZod, "relatorio_auditoria"),
-    temperature: 0.2, // Baixa temperatura para auditoria crítica consistente
+  const auditoria = await executarChamadaEstruturada({
+    papel: PAPEIS_IA.AUDITORIA,
+    sistema: promptSistema,
+    usuario: promptUsuario,
+    esquemaZod: EsquemaAuditoriaZod,
+    nomeEsquema: "relatorio_auditoria",
+    temperatura: 0.15,
   });
-
-  const auditoria = resposta.choices[0]?.message.parsed;
-
-  if (!auditoria) {
-    throw new Error("O auditor não retornou um relatório estruturado válido.");
-  }
 
   // 5. Gravar o Relatório de Auditoria no Supabase Postgres
   const { data: relatorioSalvo, error: errRelatorio } = await admin
@@ -174,15 +165,6 @@ Emita seu relatório de auditoria completo e objetivo conforme o schema estabele
     .from("versoes_reflexao")
     .update({ estado: novoEstadoVersao })
     .eq("id", versaoId);
-
-  // 7. Atualizar estado da entrada se aprovado
-  if (auditoria.veredito === "aprovado") {
-    await admin
-      .schema("reflexoes")
-      .from("entradas")
-      .update({ estado: "concluida" })
-      .eq("id", versao.entrada_id);
-  }
 
   return relatorioSalvo;
 }

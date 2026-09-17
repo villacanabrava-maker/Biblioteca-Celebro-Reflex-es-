@@ -11,6 +11,14 @@ export type FormatoReflexao =
   | "dialogo"
   | "tese";
 
+export type TipoOrigemExterna =
+  | "texto"
+  | "artigo"
+  | "mensagem"
+  | "documento"
+  | "audio_transcricao"
+  | "observacao";
+
 export type EstadoEntradaReflexao =
   | "criada"
   | "planejada"
@@ -27,6 +35,35 @@ export type EstadoVersaoReflexao =
   | "auditado"
   | "aprovado"
   | "publicado";
+
+export interface ConflitoDetectado {
+  id?: string;
+  tipo: string;
+  descricao: string;
+  posicao_externa: string;
+  posicao_autoral: string;
+  impacto_reflexao: string;
+}
+
+export interface DossieItemFragmento {
+  id: string;
+  conteudo: string;
+  obra_titulo: string;
+  aderencia?: number;
+}
+
+export interface DossieItemConceito {
+  termo: string;
+  definicao: string;
+  dominio: string;
+}
+
+export interface DossieContextual {
+  fragmentos_selecionados: DossieItemFragmento[];
+  conceitos_chave: DossieItemConceito[];
+  regras_sugeridas: { tipo: string; enunciado: string }[];
+  conflitos_detectados?: ConflitoDetectado[];
+}
 
 export interface MovimentoArgumentativo {
   ordem: number;
@@ -48,6 +85,13 @@ export interface EntradaReflexao {
   titulo: string;
   tema_central: string;
   provocacao_inicial: string;
+  reflexao_externa?: string | null;
+  tipo_origem_externa?: TipoOrigemExterna | null;
+  comentario_autor?: string | null;
+  dossie_contexto?: DossieContextual | null;
+  conflitos_detectados?: ConflitoDetectado[] | null;
+  incorporado_biblioteca?: boolean;
+  obra_incorporada_id?: string | null;
   objetivo_comunicativo?: string | null;
   publico_alvo?: string | null;
   formato_desejado: FormatoReflexao;
@@ -103,8 +147,14 @@ export interface ResumoReflexao {
   usuario_id: string;
   titulo: string;
   tema_central: string;
+  provocacao_inicial?: string;
+  reflexao_externa?: string | null;
+  tipo_origem_externa?: TipoOrigemExterna | null;
+  comentario_autor?: string | null;
   formato_desejado: FormatoReflexao;
   estado_entrada: EstadoEntradaReflexao;
+  incorporado_biblioteca?: boolean;
+  obra_incorporada_id?: string | null;
   criado_em: string;
   atualizado_em: string;
   total_versoes: number;
