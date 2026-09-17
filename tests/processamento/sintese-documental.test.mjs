@@ -5,6 +5,8 @@ import {
   calcularHashEntradaSintese,
   gerarSinteseDocumental,
   montarEntradaSintese,
+  schemaSaidaSinteseV1Compativel,
+  statusHttpOpenAIRetryable,
 } from '../../src/ia/motor-documental/gerar-sintese-documental.ts'
 import { estimarCustoUsd } from '../../src/infraestrutura/openai/modelos.ts'
 
@@ -146,4 +148,40 @@ test('estimativa de custo usa entrada normal, cache e saída separadamente', () 
     }),
     null
   )
+})
+
+test('schema de saída persistido precisa coincidir exatamente com o contrato Zod v1', () => {
+  assert.equal(
+    schemaSaidaSinteseV1Compativel({
+      type: 'object',
+      properties: {
+        sintese: { type: 'string', minLength: 1, maxLength: 12_000 },
+      },
+      required: ['sintese'],
+      additionalProperties: false,
+    }),
+    true
+  )
+
+  assert.equal(
+    schemaSaidaSinteseV1Compativel({
+      type: 'object',
+      properties: {
+        sintese: { type: 'string', minLength: 1 },
+      },
+      required: ['sintese'],
+      additionalProperties: false,
+    }),
+    false
+  )
+})
+
+test('somente falhas HTTP transitórias são classificadas para retry automático', () => {
+  for (const status of [408, 409, 425, 429, 500, 502, 503, 504]) {
+    assert.equal(statusHttpOpenAIRetryable(status), true, `status ${status} deveria permitir retry`)
+  }
+
+  for (const status of [400, 401, 403, 404, 422]) {
+    assert.equal(statusHttpOpenAIRetryable(status), false, `status ${status} não deveria permitir retry`)
+  }
 })
