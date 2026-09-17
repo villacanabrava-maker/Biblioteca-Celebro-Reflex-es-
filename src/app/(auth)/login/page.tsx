@@ -59,11 +59,17 @@ export default function PaginaLogin() {
           return;
         }
 
+        if (res.requerLoginManual) {
+          setMensagemSucesso("Conta criada com sucesso! Por favor, digite sua senha para entrar.");
+          setModo("login");
+          return;
+        }
+
         setMensagemSucesso("Conta criada com sucesso! Entrando no seu ateliê...");
         setTimeout(() => {
           router.push("/");
           router.refresh();
-        }, 1200);
+        }, 1000);
       } catch (err: any) {
         setErro(err.message || "Erro inesperado ao criar conta.");
       } finally {
@@ -74,7 +80,7 @@ export default function PaginaLogin() {
         setCarregando(true);
         const res = await fazerLogin({ email, senha });
         if (!res.sucesso) {
-          setErro("E-mail ou senha incorretos. Verifique suas credenciais.");
+          setErro(res.erro || "E-mail ou senha incorretos. Verifique suas credenciais.");
           return;
         }
 
