@@ -1,46 +1,41 @@
 # Estado Atual do Projeto
 
-Atualizado em **17/09/2026** durante a auditoria de handoff da Fase 3.
+Atualizado em **17/09/2026** após a incorporação auditada do handoff da Fase 3.
 
 ## Infraestrutura oficial
 
-Somente estes recursos pertencem ao projeto:
-
 - GitHub: `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`
-- Supabase: `xzkzdaxxmizcgfkjgzoq` — `Biblioteca-Celebro-Reflex-es-`, `ACTIVE_HEALTHY`, `us-west-2`, PostgreSQL 17.6
-- Vercel: projeto `cerebro-autoral`
+- `main`: `1b68ba494e62bc5875868bdf4884620c02264c83`
+- Supabase: `xzkzdaxxmizcgfkjgzoq` — `ACTIVE_HEALTHY`, `us-west-2`, PostgreSQL 17.6
+- Vercel: `cerebro-autoral`
 - Produção: `https://cerebro-autoral.vercel.app`
+- Deployment pós-merge: `dpl_2xo3HF6gsHcKE2DVazD4kousiBQo` — `READY`
+- `PROCESSAMENTO_WORKFLOW_ATIVO=false`
 
-Outros projetos das contas conectadas não pertencem a este aplicativo e não devem ser alterados.
+Outros projetos das contas conectadas não pertencem a este aplicativo.
 
-## Handoff em revisão
+## Marco incorporado
 
-O trabalho determinístico feito por outro agente foi isolado no **PR #14**, branch `review/handoff-claude-fase3`, para revisão antes de chegar à `main`.
+O PR #14 foi incorporado por squash merge depois de revisão manual e validação independente em GitHub, Supabase e Vercel.
 
-Escopo consolidado nessa revisão:
-
-```text
-validar_arquivo          ✅ main
-identificar_formato      ✅ main
-extrair_conteudo         ✅ main — PDF textual/TXT/Markdown
-normalizar_conteudo      ✅ main
-identificar_estrutura    ✅ auditado no PR #14
-criar_hierarquia         ✅ auditado no PR #14
-criar_fragmentos         ✅ auditado e endurecido no PR #14
-criar_sinteses           ⬜ ainda não consolidado
-```
-
-A feature flag permanece:
+A parte determinística da Fase 3 está consolidada até `criar_fragmentos`:
 
 ```text
-PROCESSAMENTO_WORKFLOW_ATIVO=false
+validar_arquivo          ✅
+identificar_formato      ✅
+extrair_conteudo         ✅ PDF textual/TXT/Markdown
+normalizar_conteudo      ✅
+identificar_estrutura    ✅
+criar_hierarquia         ✅
+criar_fragmentos         ✅ auditado/hardened
+criar_sinteses           ⬜ próxima etapa cognitiva
 ```
 
-Nenhum Documento Processado parcial alimenta o Cérebro Autoral.
+Nenhum resultado parcial é Documento Processado ativo e nenhum resultado parcial alimenta o Cérebro Autoral.
 
 ## Banco oficial
 
-Última fotografia auditada:
+Última fotografia:
 
 - 1 usuário Auth de teste;
 - 0 obras;
@@ -52,109 +47,129 @@ Nenhum Documento Processado parcial alimenta o Cérebro Autoral.
 - 1 versão ativa de Pipeline;
 - 1 versão ativa de Taxonomia.
 
-As migrations oficiais chegaram a:
+Portanto, o hardening/migrations recentes não tocaram corpus autoral real.
 
-- `0022` — RLS nos catálogos globais;
-- `0023` — artefato `estrutura_identificada`;
-- `0024` — Documento Processado candidato + hierarquia de seções;
-- `0025` — RPCs de fragmentos + índices de caractere;
-- `0026` — correção de contagem de fragmentos;
-- `0027` — correção de ambiguidade SQL;
-- `0028` (`20260917012837`) — `offset_pagina_inicio` para fragmentação PDF precisa;
-- `0029` (`20260917014156`) — listagem backend-only dos fragmentos para replay seguro.
+## Migrations recentes
 
-Nenhuma migration aplicada foi reescrita.
+```text
+0022  RLS dos catálogos de sistema/taxonomia
+0023  artefato estrutura_identificada
+0024  materialização do Documento Processado candidato + seções
+0025  posições de seção + RPCs de fragmentação
+0026  correção da contagem de fragmentos
+0027  correção de ambiguidade SQL
+0028  offset_pagina_inicio para recorte PDF intrapágina
+0029  leitura backend-only de fragmentos para replay seguro
+```
 
-## Achados desta auditoria
+Versões reais atribuídas pelo Supabase:
 
-### 1. Fronteira PDF era insuficiente
+- `20260917012837_0028_offsets_pdf_fragmentacao`
+- `20260917014156_0029_listagem_fragmentos_replay`
 
-A versão anterior conhecia o número da página em que uma seção começava, mas não persistia o offset do título dentro da página. Isso produzia dois riscos:
+## Bugs encontrados e corrigidos na auditoria
 
-- duas seções na mesma página poderiam compartilhar/duplicar texto;
-- quando uma nova seção começava no meio da página seguinte, o texto anterior ao novo título poderia ser descartado do fragmento precedente.
+### PDF intrapágina
 
-**Correção:** `0028` persiste `offset_pagina_inicio` e o domínio de fragmentação usa página + offset para recortar o texto próprio da seção.
+Número de página sozinho não era suficiente para separar títulos na mesma página. Também podia haver perda do prefixo de uma página quando o próximo título começava no meio dela.
 
-### 2. Replay de `criar_fragmentos` confiava cedo demais no estado
+Correção:
 
-A primeira versão retornava sucesso imediatamente quando `backend_iniciar_etapa` informava que a etapa já havia sido concluída.
+- `identificar_estrutura` já media o offset do título na página;
+- `0028` passou a persistir esse offset em `processamento.secoes`;
+- `criar_fragmentos` usa página + offset para recortar exatamente o texto próprio.
 
-**Correção:** o replay agora revalida o artefato normalizado, recalcula os fragmentos determinísticos e compara com os fragmentos persistidos. A nova RPC `backend_listar_fragmentos_documento` (`0029`) é `SECURITY DEFINER`, `search_path=''` e executável somente por `service_role`.
+Há testes para:
 
-A execução normal também relê e compara os fragmentos depois da persistência, antes de concluir a etapa.
+1. duas seções na mesma página sem duplicação;
+2. texto de continuação antes do próximo título na página seguinte sem perda.
 
-### 3. Rascunho de IA antigo não faz parte do banco
+### Replay de fragmentos
 
-A branch `claude/confident-cannon-ovdoev` possui um commit WIP (`0b9d739...`) com um arquivo local chamado `0028_ia_sinteses_secao`. Ele **nunca foi aplicado ao Supabase**, não possui testes completos nem integração de workflow.
+A primeira implementação podia retornar sucesso quando a máquina de estados informava que a etapa já havia passado, antes de comprovar que o artefato e os fragmentos persistidos continuavam íntegros.
 
-O número oficial `0028` agora pertence a `0028_offsets_pdf_fragmentacao`. O rascunho de IA deverá ser revisado e renumerado após `0029`; não pode ser aplicado como está.
+Correção:
 
-## Validação
+- artefato normalizado é baixado/revalidado;
+- fragmentos esperados são recalculados;
+- `0029` lista os fragmentos persistidos por RPC server-only;
+- esperado/persistido são comparados deterministicamente;
+- divergência falha em vez de ser aceita como sucesso.
 
-Na rodada de CI que incluiu as correções funcionais e os três novos testes:
+A escrita normal também é verificada antes da conclusão da etapa.
 
-- `npm ci`: passou;
-- `npm audit --omit=dev --audit-level=high`: 0 vulnerabilidades;
-- ESLint: passou (um warning cosmético do novo teste foi depois removido);
-- TypeScript: passou;
-- testes: **39/39 passaram**;
-- build Next.js: passou;
-- banco local: `supabase start` + migrations + seed + `db reset` + `status` + shutdown: passou;
-- Preview Vercel do código/testes: `READY`.
+## Gates do PR #14
 
-Depois da remoção do warning e das atualizações documentais, o head final do PR precisa repetir os mesmos gates antes do merge.
+No head final:
+
+- `npm ci` ✅
+- `npm audit --omit=dev --audit-level=high` ✅ — 0 vulnerabilidades
+- ESLint ✅
+- TypeScript ✅
+- **39/39 testes** ✅
+- Next.js build ✅
+- Supabase local + todas as migrations/seed ✅
+- `supabase db reset` ✅
+- Preview Vercel ✅ READY
+- advisors do Supabase ✅ sem novo alerta estrutural
+
+## Produção pós-merge
+
+O deployment de produção ligado ao merge `1b68ba4…` está `READY`.
+
+Verificações realizadas:
+
+- `/` responde com autenticação para visitante sem sessão;
+- `/biblioteca` permanece protegida e vai para autenticação sem sessão;
+- nenhum erro de runtime foi encontrado no intervalo pós-deploy.
 
 ## Segurança
 
-A auditoria após `0028/0029` confirma:
+Mantido:
 
-- schemas internos continuam fechados;
-- RLS permanece ativo nas superfícies pessoais/sensíveis;
-- Storage permanece privado;
-- `anon` e `authenticated` não executam RPCs `backend_*`;
-- RPCs internas usam `SECURITY DEFINER` + `search_path=''`;
-- `service_role` só acessa operações internas pelas RPCs deliberadamente concedidas;
-- nenhuma nova FK sem índice foi apontada.
+- schemas internos fechados;
+- RLS;
+- Storage privado;
+- RPCs backend `SECURITY DEFINER` + `search_path=''`;
+- sem `EXECUTE` de RPC backend para `anon`/`authenticated`;
+- `service_role` somente em operações explicitamente concedidas;
+- sem segredo no GitHub;
+- OpenAI key somente na Vercel.
 
-Advisor de segurança: único aviso remanescente é **Leaked Password Protection Disabled**.
+Advisor de segurança: único aviso atual é **Leaked Password Protection Disabled**.
 
-Advisor de performance: apenas `unused_index` informativo enquanto o banco continua sem corpus.
+Advisor de performance: somente `unused_index` informativo enquanto não há corpus.
 
-## Vercel
+Pendências externas:
 
-- projeto correto: `cerebro-autoral`;
-- Preview do PR #14 com as correções/testes está `READY`;
-- produção continua ligada à `main`, que ainda não contém o PR #14;
-- Dashboard ainda reporta Node 24.x, enquanto o projeto exige Node 22.x; ajuste administrativo continua pendente.
+1. Leaked Password Protection do Supabase Auth;
+2. Vercel Dashboard ainda em Node 24.x versus Node 22.x do projeto;
+3. Ruleset de `main` ainda não obrigatório;
+4. E2E com documento controlado antes de ligar o Workflow.
 
-`PROCESSAMENTO_WORKFLOW_ATIVO=false` impede exposição do Pipeline parcial.
+## OpenAI / próxima etapa
 
-## OpenAI
+A chave OpenAI foi rotacionada e a nova chave está configurada na Vercel. Nenhuma chamada paga foi feita nesta auditoria.
 
-A chave antiga foi rotacionada e a nova está configurada diretamente na Vercel. Nenhum segredo foi versionado.
+O WIP antigo de `criar_sinteses` (`0b9d739...`) foi revisado apenas como referência e **não será mesclado diretamente** porque:
 
-A IA ainda não é parte da implementação consolidada do Pipeline. A próxima etapa, `criar_sinteses`, será a primeira cognitiva e deverá ser reconstruída com:
+- usava o número `0028`, já ocupado oficialmente;
+- redefinia `backend_listar_fragmentos_documento` com assinatura incompatível com a RPC oficial `0029`;
+- usava `gpt-5.5` como placeholder;
+- não possuía step do workflow nem testes completos;
+- sua migration nunca foi validada contra o banco real.
 
-- documentação oficial atual da OpenAI revalidada;
-- Responses API;
-- `store:false`;
-- Structured Outputs/JSON Schema;
-- validação Zod;
-- cliente injetável para testes sem custo;
-- auditoria de modelo/prompt/execução;
-- SQL validado em `BEGIN ... ROLLBACK` antes de aplicação.
+A documentação oficial atual da OpenAI foi reconsultada. A nova implementação deverá escolher explicitamente o modelo por qualidade/custo, usar Responses API, `store:false`, Structured Outputs/JSON Schema e validação Zod.
 
-Nenhuma chamada real paga será executada sem confirmação do proprietário.
+Próximo marco:
 
-## Próximo marco
-
-1. fechar os gates finais do PR #14;
-2. incorporar a parte determinística auditada à `main`;
-3. verificar Production Vercel no commit de merge;
-4. sincronizar a fotografia documental pós-merge;
-5. iniciar uma branch nova para reconstruir/revisar `criar_sinteses` a partir das decisões canônicas, usando o WIP antigo apenas como referência.
+1. abrir branch nova de IA a partir da `main` consolidada;
+2. redesenhar/renumerar a migration de auditoria/sínteses após `0029`;
+3. criar testes com cliente OpenAI falso;
+4. validar SQL em `BEGIN ... ROLLBACK`;
+5. criar `criar-sinteses-step.ts` e integrar ao workflow;
+6. somente depois solicitar confirmação do proprietário para a primeira chamada real paga.
 
 ## Regra permanente
 
-Nenhuma migration aplicada é reescrita para esconder correções. Nenhum segredo é commitido. Todo resultado parcial permanece separado de Documento Processado ativo. O usuário continua sendo a autoridade final sobre autoria e incorporação ao Cérebro Autoral.
+Nenhuma migration aplicada é reescrita para esconder correções. Nenhum segredo é commitido. Conteúdo do usuário é tratado como dado, nunca instrução. O proprietário permanece a autoridade final sobre autoria e incorporação ao Cérebro Autoral.
