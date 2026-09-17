@@ -10,6 +10,18 @@ import {
   normalizarConteudoStep,
   type ResultadoNormalizacaoStep,
 } from '@/workflows/normalizar-conteudo-step'
+import {
+  identificarEstruturaStep,
+  type ResultadoIdentificacaoEstruturaStep,
+} from '@/workflows/identificar-estrutura-step'
+import {
+  criarHierarquiaStep,
+  type ResultadoCriarHierarquiaStep,
+} from '@/workflows/criar-hierarquia-step'
+import {
+  criarFragmentosStep,
+  type ResultadoCriarFragmentosStep,
+} from '@/workflows/criar-fragmentos-step'
 import { createBackendClient } from '@/infraestrutura/supabase/backend'
 
 type ContextoExecucao = {
@@ -79,6 +91,9 @@ type ResultadoProcessamentoInicial = {
   identificacaoFormato?: ResultadoFormato
   extracao?: ResultadoExtracao
   normalizacao?: ResultadoNormalizacaoStep
+  identificacaoEstrutura?: ResultadoIdentificacaoEstruturaStep
+  criacaoHierarquia?: ResultadoCriarHierarquiaStep
+  criacaoFragmentos?: ResultadoCriarFragmentosStep
 }
 
 export async function processarObraWorkflow(
@@ -173,13 +188,100 @@ export async function processarObraWorkflow(
     throw error
   }
 
+  if (!normalizacao.ok) {
+    return {
+      ok: false,
+      execucaoId,
+      validacao,
+      identificacaoFormato,
+      extracao,
+      normalizacao,
+    }
+  }
+
+  let identificacaoEstrutura: ResultadoIdentificacaoEstruturaStep
+
+  try {
+    identificacaoEstrutura = await identificarEstruturaStep(execucaoId)
+  } catch (error) {
+    const tipoErro = error instanceof Error ? error.name : 'erro_desconhecido'
+    await registrarFalhaFinalEtapa(
+      execucaoId,
+      'identificar_estrutura',
+      'IDENTIFICACAO_ESTRUTURA_ESGOTOU_RETRIES',
+      'A identificação de estrutura falhou após as tentativas automáticas do workflow.',
+      tipoErro
+    )
+    throw error
+  }
+
+  if (!identificacaoEstrutura.ok) {
+    return {
+      ok: false,
+      execucaoId,
+      validacao,
+      identificacaoFormato,
+      extracao,
+      normalizacao,
+      identificacaoEstrutura,
+    }
+  }
+
+  let criacaoHierarquia: ResultadoCriarHierarquiaStep
+
+  try {
+    criacaoHierarquia = await criarHierarquiaStep(execucaoId)
+  } catch (error) {
+    const tipoErro = error instanceof Error ? error.name : 'erro_desconhecido'
+    await registrarFalhaFinalEtapa(
+      execucaoId,
+      'criar_hierarquia',
+      'CRIACAO_HIERARQUIA_ESGOTOU_RETRIES',
+      'A criação de hierarquia falhou após as tentativas automáticas do workflow.',
+      tipoErro
+    )
+    throw error
+  }
+
+  if (!criacaoHierarquia.ok) {
+    return {
+      ok: false,
+      execucaoId,
+      validacao,
+      identificacaoFormato,
+      extracao,
+      normalizacao,
+      identificacaoEstrutura,
+      criacaoHierarquia,
+    }
+  }
+
+  let criacaoFragmentos: ResultadoCriarFragmentosStep
+
+  try {
+    criacaoFragmentos = await criarFragmentosStep(execucaoId)
+  } catch (error) {
+    const tipoErro = error instanceof Error ? error.name : 'erro_desconhecido'
+    await registrarFalhaFinalEtapa(
+      execucaoId,
+      'criar_fragmentos',
+      'CRIACAO_FRAGMENTOS_ESGOTOU_RETRIES',
+      'A criação de fragmentos falhou após as tentativas automáticas do workflow.',
+      tipoErro
+    )
+    throw error
+  }
+
   return {
-    ok: normalizacao.ok,
+    ok: criacaoFragmentos.ok,
     execucaoId,
     validacao,
     identificacaoFormato,
     extracao,
     normalizacao,
+    identificacaoEstrutura,
+    criacaoHierarquia,
+    criacaoFragmentos,
   }
 }
 

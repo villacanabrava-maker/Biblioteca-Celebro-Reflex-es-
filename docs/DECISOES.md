@@ -451,3 +451,93 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 **Decisão:** `normalizar_conteudo` converte CRLF/CR para LF e normaliza Unicode em NFC. Não usa NFKC/NFKD como regra autoral, não faz `trim`, não colapsa espaços e não reescreve pontuação/caixa/aspas/travessões/vocabulário. Páginas PDF mantêm ordem e número. Antes de criar ou reutilizar `conteudo_normalizado`, o workflow valida bytes, MIME, limites, SHA-256, tamanho, schema e a cadeia de proveniência original → extração → normalização. Em replay de etapa já avançada, o artefato é revalidado mas a transição de estado não é repetida.
 
 **Consequência:** a representação normalizada é tecnicamente consistente sem se tornar uma edição silenciosa do autor; corrupção/troca de artefato é detectada inclusive em replays duráveis.
+
+## ADR-057 — RLS habilitado nos catálogos globais como segunda camada, sem novo GRANT
+
+**Contexto:** uma auditoria completa do projeto (código, migrations e advisors) confirmou que a fundação está correta e todos os gates de CI (`npm ci`, `npm audit`, lint, typecheck, `npm test`, `npm run build`) passam neste commit. O advisor de segurança do Supabase apontava como **crítico** o RLS desabilitado em 8 tabelas de catálogo global sem `usuario_id` (`sistema.modelos_ia`, `sistema.prompts`, `sistema.versoes_prompts`, `sistema.versoes_pipeline`, `taxonomia.versoes`, `taxonomia.conceitos`, `taxonomia.termos`, `taxonomia.relacoes`). Essas tabelas já eram inalcançáveis por `anon`/`authenticated` porque `0001_fundacao` revoga todo privilégio de schema para esses papéis (ADR-002/017/036) e nenhuma migration concedeu acesso de volta; o advisor não tem visibilidade sobre esse REVOKE de schema.
+
+**Decisão:** `0022_rls_catalogos_sistema_taxonomia` habilita RLS nas 8 tabelas e cria apenas policy de `select` para `authenticated` (`using (true)`), sem policy de escrita e sem policy para `anon`. Nenhum `GRANT` de schema ou tabela é concedido nesta migration. A exposição real desses catálogos para a interface continuará exigindo view/RPC própria em `aplicacao`, conforme ADR-017, quando houver necessidade de produto.
+
+**Consequência:** o achado crítico do advisor foi eliminado sem alterar o comportamento observável do sistema hoje (o acesso continua zero via Data API). Fica registrada uma segunda camada de defesa independente do REVOKE de schema: se um GRANT for concedido por engano no futuro, a leitura continuará restrita a `authenticated` e a escrita permanecerá bloqueada. O aviso externo restante do advisor (`Leaked Password Protection Disabled`) permanece pendência de configuração de Auth (ADR-039), fora do alcance de migration SQL.
+
+## ADR-058 — `identificar_estrutura` usa sinais determinísticos com guarda contra falso positivo de numeral romano
+
+**Contexto:** a etapa precisa detectar partes/capítulos/seções sem inventar hierarquia onde houver ambiguidade (regra canônica). Um primeiro desenho usando `[ivxlcdm]+` case-insensitive após "Parte"/"Capítulo" gerava falsos positivos graves: palavras comuns do português inteiramente compostas por letras válidas em numeral romano (ex.: "civil", "dividi") seriam lidas como numeral quando a checagem ignorava caixa.
+
+**Decisão:** o numeral após "Parte"/"Capítulo" só é aceito em algarismos arábicos ou numerais romanos **maiúsculos** (comparação sensível a caixa); "Seção"/"Subseção" aceitam apenas algarismo arábico (`1`, `1.2`, ...); "Anexo" aceita algarismo ou letra maiúscula única. Marcadores só são avaliados em linhas de até 120 caracteres (título, não parágrafo de prosa). Cabeçalhos Markdown (`#`...`######`) são sinal de alta confiança só quando o formato do documento é `markdown`. "Prefácio"/"Posfácio" exigem a linha inteira, isolada. Uma linha inteiramente maiúscula e curta é candidata de **baixa confiança**, sem `tipo_sugerido`. Sem nenhum sinal de alta confiança, `possui_indicios_estruturais` é `false` e a lista de unidades pode ficar vazia — a etapa não força estrutura. A etapa não materializa `processamento.secoes`; produz um artefato de evidência (`estrutura_identificada`, migration `0023`) versionado e ligado por hash a `conteudo_normalizado`/`conteudo_extraido`/original, reutilizando `validarArtefatoNormalizado` para herdar toda a cadeia de proveniência já validada.
+
+**Consequência:** o detector é auditável, testado (8 casos novos) e documentado como heurística v1 com limitação conhecida (não usa NLP nem confirma numerais romanos minúsculos); `criar_hierarquia` decide com essa evidência em mãos, incluindo o caso `possui_indicios_estruturais = false`, sem que esta etapa tenha assumido essa decisão por ela.
+
+## ADR-059 — Estados do workflow mapeiam `identificar_estrutura` para `estruturando`→`segmentando`
+
+**Contexto:** os estados de `processamento.execucoes` (ADR-004/migration `0008`) não têm relação 1:1 com as 14 etapas do pipeline; cada estado cobre uma fase mais ampla.
+
+**Decisão:** `identificar_estrutura` roda com `estado_execucao = 'estruturando'` (o mesmo estado para o qual `normalizar_conteudo` já avançava a execução) e, ao concluir, avança para `estado = 'segmentando'`, `etapa = 'criar_hierarquia'`.
+
+**Consequência:** mantém a convenção existente sem exigir novos valores de estado; `criar_hierarquia` e `criar_fragmentos` (ambas etapas de segmentação) poderão compartilhar `segmentando` até haver motivo para diferenciá-las.
+
+## ADR-060 — `allowImportingTsExtensions` habilitado para permitir import `.ts` explícito entre módulos de domínio
+
+**Contexto:** `identificar-estrutura.ts` precisa importar em runtime (não apenas tipos) `validarArtefatoNormalizado` de `normalizar-conteudo.ts`. O test runner nativo do Node (usado por `npm test`, sem bundler) exige extensão explícita para resolver um import de valor entre dois arquivos `.ts`; sem a extensão, a suíte falhava com `ERR_MODULE_NOT_FOUND`. `tsc`, por padrão, rejeita a extensão `.ts` explícita no import.
+
+**Decisão:** habilitar `"allowImportingTsExtensions": true` em `tsconfig.json` (compatível com `noEmit: true`, já vigente) e importar com extensão explícita (`from './normalizar-conteudo.ts'`) apenas quando o import cruza arquivos de domínio com dependência de valor em runtime, como neste caso.
+
+**Consequência:** `npm run typecheck`, `npm test` e `npm run build` passam juntos no mesmo commit; a convenção vale para futuros imports de valor entre módulos de `src/dominios/**` executados diretamente pelo test runner nativo.
+
+## ADR-061 — `criar_hierarquia` monta a árvore por pilha de níveis; Anexo/Prefácio/Posfácio nunca são container
+
+**Contexto:** `identificar_estrutura` apenas detecta sinais; alguém precisa decidir a árvore de pai/filho a partir de uma lista plana e ordenada de marcadores. Um "Capítulo" após uma "Parte" pertence a ela; um "Anexo" ou "Prefácio" no meio de dois capítulos não deveria "engolir" o capítulo seguinte como se fosse filho dele.
+
+**Decisão:** usar o algoritmo clássico de construção de árvore de títulos por pilha de níveis (o mesmo princípio usado para montar sumários a partir de cabeçalhos Markdown): `parte` (nível 0) < `capitulo` (nível 1, ou 0 se não houver Parte) < `secao` < `subsecao`; ao encontrar um marcador, a pilha é esvaziada até sobrar apenas ancestrais de nível mais raso, e o topo restante vira o pai. `anexo`, `prefacio` e `posfacio` nunca entram nessa pilha: são sempre inseridos como filhos diretos do documento (`secao_pai_id = null`), preservando a ordem, mas nunca funcionando como container. Cabeçalho Markdown sem `tipo_sugerido` é convertido por `nivel_markdown` (1→capítulo, 2→seção, 3+→subseção) — uma escolha explícita, não uma medição, registrada como ajustável caso o padrão real de uso do Markdown pelo autor se mostre diferente.
+
+**Consequência:** a árvore resultante é determinística, testável e nunca depende de heurística estatística; o mapeamento Markdown pode ser recalibrado sem alterar o algoritmo de pilha.
+
+## ADR-062 — Página final de uma seção em PDF é estimada pelo início da próxima seção que a encerra
+
+**Contexto:** os sinais só sabem em qual página um marcador de título ocorreu (`pagina_inicial`); a tabela `processamento.secoes` também espera `pagina_final`, mas nada nesta versão mede a linha exata onde uma seção termina dentro da página.
+
+**Decisão:** `pagina_final` de uma seção é a página em que a próxima seção de nível igual ou mais externo começa, menos uma página (nunca menor que a própria `pagina_inicial`); para o último nó do documento, usa-se o total de páginas. Anexo/Prefácio/Posfácio são sempre encerrados pelo item seguinte, qualquer que seja seu tipo.
+
+**Consequência:** o intervalo de páginas é uma aproximação de granularidade por página (documentada como limitação conhecida), suficiente para navegação e para a próxima etapa (`criar_fragmentos`) localizar o texto de origem; poderá ser refinado quando houver sinal mais preciso (ex.: posição de linha dentro da página).
+
+## ADR-063 — `criar_hierarquia` materializa via RPC idempotente única, sem GRANT direto às tabelas internas
+
+**Contexto:** `processamento.documentos_processados` e `processamento.secoes` são schemas internos (ADR-002/036); o backend não tem acesso direto a eles, apenas via RPC `SECURITY DEFINER`. A criação do documento e das seções precisa sobreviver a um retry do Workflow sem duplicar linhas.
+
+**Decisão:** uma única função (`aplicacao.backend_criar_hierarquia_documento`, migration `0024`) recebe a lista de seções já resolvida (com UUIDs e vínculos de pai já calculados no backend) e: (1) deriva `usuario_id`/`obra_id`/`titulo` a partir de `processamento.execucoes` e `biblioteca.*`, nunca confiando em identificadores enviados pelo cliente (ADR-018); (2) se já existir um Documento Processado para a execução, retorna o existente sem tocar nas seções; (3) caso contrário, insere o documento (`estado = 'candidato'`) e percorre a lista de seções em ordem, inserindo pai antes de filho. Validado manualmente contra o Supabase oficial dentro de uma transação com `ROLLBACK` (sem dado permanente criado): documento e 3 seções de teste foram criados corretamente, com vínculo pai/filho certo, e uma segunda chamada confirmou idempotência (retornou o mesmo documento, sem duplicar).
+
+**Consequência:** o mesmo padrão de segurança e idempotência das etapas anteriores é preservado; nenhuma tabela interna nova precisou de GRANT para `anon`/`authenticated`/`service_role` direto.
+
+## ADR-064 — `secoes` ganha `indice_inicio`/`indice_fim` porque `pagina_final`/`indice_fim` de container não serve para recorte de texto
+
+**Contexto:** `criar_fragmentos` precisa saber exatamente qual trecho do `conteudo_normalizado` pertence a cada seção. O Dicionário Mestre não previa colunas de posição em caractere em `secoes` (só `pagina_inicial`/`pagina_final`, pensadas para PDF). Em texto/markdown não há páginas, então nada permitia recortar o texto de uma seção sem adivinhar.
+
+**Decisão:** `0025` adiciona `indice_inicio`/`indice_fim` (inteiros, nulos em PDF) a `processamento.secoes`, com o mesmo significado de `pagina_inicial`/`pagina_final`: a extensão de **toda a subárvore** (incluindo subseções), útil para exibir "este capítulo ocupa estas posições/páginas". Essa é uma extensão aditiva do schema (duas colunas nulas por padrão), não uma alteração de nome/vocabulário do Dicionário.
+
+**Consequência:** `criar_fragmentos` **não usa diretamente** `pagina_final`/`indice_fim` para recortar texto (ver ADR-065) — usa-os apenas para saber "até onde vai a estrutura", que é uma pergunta diferente de "até onde vai o texto próprio desta seção, sem incluir o das filhas".
+
+## ADR-065 — Texto próprio de uma seção vai até a próxima seção na ordem de leitura, não até o fim da sua subárvore
+
+**Contexto:** o primeiro esboço de `criar_fragmentos` recortava o texto de cada seção usando diretamente `pagina_final`/`indice_fim` (a extensão da subárvore inteira, calculada em `criar_hierarquia`). Um teste unitário pegou o problema de imediato: o fragmento de "Capítulo 1" incluía o texto inteiro de "Seção 1.1" (sua filha), e a "Seção 1.1" também gerava seu próprio fragmento com o mesmo texto — duplicação real de conteúdo entre fragmentos.
+
+**Decisão:** o texto **próprio** de uma seção (o que vira fragmento) vai do início dela até o início da **seção seguinte na ordem de leitura do documento inteiro** (`ordem + 1`), qualquer que seja o tipo dela — filha ou não. Para uma seção-folha (sem filhas), esse cálculo coincide exatamente com o "fim da subárvore", porque nada se intromete antes do próximo título; a diferença só aparece em seções-container, que corretamente passam a gerar um fragmento curto (só sua introdução, se houver) em vez de repetir o conteúdo das filhas.
+
+**Consequência:** nenhuma duplicação de texto entre o fragmento de uma seção-pai e o de suas seções-filhas. Testado explicitamente (`cada seção real vira um fragmento... texto recortado corretamente`, que verifica que o fragmento do capítulo não contém o texto da seção interna).
+
+## ADR-066 — Um título sem nenhum corpo depois dele não gera fragmento
+
+**Contexto:** um documento pode ter dois títulos em sequência (ex.: "Capítulo 1" imediatamente seguido de "Capítulo 2", sem nenhum parágrafo entre eles). O texto "próprio" de "Capítulo 1" nesse caso é apenas a própria linha do título, tecnicamente não vazia.
+
+**Decisão:** quando o texto extraído de uma seção é exatamente igual ao seu próprio `titulo`, nenhum fragmento é criado para ela — o título já está registrado em `secoes.titulo`, e um fragmento idêntico a ele não agregaria informação nova. Isso não cobre o caso equivalente em cabeçalho Markdown (cujo título armazenado não inclui os `#`), uma limitação conhecida e aceitável para a v1.
+
+**Consequência:** fragmentos "vazios de conteúdo" (só repetindo um título) não poluem a base, sem inventar nem descartar informação real.
+
+## ADR-067 — Dois erros de `backend_criar_fragmentos_documento` encontrados e corrigidos pela validação manual contra o Supabase real
+
+**Contexto:** como nas etapas anteriores, a função de banco foi validada manualmente contra o schema real do Supabase oficial dentro de uma transação com `ROLLBACK` antes de ser considerada pronta.
+
+**Decisão/achados:**
+1. `GET DIAGNOSTICS ... = row_count` logo após o laço `for ... loop insert ...` só reflete a última linha inserida no laço, não o total do lote — com 2 fragmentos inseridos, a função relatava e gravava `quantidade_fragmentos = 1`. Corrigido contando de verdade com `select count(*)` após o laço inteiro (`0026`).
+2. A correção acima usava `documento_processado_id` sem qualificar a tabela; como esse nome também é uma coluna de saída da própria função (`returns table (documento_processado_id uuid, ...)`), o Postgres recusava a execução com `column reference "documento_processado_id" is ambiguous` (42702). Corrigido qualificando a tabela com alias (`0027`).
+
+**Consequência:** nenhuma das duas falhas chegou a rodar contra dado real — nenhuma migration aplicada foi reescrita (ADR-025); cada correção é uma nova migration, exatamente a disciplina que o projeto já seguia. Reforça a prática de validar manualmente toda função `SECURITY DEFINER` nova contra o schema real, dentro de uma transação revertida, antes de confiar nela.

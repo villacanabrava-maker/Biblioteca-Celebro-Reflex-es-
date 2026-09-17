@@ -10,6 +10,16 @@ import {
   normalizarArtefatoExtraido,
   validarArtefatoNormalizado,
 } from '../../src/dominios/processamento/normalizar-conteudo.ts'
+import {
+  identificarEstruturaArtefatoNormalizado,
+  validarArtefatoEstrutura,
+} from '../../src/dominios/processamento/identificar-estrutura.ts'
+import { construirHierarquiaDocumento } from '../../src/dominios/processamento/criar-hierarquia.ts'
+import {
+  montarFragmentosDocumento,
+  construirBreadcrumb,
+  estimarQuantidadeTokens,
+} from '../../src/dominios/processamento/criar-fragmentos.ts'
 
 const encoder = new TextEncoder()
 
@@ -304,4 +314,562 @@ test('artefato normalizado é rejeitado se apontar para outra extração', () =>
 
   assert.equal(validacao.ok, false)
   if (!validacao.ok) assert.equal(validacao.codigo, 'ARTEFATO_NORMALIZADO_ORIGEM_DIVERGENTE')
+})
+
+function artefatoNormalizadoTexto(conteudo, formato = 'texto') {
+  return {
+    schema_version: 1,
+    formato,
+    encoding: 'utf-8',
+    metodo: 'normalizacao_tecnica_nfc_v1',
+    fonte: {
+      nome_arquivo: formato === 'markdown' ? 'ensaio.md' : 'ensaio.txt',
+      tipo_mime_registrado: formato === 'markdown' ? 'text/markdown' : 'text/plain',
+      hash_sha256_original: 'e'.repeat(64),
+      hash_sha256_artefato_extraido: '5'.repeat(64),
+    },
+    total_paginas: null,
+    conteudo,
+    normalizacao: {
+      unicode: 'NFC',
+      quebras_linha: 'LF',
+      preserva_espacos_internos: true,
+      alteracoes: {
+        quebras_crlf_convertidas: 0,
+        quebras_cr_isoladas_convertidas: 0,
+        segmentos_alterados_nfc: 0,
+        caracteres_antes: conteudo.length,
+        caracteres_depois: conteudo.length,
+      },
+    },
+  }
+}
+
+function artefatoNormalizadoPdf(paginas) {
+  return {
+    schema_version: 1,
+    formato: 'pdf',
+    encoding: 'utf-8',
+    metodo: 'normalizacao_tecnica_nfc_v1',
+    fonte: {
+      nome_arquivo: 'livro.pdf',
+      tipo_mime_registrado: 'application/pdf',
+      hash_sha256_original: 'e'.repeat(64),
+      hash_sha256_artefato_extraido: '5'.repeat(64),
+    },
+    total_paginas: paginas.length,
+    paginas,
+    normalizacao: {
+      unicode: 'NFC',
+      quebras_linha: 'LF',
+      preserva_espacos_internos: true,
+      alteracoes: {
+        quebras_crlf_convertidas: 0,
+        quebras_cr_isoladas_convertidas: 0,
+        segmentos_alterados_nfc: 0,
+        caracteres_antes: 0,
+        caracteres_depois: 0,
+      },
+    },
+  }
+}
+
+function identificarEstrutura(artefato) {
+  return identificarEstruturaArtefatoNormalizado({
+    bytes: bytes(JSON.stringify(artefato)),
+    hashArtefatoNormalizado: '8'.repeat(64),
+    hashOriginalEsperado: artefato.fonte.hash_sha256_original,
+    hashArtefatoExtraidoEsperado: artefato.fonte.hash_sha256_artefato_extraido,
+  })
+}
+
+test('identifica cabeçalhos Markdown com nível e marca indícios estruturais de alta confiança', () => {
+  const artefato = artefatoNormalizadoTexto(
+    '# Capítulo Um\n\nTexto do capítulo.\n\n## Uma seção interna\n\nMais texto.',
+    'markdown'
+  )
+  const resultado = identificarEstrutura(artefato)
+
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+
+  assert.equal(resultado.artefato.possui_indicios_estruturais, true)
+  assert.equal(resultado.artefato.unidades.length, 2)
+  assert.equal(resultado.artefato.unidades[0].tipo_sinal, 'cabecalho_markdown')
+  assert.equal(resultado.artefato.unidades[0].nivel_markdown, 1)
+  assert.equal(resultado.artefato.unidades[0].titulo_detectado, 'Capítulo Um')
+  assert.equal(resultado.artefato.unidades[1].nivel_markdown, 2)
+  assert.equal(resultado.artefato.unidades[0].confianca, 'alta')
+})
+
+test('identifica marcadores numerados em texto plano e ignora prosa que apenas menciona a palavra-chave', () => {
+  const artefato = artefatoNormalizadoTexto(
+    [
+      'Capítulo 1',
+      '',
+      'Tudo começou em uma tarde qualquer.',
+      '',
+      'Parte civil do processo não é mencionada aqui como título.',
+      '',
+      'Capítulo II',
+      '',
+      'A história continua.',
+    ].join('\n')
+  )
+
+  const resultado = identificarEstrutura(artefato)
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+
+  const sinais = resultado.artefato.unidades.filter((u) => u.tipo_sinal === 'marcador_numerado')
+  assert.equal(sinais.length, 2)
+  assert.equal(sinais[0].tipo_sugerido, 'capitulo')
+  assert.equal(sinais[0].titulo_detectado, 'Capítulo 1')
+  assert.equal(sinais[1].titulo_detectado, 'Capítulo II')
+  assert.equal(
+    resultado.artefato.unidades.some((u) => u.titulo_detectado.startsWith('Parte civil')),
+    false
+  )
+})
+
+test('reconhece Prefácio e Posfácio isolados, mas não quando fazem parte de uma frase', () => {
+  const artefato = artefatoNormalizadoTexto(
+    [
+      'Prefácio',
+      '',
+      'Escrevo estas linhas antes de tudo.',
+      '',
+      'Este não é o prefácio do livro, apenas uma menção.',
+      '',
+      'Posfácio',
+    ].join('\n')
+  )
+
+  const resultado = identificarEstrutura(artefato)
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+
+  const isolados = resultado.artefato.unidades.filter((u) => u.tipo_sinal === 'marcador_isolado')
+  assert.equal(isolados.length, 2)
+  assert.deepEqual(isolados.map((u) => u.tipo_sugerido).sort(), ['posfacio', 'prefacio'])
+})
+
+test('em PDF, preserva o número da página de cada sinal detectado', () => {
+  const artefato = artefatoNormalizadoPdf([
+    { numero: 1, conteudo: 'Capítulo 1\n\nTexto da primeira página.' },
+    { numero: 2, conteudo: 'Texto contínuo sem nenhum marcador nesta página.' },
+  ])
+
+  const resultado = identificarEstrutura(artefato)
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+
+  assert.equal(resultado.artefato.unidades.length, 1)
+  assert.equal(resultado.artefato.unidades[0].pagina, 1)
+})
+
+test('sem sinais de alta confiança, preserva a incerteza em vez de inventar estrutura', () => {
+  const artefato = artefatoNormalizadoTexto(
+    'Um texto corrido, sem capítulos nem seções nomeadas, apenas reflexão contínua ao longo de várias linhas.'
+  )
+
+  const resultado = identificarEstrutura(artefato)
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+
+  assert.equal(resultado.artefato.possui_indicios_estruturais, false)
+  assert.equal(resultado.artefato.unidades.length, 0)
+})
+
+test('linha inteiramente maiúscula é candidata de baixa confiança, sem tipo definido', () => {
+  const artefato = artefatoNormalizadoTexto('INTRODUÇÃO\n\nConteúdo normal do parágrafo aqui.')
+
+  const resultado = identificarEstrutura(artefato)
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+
+  assert.equal(resultado.artefato.unidades.length, 1)
+  assert.equal(resultado.artefato.unidades[0].tipo_sinal, 'linha_maiuscula_candidata')
+  assert.equal(resultado.artefato.unidades[0].confianca, 'baixa')
+  assert.equal(resultado.artefato.unidades[0].tipo_sugerido, null)
+  assert.equal(resultado.artefato.possui_indicios_estruturais, false)
+})
+
+test('identificação de estrutura propaga rejeição quando o artefato normalizado não pertence à execução', () => {
+  const artefato = artefatoNormalizadoTexto('Conteúdo qualquer.')
+
+  const resultado = identificarEstruturaArtefatoNormalizado({
+    bytes: bytes(JSON.stringify(artefato)),
+    hashArtefatoNormalizado: '8'.repeat(64),
+    hashOriginalEsperado: '9'.repeat(64),
+    hashArtefatoExtraidoEsperado: artefato.fonte.hash_sha256_artefato_extraido,
+  })
+
+  assert.equal(resultado.ok, false)
+  if (!resultado.ok) assert.equal(resultado.codigo, 'ARTEFATO_NORMALIZADO_ORIGEM_DIVERGENTE')
+})
+
+test('validarArtefatoEstrutura aceita a cadeia correta e rejeita proveniência divergente', () => {
+  const artefato = artefatoNormalizadoTexto('# Capítulo Um\n\nTexto.', 'markdown')
+  const identificacao = identificarEstrutura(artefato)
+  assert.equal(identificacao.ok, true)
+  if (!identificacao.ok) return
+
+  const bytesEstrutura = bytes(JSON.stringify(identificacao.artefato))
+
+  const valido = validarArtefatoEstrutura({
+    bytes: bytesEstrutura,
+    hashOriginalEsperado: artefato.fonte.hash_sha256_original,
+    hashArtefatoExtraidoEsperado: artefato.fonte.hash_sha256_artefato_extraido,
+    hashArtefatoNormalizadoEsperado: '8'.repeat(64),
+  })
+  assert.equal(valido.ok, true)
+
+  const divergente = validarArtefatoEstrutura({
+    bytes: bytesEstrutura,
+    hashOriginalEsperado: artefato.fonte.hash_sha256_original,
+    hashArtefatoExtraidoEsperado: artefato.fonte.hash_sha256_artefato_extraido,
+    hashArtefatoNormalizadoEsperado: 'a'.repeat(64),
+  })
+  assert.equal(divergente.ok, false)
+  if (!divergente.ok) assert.equal(divergente.codigo, 'ARTEFATO_ESTRUTURA_ORIGEM_DIVERGENTE')
+})
+
+function unidadeAlta({ tipoSugerido = null, nivelMarkdown = null, titulo, pagina = null, indiceInicio = 0 }) {
+  return {
+    ordem: 0,
+    tipo_sinal: tipoSugerido ? 'marcador_numerado' : 'cabecalho_markdown',
+    tipo_sugerido: tipoSugerido,
+    nivel_markdown: nivelMarkdown,
+    titulo_detectado: titulo,
+    confianca: 'alta',
+    pagina,
+    indice_inicio: indiceInicio,
+    indice_fim: indiceInicio,
+  }
+}
+
+function unidadeBaixa(titulo) {
+  return {
+    ordem: 0,
+    tipo_sinal: 'linha_maiuscula_candidata',
+    tipo_sugerido: null,
+    nivel_markdown: null,
+    titulo_detectado: titulo,
+    confianca: 'baixa',
+    pagina: null,
+    indice_inicio: 0,
+    indice_fim: 0,
+  }
+}
+
+test('sem sinais de alta confiança, criar_hierarquia produz uma única seção para o documento inteiro', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [unidadeBaixa('TALVEZ UM TÍTULO')],
+    totalPaginas: null,
+    totalCaracteres: null,
+  })
+
+  assert.equal(nos.length, 1)
+  assert.equal(nos[0].secao_pai_id, null)
+  assert.equal(nos[0].tipo, 'secao')
+  assert.equal(nos[0].nivel_hierarquico, 0)
+  assert.equal(nos[0].titulo, null)
+})
+
+test('capítulos sem Parte ficam como irmãos no nível raiz', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1' }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 2' }),
+    ],
+    totalPaginas: null,
+    totalCaracteres: null,
+  })
+
+  assert.equal(nos.length, 2)
+  assert.equal(nos[0].secao_pai_id, null)
+  assert.equal(nos[1].secao_pai_id, null)
+  assert.equal(nos[0].ordem, 1)
+  assert.equal(nos[1].ordem, 2)
+})
+
+test('Parte > Capítulo > Seção > Subseção formam uma cadeia de ancestrais correta', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ tipoSugerido: 'parte', titulo: 'Parte I' }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1' }),
+      unidadeAlta({ tipoSugerido: 'secao', titulo: 'Seção 1.1' }),
+      unidadeAlta({ tipoSugerido: 'subsecao', titulo: 'Subseção 1.1.1' }),
+    ],
+    totalPaginas: null,
+    totalCaracteres: null,
+  })
+
+  const [parte, capitulo, secao, subsecao] = nos
+  assert.equal(parte.secao_pai_id, null)
+  assert.equal(capitulo.secao_pai_id, parte.id)
+  assert.equal(secao.secao_pai_id, capitulo.id)
+  assert.equal(subsecao.secao_pai_id, secao.id)
+  assert.deepEqual(
+    nos.map((n) => n.nivel_hierarquico),
+    [0, 1, 2, 3]
+  )
+})
+
+test('uma nova Parte fecha a Parte anterior; Capítulo depois dela pertence à nova Parte', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ tipoSugerido: 'parte', titulo: 'Parte I' }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1' }),
+      unidadeAlta({ tipoSugerido: 'parte', titulo: 'Parte II' }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 2' }),
+    ],
+    totalPaginas: null,
+    totalCaracteres: null,
+  })
+
+  const [parteI, capitulo1, parteII, capitulo2] = nos
+  assert.equal(capitulo1.secao_pai_id, parteI.id)
+  assert.equal(capitulo2.secao_pai_id, parteII.id)
+  assert.notEqual(parteI.id, parteII.id)
+})
+
+test('Prefácio/Posfácio/Anexo nunca viram pai de capítulo, mesmo aparecendo entre eles', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ tipoSugerido: 'prefacio', titulo: 'Prefácio' }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1' }),
+      unidadeAlta({ tipoSugerido: 'posfacio', titulo: 'Posfácio' }),
+      unidadeAlta({ tipoSugerido: 'anexo', titulo: 'Anexo A' }),
+    ],
+    totalPaginas: null,
+    totalCaracteres: null,
+  })
+
+  for (const no of nos) {
+    assert.equal(no.secao_pai_id, null)
+  }
+})
+
+test('cabeçalhos Markdown sem tipo_sugerido são mapeados por nível e aninhados', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ nivelMarkdown: 1, titulo: 'Capítulo Um' }),
+      unidadeAlta({ nivelMarkdown: 2, titulo: 'Uma seção' }),
+      unidadeAlta({ nivelMarkdown: 3, titulo: 'Uma subseção' }),
+    ],
+    totalPaginas: null,
+    totalCaracteres: null,
+  })
+
+  assert.deepEqual(
+    nos.map((n) => n.tipo),
+    ['capitulo', 'secao', 'subsecao']
+  )
+  assert.equal(nos[1].secao_pai_id, nos[0].id)
+  assert.equal(nos[2].secao_pai_id, nos[1].id)
+})
+
+test('em PDF, a página final de cada seção respeita o início da próxima seção que a encerra', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1', pagina: 1 }),
+      unidadeAlta({ tipoSugerido: 'secao', titulo: 'Seção 1.1', pagina: 2 }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 2', pagina: 5 }),
+    ],
+    totalPaginas: 8,
+    totalCaracteres: null,
+  })
+
+  const [capitulo1, secao11, capitulo2] = nos
+  assert.equal(capitulo1.pagina_inicial, 1)
+  assert.equal(capitulo1.pagina_final, 4) // termina antes do próximo capítulo (pág. 5)
+  assert.equal(secao11.pagina_inicial, 2)
+  assert.equal(secao11.pagina_final, 4) // termina antes do próximo capítulo, que também fecha a seção
+  assert.equal(capitulo2.pagina_inicial, 5)
+  assert.equal(capitulo2.pagina_final, 8) // último nó: vai até o fim do documento
+})
+
+test('em texto/markdown, cada seção recebe posição em caracteres para recorte exato do conteúdo', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1', indiceInicio: 0 }),
+      unidadeAlta({ tipoSugerido: 'secao', titulo: 'Seção 1.1', indiceInicio: 20 }),
+      unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 2', indiceInicio: 50 }),
+    ],
+    totalPaginas: null,
+    totalCaracteres: 80,
+  })
+
+  const [capitulo1, secao11, capitulo2] = nos
+  assert.equal(capitulo1.indice_inicio, 0)
+  assert.equal(capitulo1.indice_fim, 50) // Seção 1.1 é filha dele; só o próximo Capítulo o encerra
+  assert.equal(secao11.indice_inicio, 20)
+  assert.equal(secao11.indice_fim, 50) // o próximo capítulo também encerra a seção
+  assert.equal(capitulo2.indice_inicio, 50)
+  assert.equal(capitulo2.indice_fim, 80) // último nó: vai até o fim do texto
+})
+
+test('sem sinais de alta confiança em texto/markdown, a seção única cobre do início ao fim do texto', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [unidadeBaixa('TALVEZ UM TÍTULO')],
+    totalPaginas: null,
+    totalCaracteres: 42,
+  })
+
+  assert.equal(nos[0].indice_inicio, 0)
+  assert.equal(nos[0].indice_fim, 42)
+})
+
+test('em PDF, a posição em caracteres não é preenchida (usa página, não índice)', () => {
+  const nos = construirHierarquiaDocumento({
+    unidades: [unidadeAlta({ tipoSugerido: 'capitulo', titulo: 'Capítulo 1', pagina: 1 })],
+    totalPaginas: 3,
+    totalCaracteres: null,
+  })
+
+  assert.equal(nos[0].indice_inicio, null)
+  assert.equal(nos[0].indice_fim, null)
+})
+
+function nosParaSecoes(nos) {
+  return nos.map((no) => ({
+    secao_id: no.id,
+    secao_pai_id: no.secao_pai_id,
+    codigo: no.codigo,
+    tipo: no.tipo,
+    titulo: no.titulo,
+    ordem: no.ordem,
+    pagina_inicial: no.pagina_inicial,
+    pagina_final: no.pagina_final,
+    indice_inicio: no.indice_inicio,
+    indice_fim: no.indice_fim,
+  }))
+}
+
+// Usa identificar_estrutura + criar_hierarquia de verdade para gerar seções
+// com indice_inicio/indice_fim reais, evitando calcular offsets à mão.
+function prepararSecoesDeTexto(conteudo, formato = 'texto') {
+  const artefato = artefatoNormalizadoTexto(conteudo, formato)
+  const identificacao = identificarEstrutura(artefato)
+  assert.equal(identificacao.ok, true)
+
+  const nos = construirHierarquiaDocumento({
+    unidades: identificacao.artefato.unidades,
+    totalPaginas: identificacao.artefato.total_paginas,
+    totalCaracteres: identificacao.artefato.total_caracteres,
+  })
+
+  return { artefato, secoes: nosParaSecoes(nos) }
+}
+
+test('estimarQuantidadeTokens é uma aproximação determinística por tamanho do texto', () => {
+  assert.equal(estimarQuantidadeTokens('abcd'), 1)
+  assert.equal(estimarQuantidadeTokens('a'.repeat(400)), 100)
+  assert.equal(estimarQuantidadeTokens(''), 1)
+})
+
+test('documento sem indícios estruturais gera um único fragmento, sem breadcrumb', () => {
+  const { artefato, secoes } = prepararSecoesDeTexto(
+    'Um texto corrido, sem capítulos nem seções nomeadas, apenas reflexão contínua.'
+  )
+
+  const fragmentos = montarFragmentosDocumento({ secoes, normalizado: artefato })
+
+  assert.equal(fragmentos.length, 1)
+  assert.equal(fragmentos[0].codigo, 'FRAG-0001')
+  assert.equal(fragmentos[0].conteudo, artefato.conteudo)
+  assert.equal(fragmentos[0].conteudo_contextualizado, artefato.conteudo)
+})
+
+test('cada seção real vira um fragmento com breadcrumb de ancestrais e texto recortado corretamente', () => {
+  const { artefato, secoes } = prepararSecoesDeTexto(
+    [
+      'Capítulo 1',
+      '',
+      'Texto do capítulo um.',
+      '',
+      'Seção 1.1',
+      '',
+      'Texto da seção um ponto um.',
+    ].join('\n')
+  )
+
+  const fragmentos = montarFragmentosDocumento({ secoes, normalizado: artefato })
+
+  assert.equal(fragmentos.length, 2)
+  assert.match(fragmentos[0].conteudo, /Texto do capítulo um\./)
+  assert.equal(fragmentos[0].conteudo.includes('Seção 1.1'), false)
+  assert.equal(fragmentos[0].conteudo_contextualizado.startsWith('Capítulo 1\n\n'), true)
+
+  assert.match(fragmentos[1].conteudo, /Texto da seção um ponto um\./)
+  assert.equal(fragmentos[1].conteudo_contextualizado.startsWith('Capítulo 1 > Seção 1.1\n\n'), true)
+})
+
+test('uma seção sem nenhum texto entre dois títulos não gera fragmento', () => {
+  const { artefato, secoes } = prepararSecoesDeTexto(
+    ['Capítulo 1', '', 'Capítulo 2', '', 'Texto do capítulo dois.'].join('\n')
+  )
+
+  const fragmentos = montarFragmentosDocumento({ secoes, normalizado: artefato })
+
+  assert.equal(fragmentos.length, 1)
+  assert.match(fragmentos[0].conteudo, /Texto do capítulo dois\./)
+  assert.equal(fragmentos[0].conteudo_contextualizado.startsWith('Capítulo 2\n\n'), true)
+})
+
+test('em PDF, o fragmento de uma seção concatena as páginas do seu intervalo', () => {
+  const artefato = artefatoNormalizadoPdf([
+    { numero: 1, conteudo: 'Primeira página do capítulo.' },
+    { numero: 2, conteudo: 'Segunda página do mesmo capítulo.' },
+    { numero: 3, conteudo: 'Página do próximo capítulo.' },
+  ])
+
+  const secoes = [
+    {
+      secao_id: 'sec-1',
+      secao_pai_id: null,
+      codigo: 'SEC-0001',
+      tipo: 'capitulo',
+      titulo: 'Capítulo 1',
+      ordem: 1,
+      pagina_inicial: 1,
+      pagina_final: 2,
+      indice_inicio: null,
+      indice_fim: null,
+    },
+    {
+      secao_id: 'sec-2',
+      secao_pai_id: null,
+      codigo: 'SEC-0002',
+      tipo: 'capitulo',
+      titulo: 'Capítulo 2',
+      ordem: 2,
+      pagina_inicial: 3,
+      pagina_final: 3,
+      indice_inicio: null,
+      indice_fim: null,
+    },
+  ]
+
+  const fragmentos = montarFragmentosDocumento({ secoes, normalizado: artefato })
+
+  assert.equal(fragmentos.length, 2)
+  assert.match(fragmentos[0].conteudo, /Primeira página/)
+  assert.match(fragmentos[0].conteudo, /Segunda página/)
+  assert.equal(fragmentos[0].conteudo.includes('próximo capítulo'), false)
+  assert.match(fragmentos[1].conteudo, /próximo capítulo/)
+})
+
+test('construirBreadcrumb ignora ancestrais sem título e não quebra sem pai', () => {
+  const mapa = new Map([
+    ['raiz', { secao_id: 'raiz', secao_pai_id: null, titulo: null, tipo: 'secao' }],
+  ])
+
+  const secaoSemTitulo = mapa.get('raiz')
+  assert.equal(construirBreadcrumb(secaoSemTitulo, mapa), '')
+
+  const secaoComTitulo = { secao_id: 'a', secao_pai_id: null, titulo: 'Prefácio', tipo: 'prefacio' }
+  assert.equal(construirBreadcrumb(secaoComTitulo, new Map([['a', secaoComTitulo]])), 'Prefácio')
 })

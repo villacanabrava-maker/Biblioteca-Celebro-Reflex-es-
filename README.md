@@ -10,7 +10,7 @@ Plataforma de **Inteligência Autoral Personalizada** para preservar a produçã
 
 O ativo principal é o **Cérebro Autoral**: uma representação estruturada, versionada e auditável da metodologia de pensamento, interpretação, associação, argumentação, escrita, revisão, arquitetura narrativa, recursos retóricos, identidade linguística, relação experiência–conceito, padrões de tensão/síntese, universo conceitual e evolução autoral.
 
-A IA poderá interpretar, organizar, relacionar, recuperar contexto, planejar e redigir. Ela **não** define silenciosamente a identidade do usuário, não converte referência externa em autoria e não transforma uma saída livre de modelo em verdade canônica sem validação.
+A IA poderá interpretar, organizar, relacionar, recuperar contexto, planejar e redigir. Ela **não** define silenciosamente a identidade do usuário, não converte referência externa em autoria e não transforma saída livre de modelo em verdade canônica sem validação.
 
 ```text
 BIBLIOTECA
@@ -36,6 +36,8 @@ APRENDIZADO CONTROLADO
 
 Aprovar uma reflexão não significa incorporá-la automaticamente ao Cérebro. Conteúdo novo só vira evidência autoral por ação explícita e deve percorrer novamente Biblioteca → Processamento → Documento Processado → Cérebro.
 
+Regra permanente: **preservar incerteza é melhor do que inventar estrutura, autoria, relação ou fato sem evidência**.
+
 ---
 
 ## 2. Fontes de verdade
@@ -49,51 +51,64 @@ Documentos canônicos fornecidos pelo proprietário:
 
 Documentação operacional no repositório:
 
-- `README.md`: painel mestre;
-- `docs/DECISOES.md`: ADRs e refinamentos arquiteturais;
-- `docs/ESTADO_ATUAL.md`: fotografia técnica da fase atual;
+- `README.md`: painel mestre operacional;
+- `docs/ESTADO_ATUAL.md`: fotografia técnica;
+- `docs/DECISOES.md`: ADRs cumulativos;
+- `docs/PIPELINE_DOCUMENTAL.md`: implementação do Pipeline;
 - `docs/DESIGN_VISUAL.md`: direção visual;
-- `docs/PIPELINE_DOCUMENTAL.md`: implementação operacional do Pipeline;
-- `supabase/migrations/`: história reproduzível do banco;
-- `supabase/config.toml` e `supabase/seed.sql`: ambiente Supabase local reproduzível;
-- `.github/workflows/ci.yml`: gates automáticos de aplicação, segurança, testes e banco.
+- `supabase/migrations/`: histórico reproduzível do banco;
+- `supabase/config.toml` e `supabase/seed.sql`: ambiente local reproduzível;
+- `.github/workflows/ci.yml`: gates automáticos de aplicação e banco.
 
-Os documentos canônicos completos ainda serão transpostos para arquivos de documentação por domínio, sem substituir ou alterar silenciosamente o conteúdo original.
+Uma migration já aplicada nunca é reescrita. Uma decisão arquitetural antiga nunca tem seu sentido alterado silenciosamente: refinamentos recebem novo ADR.
 
 ---
 
-## 3. Infraestrutura oficial
+## 3. Infraestrutura oficial — somente esta
 
 ### GitHub
 
 ```text
-villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
-main: 15250537998d36c5c4df5375990c1f6c4cc66ed3
-PR atual: #13 — feature/processamento-normalizacao
+Repositório: villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
+main auditada como base do handoff: 7ab215bcf100da829d7ee64c52b58b79e774b31e
+PR de reconciliação atual: #14
+Branch: review/handoff-claude-fase3
+Head antes desta atualização documental: 2bbe954c363c0c2acb9ff88ac17b4aade2258eb7
 ```
 
-- Fase 2 incorporada;
-- PR #9 incorporado: orquestração durável e validação de original;
-- PR #10 incorporado: identificação de formato, extração determinística e artefatos intermediários;
-- PR #11 incorporado: sincronização documental pós-PR #10;
-- PR #13 em validação final: normalização determinística/conservadora;
-- `PROCESSAMENTO_WORKFLOW_ATIVO=false` permanece;
-- repositório atualmente **público**;
-- `main` ainda não possui Ruleset/proteção obrigatória;
-- nenhum segredo deve existir no código ou histórico.
+O PR #14 foi criado para reconciliar com segurança o trabalho determinístico feito por outro agente com a `main`. Ele inclui `identificar_estrutura`, `criar_hierarquia`, `criar_fragmentos`, migrations `0022`–`0029`, testes e hardening de replay/fragmentação PDF.
 
-Antes de corpus intelectual real: tornar o repositório privado e exigir PR + checks obrigatórios + bloqueio de force push em `main`.
+O repositório permanece **público por decisão do proprietário**. Não alterar visibilidade sem autorização explícita.
+
+`main` ainda não possui Ruleset obrigatório. Antes de corpus intelectual real, deve-se reavaliar proteção por PR/checks e bloqueio de force push, sem alterar a decisão de visibilidade sem autorização.
 
 ### Supabase
 
 ```text
-Projeto: xzkzdaxxmizcgfkjgzoq
+Projeto: Biblioteca-Celebro-Reflex-es-
+Project ref: xzkzdaxxmizcgfkjgzoq
 Região: us-west-2
 PostgreSQL: 17.6
 Estado: ACTIVE_HEALTHY
 ```
 
 Responsabilidades: PostgreSQL, Auth, Storage privado, RLS, Data API controlada, FTS, pgvector e persistência do Pipeline.
+
+Última auditoria remota desta revisão:
+
+```text
+1 usuário Auth de teste
+0 obras
+0 versões de obra
+0 execuções
+0 Documentos Processados
+0 fragmentos
+0 elementos
+1 versão ativa de Pipeline
+1 versão ativa de Taxonomia
+```
+
+Portanto, as migrations novas ainda não transformaram corpus autoral real.
 
 ### Vercel
 
@@ -103,15 +118,19 @@ Produção: https://cerebro-autoral.vercel.app
 Git: villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
 ```
 
-O domínio de produção está `READY`, porém **ainda aponta para o commit `3a3a25f450fa1bdc2b56ec8f91120718de21adc2`**. O atraso de produção após os merges posteriores ocorreu por `build-rate-limit` da conta Vercel, não por erro de compilação confirmado no código. Os Previews mais recentes das branches de processamento estão `READY`.
+A produção atual continua ligada à `main`; durante esta auditoria o deployment de produção observado ainda estava no commit `7ab215bcf100da829d7ee64c52b58b79e774b31e`, enquanto o PR #14 possui Preview próprio.
 
-Como `PROCESSAMENTO_WORKFLOW_ATIVO=false`, nenhuma etapa parcial do Pipeline está exposta aos usuários enquanto a produção não alcança a `main` atual.
+O Preview do commit de correção/testes `98a7828329b0db3303743e831ff3fb258c70708f` está `READY`. Commits intermediários incompletos tiveram Previews com erro durante a correção, mas foram superseded pelo head validado.
 
-O Dashboard da Vercel ainda reporta `nodeVersion = 24.x`, enquanto `package.json` exige Node `22.x`; os builds têm respeitado a engine do projeto. O setting externo deve ser alinhado manualmente para 22.x.
+O Dashboard da Vercel ainda reporta Node `24.x`, enquanto `package.json` exige Node `22.x`. O CI e a engine do projeto usam Node 22.x; o setting administrativo continua pendência externa.
+
+### Projetos que NÃO pertencem a este aplicativo
+
+Outros projetos GitHub/Supabase/Vercel da conta não fazem parte desta infraestrutura e não devem ser lidos, modificados ou removidos durante o trabalho deste projeto.
 
 ---
 
-## 4. Stack validada em 16/09/2026
+## 4. Stack técnica atual
 
 ### Aplicação
 
@@ -121,7 +140,8 @@ O Dashboard da Vercel ainda reporta `nodeVersion = 24.x`, enquanto `package.json
 - App Router;
 - `proxy.ts`;
 - Node `22.x`;
-- npm `11.19.1`.
+- npm `11.19.1`;
+- ESLint `9.39.5` por compatibilidade comprovada com a cadeia atual do Next.js.
 
 ### Supabase e upload
 
@@ -129,10 +149,10 @@ O Dashboard da Vercel ainda reporta `nodeVersion = 24.x`, enquanto `package.json
 - `@supabase/ssr` `0.12.7`;
 - `tus-js-client` `4.3.1`;
 - `hash-wasm` `4.12.0`;
+- Supabase CLI `2.117.0` no CI;
 - Storage privado;
 - RLS;
 - pgvector/HNSW;
-- Supabase CLI `2.117.0` no CI;
 - SHA-256 incremental e deduplicação por usuário + hash.
 
 ### Pipeline documental
@@ -141,10 +161,19 @@ O Dashboard da Vercel ainda reporta `nodeVersion = 24.x`, enquanto `package.json
 - `unpdf` `1.8.1` para PDF textual em Node/serverless;
 - TXT/Markdown por UTF-8 determinístico;
 - PDF página a página, sem fan-out irrestrito;
-- limites explícitos de tamanho, páginas, pixels, caracteres e tempo;
-- PDF sem camada textual retorna `PDF_SEM_TEXTO_EXTRAIVEL` e aguarda estratégia própria de OCR;
-- DOCX permanece fora do escopo até validação segura OOXML;
-- normalização técnica por Unicode NFC + quebras LF, sem reescrita editorial.
+- normalização Unicode NFC + LF, sem reescrita editorial;
+- artefatos intermediários privados com hash/proveniência;
+- `PROCESSAMENTO_WORKFLOW_ATIVO=false`.
+
+Formatos processáveis v1:
+
+```text
+PDF com camada textual
+TXT UTF-8
+Markdown UTF-8
+```
+
+DOCX permanece fora do escopo até validação segura OOXML. PDF sem camada textual retorna caso específico para futura estratégia de OCR; não é enviado automaticamente à IA.
 
 ### Supply chain
 
@@ -155,18 +184,19 @@ O Dashboard da Vercel ainda reporta `nodeVersion = 24.x`, enquanto `package.json
 }
 ```
 
-Esses overrides corrigem vulnerabilidades transitivas encontradas no Workflow SDK. `npm audit --omit=dev --audit-level=high` permanece gate obrigatório.
+`npm audit --omit=dev --audit-level=high` é gate obrigatório. Na rodada de CI da auditoria, foram encontradas **0 vulnerabilidades**.
 
-ESLint permanece em `9.39.5` enquanto a combinação atual do ecossistema Next.js/plugin React não suporta de forma segura o ESLint 10 testado anteriormente.
+### OpenAI
 
-### IA
-
-- `openai` `7.15.0`;
+- pacote `openai` `7.15.0`;
 - Zod `4.6.5`;
 - chave antiga exposta foi rotacionada;
-- chave nova foi configurada diretamente na Vercel, sem entrar no GitHub;
-- IA **ainda não é chamada pelo Pipeline**;
-- política futura: Responses API, `store: false`, Structured Outputs/JSON Schema, Zod e modelos centralizados por `MODELO_IA_*`.
+- chave nova está configurada diretamente na Vercel;
+- nenhum segredo foi versionado;
+- IA ainda não participa do Pipeline consolidado;
+- política aprovada: server-only, Responses API, `store:false`, Structured Outputs/JSON Schema, validação Zod e modelos centralizados por `MODELO_IA_*`.
+
+Qualquer chamada real à API que tenha custo exige confirmação do proprietário antes do primeiro teste pago.
 
 ---
 
@@ -174,35 +204,39 @@ ESLint permanece em `9.39.5` enquanto a combinação atual do ecossistema Next.j
 
 | Bloco | Estado |
 |---|---|
-| Fundação técnica e visual | concluída / `main` |
+| Fundação técnica e visual | concluída |
 | `sistema` | concluído |
 | Taxonomia Mestre — estrutura/versionamento | concluída |
 | Biblioteca/Auth/Storage/API | concluídos |
-| Upload TUS + SHA-256 + deduplicação | concluídos |
+| Upload TUS + SHA-256 + deduplicação | concluído |
 | Obras reais no banco oficial | **0 — ainda sem corpus** |
 | Pipeline — modelo de dados | concluído |
 | Documento Processado/hierarquia — schema | concluído |
 | Vetores/elementos/evidências/grafo — schema | concluído |
 | Orquestração server-only | concluída / flag OFF |
-| `validar_arquivo` | implementado e testado |
-| `identificar_formato` | implementado e testado |
-| `extrair_conteudo` | implementado e testado para PDF textual/TXT/Markdown |
-| `normalizar_conteudo` | **implementado no PR #13; validação final em andamento** |
-| Artefatos intermediários privados | migrations `0020`/`0021` aplicadas |
-| Supabase local reproduzível | implementado e testado no CI |
-| `identificar_estrutura` | próxima etapa após PR #13 |
-| OpenAI operacional no Pipeline | pendente por arquitetura, não por credencial |
+| `validar_arquivo` | concluída/testada |
+| `identificar_formato` | concluída/testada |
+| `extrair_conteudo` | concluída/testada para PDF textual/TXT/Markdown |
+| `normalizar_conteudo` | concluída/testada |
+| `identificar_estrutura` | implementada/testada no PR #14 |
+| `criar_hierarquia` | implementada/testada no PR #14 |
+| `criar_fragmentos` | implementada, auditada e endurecida no PR #14 |
+| Fragmentação PDF intrapágina | corrigida por `0028` + testes de regressão |
+| Replay seguro de fragmentos | corrigido por `0029` + comparação determinística |
+| `criar_sinteses` | **não consolidada; próxima etapa cognitiva** |
+| Taxonomia inteligente | pendente |
+| Embeddings | pendente |
+| Relações | pendente |
+| Publicação do Documento Processado | pendente |
 | Cérebro Autoral | pendente |
 | Recuperação híbrida | pendente |
 | Motor de Reflexões | pendente |
-
-O banco oficial possui atualmente, na última auditoria, `1` usuário Auth e `0` obras, `0` versões de obra, `0` execuções, `0` Documentos Processados, `0` fragmentos e `0` elementos. Há 1 versão ativa de Pipeline e 1 versão ativa de Taxonomia.
 
 ---
 
 ## 6. Histórico oficial de migrations
 
-Migration aplicada não é reescrita. Toda correção posterior recebe nova migration.
+Migration aplicada não é reescrita. Toda correção recebe nova migration.
 
 | Versão | Migration | Finalidade |
 |---|---|---|
@@ -227,51 +261,50 @@ Migration aplicada não é reescrita. Toda correção posterior recebe nova migr
 | `20260916221057` | `0019_idempotencia_transicoes_workflow` | locks/transições monotônicas |
 | `20260916223016` | `0020_artefatos_intermediarios_processamento` | artefatos parciais privados |
 | `20260916225622` | `0021_politica_negacao_artefatos_processamento` | negação explícita a clientes |
+| `20260917000231` | `0022_rls_catalogos_sistema_taxonomia` | RLS em catálogos globais |
+| `20260917001607` | `0023_artefato_estrutura_identificada` | artefato de sinais estruturais |
+| `20260917002831` | `0024_api_backend_hierarquia_documento` | Documento Processado candidato + seções |
+| `20260917004841` | `0025_api_backend_fragmentos_documento` | posições em texto + RPCs de fragmentos |
+| `20260917004954` | `0026_corrige_contagem_fragmentos` | corrige contagem no lote |
+| `20260917005052` | `0027_corrige_ambiguidade_contagem_fragmentos` | corrige ambiguidade SQL |
+| `20260917012837` | `0028_offsets_pdf_fragmentacao` | offset intrapágina para fragmentação PDF precisa |
+| `20260917014156` | `0029_listagem_fragmentos_replay` | leitura server-only para validar replay |
 
-O CI reconstrói um Supabase local do zero com migrations + seed e executa `db reset`, provando reprodutibilidade. Uma falha transitória de container ocorrida no PR #13 foi repetida isoladamente e o mesmo job passou integralmente sem alteração de migration.
+O antigo rascunho de IA criado por outro agente com o nome local `0028_ia_sinteses_secao` **nunca foi aplicado ao Supabase**. O número `0028` agora pertence oficialmente a `0028_offsets_pdf_fragmentacao`; o rascunho de IA deve ser reavaliado e renumerado antes de qualquer uso.
 
 ---
 
 ## 7. Segurança
 
-Auditorias confirmam:
+Auditorias atuais confirmam:
 
 - RLS nas tabelas pessoais;
 - Storage privado;
 - browser sem acesso direto aos schemas internos;
-- RPCs `backend_*` `SECURITY DEFINER` com `search_path = ''`;
-- `anon` e `authenticated` não executam RPCs backend;
-- artefatos intermediários possuem RLS + policy explícita de negação + grants revogados;
-- nenhuma FK sem índice apontada pelo advisor;
-- `unused_index` é informativo enquanto o banco não tem corpus real.
+- RPCs `backend_*` com `SECURITY DEFINER` e `search_path = ''`;
+- `anon`/`authenticated` sem execução das RPCs backend;
+- grants explícitos apenas ao backend (`service_role`) nas operações internas;
+- artefatos intermediários com negação explícita a clientes;
+- catálogos globais com RLS como segunda camada;
+- nenhuma nova FK sem índice apontada pelos advisors;
+- `unused_index` permanece informativo enquanto o banco está vazio.
 
-Pendências externas obrigatórias antes de usuários/corpus reais:
+Após `0028/0029`, o advisor de segurança continua com **um único aviso externo**:
 
-1. **Supabase Auth:** habilitar Leaked Password Protection, se disponível no plano, e confirmar Site URL/Redirects/template SSR.
-2. **GitHub:** tornar o repositório privado e criar Ruleset para `main` exigindo PR/checks e bloqueando force push; considerar CodeQL.
-3. **Vercel:** alinhar setting Node para 22.x e concluir um novo build de produção da `main` após o limite de builds.
-4. **E2E:** usar uma obra controlada de teste antes de ativar `PROCESSAMENTO_WORKFLOW_ATIVO`.
+`Leaked Password Protection Disabled`.
 
-Segredos:
+Pendências externas antes de usuários/corpus reais:
 
-- `.env*` ignorado, exceto `.env.example`;
-- `SUPABASE_SECRET_KEY` somente no servidor;
-- `OPENAI_API_KEY` somente no ambiente servidor/Vercel;
-- nenhuma chave real em README, commits, logs ou frontend.
+1. Supabase Auth: habilitar Leaked Password Protection, se disponível no plano, e confirmar Site URL/Redirects/template SSR;
+2. GitHub: avaliar Ruleset de `main` com PR/checks/sem force push; não alterar visibilidade sem autorização;
+3. Vercel: alinhar Node do painel para 22.x;
+4. E2E: processar uma obra controlada antes de ligar `PROCESSAMENTO_WORKFLOW_ATIVO`.
 
 ---
 
 ## 8. Biblioteca e original
 
 `biblioteca.obras` representa a obra lógica; `biblioteca.versoes_obras` preserva cada versão física. O original nunca é modificado.
-
-Caminho privado:
-
-```text
-{usuario_id}/{obra_id}/{versao_id}/original.ext
-```
-
-Fluxo:
 
 ```text
 sessão validada
@@ -289,105 +322,80 @@ deduplicação transacional
 obra + versão física
 ```
 
-Retomada TUS entre reloads permanece desativada até existir operação persistente com IDs estáveis.
-
----
-
-## 9. Documento Processado e artefatos intermediários
-
-Estrutura final:
+Caminho privado:
 
 ```text
-obra → parte → capítulo → seção → fragmento
+{usuario_id}/{obra_id}/{versao_id}/original.ext
 ```
-
-Conteúdo parcial **não** é Documento Processado. `0020` criou `processamento.artefatos_execucao` e o bucket `artefatos-processamento` para `conteudo_extraido` e `conteudo_normalizado`, com hash, tamanho, MIME, metadados e proveniência.
-
-Somente resultado final validado/publicado poderá se tornar Documento Processado ativo e alimentar o Cérebro Autoral.
 
 ---
 
-## 10. Pipeline durável
+## 9. Pipeline documental durável
 
-Etapas operacionais v1:
+Máquina operacional v1:
 
 ```text
 validar_arquivo
-identificar_formato
-extrair_conteudo
-normalizar_conteudo
-identificar_estrutura
-criar_hierarquia
-criar_fragmentos
-criar_sinteses
-extrair_elementos
-classificar_taxonomia
-criar_embeddings
-criar_relacoes
-validar_resultado
-publicar_documento
+  → identificar_formato
+  → extrair_conteudo
+  → normalizar_conteudo
+  → identificar_estrutura
+  → criar_hierarquia
+  → criar_fragmentos
+  → criar_sinteses
+  → extrair_elementos
+  → classificar_taxonomia
+  → criar_embeddings
+  → criar_relacoes
+  → validar_resultado
+  → publicar_documento
 ```
 
-### `validar_arquivo`
+### Etapas determinísticas consolidadas até fragmentação
 
-Recalcula SHA-256/tamanho no servidor a partir do Storage privado. Divergência é falha determinística; falha transitória usa retry do Workflow.
+`validar_arquivo` recalcula hash/tamanho no servidor.
 
-### `identificar_formato`
+`identificar_formato` usa allowlist e não confia isoladamente em extensão/MIME.
 
-Allowlist v1:
+`extrair_conteudo` extrai TXT/Markdown como UTF-8 e PDF textual por página, com limites de tamanho/tempo.
 
-```text
-PDF textual
-TXT UTF-8
-Markdown UTF-8
-```
+`normalizar_conteudo` aplica apenas LF + Unicode NFC, preservando identidade linguística.
 
-Combina extensão, MIME e conteúdo. DOCX só entrará com validação OOXML adequada.
+`identificar_estrutura` encontra sinais de alta/baixa confiança e não inventa divisão na ausência de evidência.
 
-### `extrair_conteudo`
+`criar_hierarquia` materializa Documento Processado `candidato` + seções a partir de sinais de alta confiança.
 
-- TXT/Markdown: UTF-8 completo;
-- PDF: `unpdf`/PDF.js, página a página;
-- original é revalidado antes de extrair;
-- limites: 20 MiB texto, 50 MiB PDF, 1.000 páginas, 12 milhões de caracteres, ~16 MP por imagem e 90 s para parsing PDF;
-- PDF sem texto retorna `PDF_SEM_TEXTO_EXTRAIVEL`;
-- resultado vira `conteudo_extraido.json` no Storage privado;
-- sucesso avança para `normalizar_conteudo`.
+`criar_fragmentos` produz texto próprio por seção e breadcrumb de contexto.
 
-### `normalizar_conteudo`
+### Correção auditada: fronteiras PDF intrapágina
 
-A etapa não “melhora” a escrita. Ela faz somente transformações técnicas determinísticas:
+A auditoria manual detectou que número de página sozinho não era suficiente para fragmentação:
 
-```text
-CRLF/CR → LF
-Unicode → NFC
-```
+- dois títulos na mesma página poderiam fazer dois fragmentos reutilizarem texto da mesma página;
+- quando a próxima seção começava no meio da página seguinte, o trecho anterior àquele título poderia ser perdido.
 
-NFKC/NFKD não são usados porque normalizações de compatibilidade podem apagar distinções relevantes. Espaços internos e espaços significativos de Markdown são preservados, assim como caixa, pontuação, aspas, travessões e escolhas lexicais.
+`0028` adiciona `offset_pagina_inicio` a cada seção PDF. O recorte usa página + offset, preservando exatamente o prefixo/sufixo correto sem duplicação entre seções.
 
-Antes de criar ou reutilizar o resultado, o sistema verifica bytes, MIME, limites, SHA-256, tamanho, schema e proveniência. A cadeia obrigatória é:
+### Correção auditada: replay de fragmentos
 
-```text
-original
-  ↓ hash registrado
-conteudo_extraido
-  ↓ hash do artefato
-conteudo_normalizado
-```
+A primeira versão retornava sucesso imediatamente quando a máquina de estados informava que `criar_fragmentos` já havia concluído. Isso confiava cedo demais no estado persistido.
 
-Em replay, um artefato existente também é baixado e revalidado; se o workflow já avançou, ele é reutilizado sem repetir a transição de estado.
+Agora o replay:
 
-A feature flag permanece:
+1. revalida `conteudo_normalizado` por bytes, MIME, tamanho, SHA-256, schema e proveniência;
+2. relê as seções;
+3. recalcula deterministicamente os fragmentos esperados;
+4. lê os fragmentos persistidos por RPC backend-only (`0029`);
+5. compara conteúdo, contexto, ordem, seção, páginas e estimativa de tokens;
+6. falha deterministicamente se houver ausência/divergência.
 
-```text
-PROCESSAMENTO_WORKFLOW_ATIVO=false
-```
+A execução normal também confere o resultado persistido antes de concluir a etapa.
 
 ---
 
-## 11. CI e testes
+## 10. CI e testes
 
-### Aplicação
+Gate da aplicação:
 
 ```text
 npm ci
@@ -398,71 +406,81 @@ npm test
 npm run build
 ```
 
-A suíte cobre detecção/spoofing, TXT/Markdown, binário disfarçado, DOCX fora do escopo, UTF-8/BOM/vazio, extração real de PDF textual, Unicode NFC, preservação de espaços Markdown, preservação de páginas e validação de proveniência da normalização.
-
-### Banco local
+Gate do banco:
 
 ```text
 supabase start
+aplicar migrations + seed
 supabase db reset
 supabase status
 supabase stop --no-backup
 ```
 
-No PR #13, a primeira tentativa de `db reset` falhou por erro genérico do container depois que o ambiente já havia aplicado todas as migrations. O rerun isolado do mesmo job passou integralmente, sem alteração de SQL, confirmando evento transitório do runner.
+Na rodada de auditoria anterior ao ajuste cosmético final:
 
-### Limite atual de E2E
+- aplicação: verde;
+- audit: 0 vulnerabilidades;
+- TypeScript: verde;
+- build: verde;
+- **39/39 testes passaram**;
+- banco local com migrations até `0029`: reconstrução completa verde;
+- Preview Vercel do código/testes: READY.
 
-Ainda não há obra real no banco oficial. O caminho positivo `upload → workflow → validar → identificar → extrair → normalizar` não foi exercitado com corpus. A flag ficará desligada até esse E2E passar.
+Os três testes novos cobrem:
 
----
+1. duas seções na mesma página PDF sem duplicação;
+2. continuação textual no início da página em que a próxima seção começa no meio;
+3. replay aceito somente quando fragmentos persistidos correspondem exatamente ao cálculo determinístico.
 
-## 12. Próxima etapa: identificar estrutura
-
-Depois que o PR #13 for incorporado, a próxima implementação é `identificar_estrutura`.
-
-Princípio inicial:
-
-- consumir apenas `conteudo_normalizado` validado;
-- preservar a proveniência até a unidade estrutural;
-- detectar sinais determinísticos quando forem confiáveis;
-- não inventar capítulos/seções onde houver ambiguidade;
-- registrar incerteza para etapas cognitivas posteriores quando necessário;
-- separar identificação de estrutura de `criar_hierarquia`, que materializa as entidades canônicas;
-- nenhuma estrutura parcial alimenta o Cérebro.
+Uma rodada final é obrigatória depois desta atualização documental e da remoção do único warning de lint do teste.
 
 ---
 
-## 13. Ordem macro
+## 11. Próxima etapa — `criar_sinteses`
 
-| Etapa | Estado |
-|---|---|
-| Fundação | concluída |
-| Dicionário/Taxonomia — estrutura | concluída |
-| Biblioteca/Storage/Auth/API | concluídos |
-| Pipeline — modelo de dados | concluído |
-| Pipeline — workflow | **em construção; até normalização no PR #13** |
-| Documentos Processados — execução real | pendente do workflow completo |
-| Taxonomia inteligente | pendente |
-| Recuperação híbrida | pendente |
-| Cérebro Autoral | pendente |
-| Influências externas deliberadas | pendente |
-| Motor de Reflexões | pendente |
-| Aprendizado por revisão | pendente |
-| Avaliações/segurança/otimização | contínuo |
+`criar_sinteses` será a primeira etapa verdadeiramente cognitiva do Pipeline.
+
+Existe um **rascunho não validado** deixado por outro agente na branch `claude/confident-cannon-ovdoev` (commit `0b9d739...`). Ele não será incorporado ou aplicado diretamente.
+
+Antes de continuar com IA:
+
+1. consolidar o PR #14 e eliminar o drift GitHub ↔ Supabase;
+2. pesquisar novamente a documentação oficial atual da OpenAI;
+3. revisar/reescrever a migration do rascunho e renumerá-la após `0029`;
+4. escrever testes com cliente OpenAI falso/injetado;
+5. validar toda SQL nova contra Supabase real em `BEGIN ... ROLLBACK`;
+6. criar `criar-sinteses-step.ts` e integrar ao workflow;
+7. manter `store:false`, Structured Outputs e Zod;
+8. somente depois solicitar confirmação para a primeira chamada real paga à OpenAI.
+
+Nenhuma síntese parcial poderá alimentar o Cérebro antes de `validar_resultado` e `publicar_documento`.
 
 ---
 
-## 14. Regra permanente
+## 12. Alertas técnicos conhecidos
+
+Não são falhas funcionais atuais, mas permanecem visíveis para manutenção:
+
+- ESLint 9.39.5 emite aviso de ciclo de suporte; atualização para ESLint 10 já foi testada anteriormente e quebrou a cadeia atual do Next/plugin React, portanto não será forçada sem compatibilidade comprovada;
+- npm 11 sinaliza scripts de instalação em algumas dependências transitivas; devem ser revisados em hardening de supply chain, sem liberar/recusar cegamente;
+- o test runner do Node avisa que `package.json` não declara `type: module`; não adicionar essa opção sem PR próprio porque ela pode alterar o comportamento de tooling/Next;
+- Vercel Dashboard ainda informa Node 24.x, apesar de `engines.node = 22.x`;
+- Leaked Password Protection do Supabase Auth continua desativada;
+- ainda não existe E2E positivo com uma obra controlada.
+
+---
+
+## 13. Regra permanente
 
 Este README deve permitir que uma pessoa não técnica descubra, sem inferência:
 
 - o que é o aplicativo;
+- qual infraestrutura é oficial;
 - o que já existe;
-- o que está ativo em produção;
+- o que está ou não ativo em produção;
 - quais migrations foram aplicadas;
 - quais testes passaram;
-- quais erros foram encontrados e corrigidos;
+- quais bugs foram encontrados e corrigidos;
 - quais alertas externos permanecem;
 - quais decisões arquiteturais estão vigentes;
 - como autoria, segurança e proveniência são preservadas;
