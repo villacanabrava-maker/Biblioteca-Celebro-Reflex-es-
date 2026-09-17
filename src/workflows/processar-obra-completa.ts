@@ -8,6 +8,14 @@ import {
   type ResultadoConclusaoExtracao,
   type ResultadoExtracaoFragmento,
 } from '@/workflows/extrair-elementos-step'
+import {
+  concluirNormalizacaoTaxonomiaStep,
+  normalizarElementoTaxonomiaStep,
+  planejarNormalizacaoTaxonomiaStep,
+  type PlanoNormalizacaoTaxonomia,
+  type ResultadoConclusaoTaxonomia,
+  type ResultadoNormalizacaoElemento,
+} from '@/workflows/normalizar-taxonomia-step'
 import { createBackendClient } from '@/infraestrutura/supabase/backend'
 
 type ResultadoPipelineBase = Awaited<ReturnType<typeof processarObraWorkflow>>
@@ -16,6 +24,9 @@ type ResultadoProcessamentoCompleto = ResultadoPipelineBase & {
   planejamentoElementos?: PlanoExtracaoElementos
   extracoesElementos?: ResultadoExtracaoFragmento[]
   conclusaoElementos?: ResultadoConclusaoExtracao
+  planejamentoTaxonomia?: PlanoNormalizacaoTaxonomia
+  normalizacoesTaxonomia?: ResultadoNormalizacaoElemento[]
+  conclusaoTaxonomia?: ResultadoConclusaoTaxonomia
 }
 
 async function iniciarPipelineBase(execucaoId: string): Promise<string> {
@@ -47,6 +58,27 @@ async function registrarFalhaFinalExtracao(
       p_codigo_erro: 'EXTRACAO_ELEMENTOS_ESGOTOU_RETRIES',
       p_mensagem_erro:
         'A extração de elementos falhou após as tentativas automáticas seguras do workflow.',
+      p_detalhes: { tipo_erro: tipoErro },
+    })
+
+  if (error) throw error
+}
+
+async function registrarFalhaFinalTaxonomia(
+  execucaoId: string,
+  tipoErro: string
+): Promise<void> {
+  'use step'
+
+  const backend = createBackendClient()
+  const { error } = await backend
+    .schema('aplicacao')
+    .rpc('backend_falhar_execucao', {
+      p_execucao_id: execucaoId,
+      p_nome_etapa: 'normalizar_taxonomia',
+      p_codigo_erro: 'NORMALIZACAO_TAXONOMIA_ESGOTOU_RETRIES',
+      p_mensagem_erro:
+        'A normalização taxonômica falhou após as tentativas automáticas seguras do workflow.',
       p_detalhes: { tipo_erro: tipoErro },
     })
 
@@ -119,11 +151,92 @@ export async function processarObraCompletaWorkflow(
     throw error
   }
 
+  if (!conclusaoElementos.ok) {
+    return {
+      ...resultadoBase,
+      ok: false,
+      planejamentoElementos,
+      extracoesElementos,
+      conclusaoElementos,
+    }
+  }
+
+  let planejamentoTaxonomia: PlanoNormalizacaoTaxonomia
+  const normalizacoesTaxonomia: ResultadoNormalizacaoElemento[] = []
+  let conclusaoTaxonomia: ResultadoConclusaoTaxonomia | undefined
+
+  try {
+    planejamentoTaxonomia = await planejarNormalizacaoTaxonomiaStep(execucaoId)
+
+    if (
+      !planejamentoTaxonomia.ok ||
+      !planejamentoTaxonomia.elementosIds ||
+      typeof planejamentoTaxonomia.permitirCriacao !== 'boolean' ||
+      !planejamentoTaxonomia.config
+    ) {
+      return {
+        ...resultadoBase,
+        ok: false,
+        planejamentoElementos,
+        extracoesElementos,
+        conclusaoElementos,
+        planejamentoTaxonomia,
+        normalizacoesTaxonomia,
+      }
+    }
+
+    let quantidadeClassificacoes = 0
+    let quantidadePropostas = 0
+
+    for (const elementoId of planejamentoTaxonomia.elementosIds) {
+      const resultado = await normalizarElementoTaxonomiaStep(
+        execucaoId,
+        elementoId,
+        planejamentoTaxonomia.permitirCriacao,
+        planejamentoTaxonomia.config
+      )
+      normalizacoesTaxonomia.push(resultado)
+
+      if (!resultado.ok || !resultado.tipoResultado) {
+        return {
+          ...resultadoBase,
+          ok: false,
+          planejamentoElementos,
+          extracoesElementos,
+          conclusaoElementos,
+          planejamentoTaxonomia,
+          normalizacoesTaxonomia,
+        }
+      }
+
+      if (resultado.tipoResultado === 'classificacao') {
+        quantidadeClassificacoes += 1
+      } else {
+        quantidadePropostas += 1
+      }
+    }
+
+    conclusaoTaxonomia = await concluirNormalizacaoTaxonomiaStep(
+      execucaoId,
+      planejamentoTaxonomia.permitirCriacao,
+      planejamentoTaxonomia.elementosIds.length,
+      quantidadeClassificacoes,
+      quantidadePropostas
+    )
+  } catch (error) {
+    const tipoErro = error instanceof Error ? error.name : 'erro_desconhecido'
+    await registrarFalhaFinalTaxonomia(execucaoId, tipoErro)
+    throw error
+  }
+
   return {
     ...resultadoBase,
-    ok: conclusaoElementos.ok,
+    ok: conclusaoTaxonomia.ok,
     planejamentoElementos,
     extracoesElementos,
     conclusaoElementos,
+    planejamentoTaxonomia,
+    normalizacoesTaxonomia,
+    conclusaoTaxonomia,
   }
 }
