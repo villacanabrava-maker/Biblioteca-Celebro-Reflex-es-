@@ -1,11 +1,12 @@
 # Estado Atual do Projeto
 
-Atualizado em **17/09/2026** após a implementação, integração e auditoria da etapa `normalizar_taxonomia`, ainda com `PROCESSAMENTO_WORKFLOW_ATIVO=false` e sem chamada real paga à OpenAI.
+Atualizado em **17/09/2026** após a incorporação e validação em produção da etapa `normalizar_taxonomia`, ainda com `PROCESSAMENTO_WORKFLOW_ATIVO=false` e sem chamada real paga à OpenAI.
 
 ## Infraestrutura oficial
 
 - GitHub: `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`
-- desenvolvimento atual: PR #20 — `feature/normalizar-taxonomia`
+- `main`: `e722e19c79f73671c123b7be6ff7ade6b4be3769`
+- PR #20: incorporada — `normalizar_taxonomia` auditável
 - Supabase: `xzkzdaxxmizcgfkjgzoq` — `us-west-2`, PostgreSQL 17.6
 - Vercel: `cerebro-autoral`
 - produção: `https://cerebro-autoral.vercel.app`
@@ -25,7 +26,7 @@ criar_hierarquia                 ✅
 criar_fragmentos                 ✅
 criar_sinteses                   ✅ implementada/auditada; sem chamada real
 extrair_elementos                ✅ implementada/auditada; sem chamada real
-normalizar_taxonomia             ✅ implementada/auditada; sem chamada real
+normalizar_taxonomia             ✅ incorporada/auditada; sem chamada real
 criar_relacoes                   ⬜ próxima etapa
 gerar_embeddings                 ⬜ não iniciada
 criar_indices                    ⬜ não iniciada
@@ -36,7 +37,7 @@ avaliar_participacao_cerebro     ⬜ não iniciada
 atualizar_cerebro                ⬜ não iniciada
 ```
 
-A criação de novas execuções foi alinhada ao workflow canônico de 18 etapas. Em especial:
+A criação de novas execuções está alinhada ao workflow canônico de 18 etapas. Em especial:
 
 ```text
 extrair_elementos
@@ -64,7 +65,7 @@ execuções de IA:            0
 
 Não existe corpus real processado e nenhum seed intelectual foi inventado.
 
-## `normalizar_taxonomia` — objetivo
+## `normalizar_taxonomia` — estado incorporado
 
 A etapa transforma elementos já extraídos em ligações taxonômicas controladas, sem permitir que similaridade textual ou uma resposta de IA crie silenciosamente verdade canônica.
 
@@ -89,7 +90,7 @@ Quando o termo do elemento aponta exatamente para **um único conceito ativo** n
 - replay é somente leitura;
 - reexecução não cria uma nova classificação silenciosamente.
 
-Se houver mais de um conceito exato, o caso é considerado ambíguo e segue para decisão estruturada.
+Se houver mais de um conceito exato, o caso é ambíguo e segue para decisão estruturada.
 
 ### Shortlist
 
@@ -97,12 +98,7 @@ A recuperação consulta somente conceitos ativos da versão correta. `pg_trgm` 
 
 A shortlist é limitada a 20 conceitos e, antes de uma chamada de IA, é congelada em `auditoria.execucoes_ia`.
 
-O PostgreSQL rejeita:
-
-- shortlist com duplicatas;
-- ID fora da Taxonomia/versão ativa;
-- shortlist divergente da reserva original;
-- `conceito_id` retornado pela IA que não estava na shortlist congelada.
+O PostgreSQL rejeita shortlist com duplicatas, IDs de outra versão/estado, shortlist divergente da reserva original e qualquer `conceito_id` retornado pela IA que não estivesse entre os candidatos congelados.
 
 ### Decisão por IA
 
@@ -115,13 +111,12 @@ papel = principal | secundario | contextual | oposicao
 
 A saída passa por Responses API + Structured Outputs + JSON Schema + Zod e por validações determinísticas antes da persistência.
 
-`propor_conceito` nunca grava diretamente em `taxonomia.conceitos`. A sugestão fica em `taxonomia.propostas_conceitos`, com proveniência em `taxonomia.fontes_propostas_conceitos`, para futura revisão humana.
+`propor_conceito` nunca grava diretamente em `taxonomia.conceitos`. A sugestão fica em `taxonomia.propostas_conceitos`, com proveniência em `taxonomia.fontes_propostas_conceitos`, para revisão humana futura.
 
 ### Auditoria, replay e cobrança
 
-A operação de IA é `normalizacao_taxonomica_elemento`.
-
-- reserva local antes da chamada;
+- operação: `normalizacao_taxonomica_elemento`;
+- reserva local antes da chamada externa;
 - chamada externa explicitamente marcada como iniciada;
 - chave idempotente inclui execução, elemento, modelo, prompt e hash da entrada;
 - replay exige modelo + prompt + hash exatos;
@@ -133,8 +128,6 @@ A operação de IA é `normalizacao_taxonomica_elemento`.
 
 ## Migrations oficiais da etapa
 
-Os arquivos do GitHub foram alinhados às versões reais registradas pelo Supabase:
-
 ```text
 20260917040851_0040_fundacao_normalizacao_taxonomia.sql
 20260917040918_0041_catalogo_normalizacao_taxonomia.sql
@@ -145,17 +138,7 @@ Os arquivos do GitHub foram alinhados às versões reais registradas pelo Supaba
 20260917041526_0046_hardening_propostas_taxonomia.sql
 ```
 
-Resumo:
-
-- `0040`: normalização de termos, pg_trgm, staging de propostas, proveniência e RPCs de recuperação;
-- `0041`: catálogo do modelo/prompt/schema e classificação determinística exata;
-- `0042`: somente conceitos ativos + preservação de `papel_proposto`;
-- `0043`: auditoria/idempotência da IA, shortlist congelada e persistência atômica;
-- `0044`: replay somente leitura do match exato;
-- `0045`: alinhamento das 18 etapas do pipeline canônico;
-- `0046`: policies explícitas de negação e índices completos das novas FKs.
-
-Nenhuma migration aplicada é reescrita.
+Os nomes dos arquivos no GitHub correspondem às versões reais registradas no Supabase. Nenhuma migration aplicada foi reescrita.
 
 ## Segurança auditada
 
@@ -169,15 +152,9 @@ As RPCs taxonômicas sensíveis foram verificadas no Supabase oficial:
 
 As duas tabelas de propostas possuem RLS ativo, acesso direto revogado e policies explícitas de negação ao cliente.
 
-Advisor de segurança após `0046`:
+Advisor de segurança após `0046`: único aviso restante `Leaked Password Protection Disabled` no Supabase Auth.
 
-- único aviso restante: `Leaked Password Protection Disabled` no Supabase Auth.
-
-Advisor de performance após `0046`:
-
-- somente `unused_index`;
-- não há mais FKs novas sem índice;
-- o banco está vazio, portanto índices ainda não usados são esperados e não devem ser removidos especulativamente.
+Advisor de performance após `0046`: somente `unused_index`; não há novas FKs sem índice. Como o banco está vazio, índices ainda não usados são esperados e não devem ser removidos especulativamente.
 
 ## OpenAI
 
@@ -189,7 +166,7 @@ MODELO_IA_EXTRACAO
 MODELO_IA_TAXONOMIA
 ```
 
-Padrão atual da Taxonomia: `gpt-5.6-terra`.
+Padrão atual da Taxonomia no código: `gpt-5.6-terra`.
 
 Política permanente:
 
@@ -202,28 +179,34 @@ Política permanente:
 
 Até este estado, **0 execuções de IA existem no banco oficial**.
 
-## Gates de validação
+## Gates finais da PR #20
 
-Os heads de implementação da PR #20 passaram progressivamente por:
+O head final da PR #20 passou integralmente:
 
 ```text
-npm ci
-npm audit --omit=dev --audit-level=high
-npm run lint
-npm run typecheck
-npm test
-npm run build
-Supabase local + aplicação das migrations
-supabase db reset
-supabase status / stop
-Vercel Preview
+npm ci                                      ✅
+npm audit --omit=dev --audit-level=high     ✅
+npm run lint                                ✅
+npm run typecheck                           ✅
+npm test                                    ✅
+npm run build                               ✅
+Supabase local + migrations                 ✅
+supabase db reset                           ✅
+supabase status / stop                      ✅
+Vercel Preview READY                        ✅
 ```
 
-O head final da PR só poderá ser incorporado depois de repetir esses gates sobre a versão documental consolidada.
+A PR foi incorporada por squash no commit `e722e19c79f73671c123b7be6ff7ade6b4be3769`.
 
-## Vercel
+## Produção pós-merge
 
-Os Previews da implementação integrada, inclusive o hardening `0046`, chegaram a `READY`.
+O deployment Vercel correspondente ao merge ficou `READY` e assumiu os aliases oficiais.
+
+Smoke check pós-merge:
+
+- `https://cerebro-autoral.vercel.app` respondeu HTTP 200;
+- a tela de login foi renderizada com Supabase Auth;
+- não foram encontrados logs `error` ou `fatal` no deployment durante o smoke check.
 
 O projeto continua usando Node 22.x por causa de `package.json#engines`, mesmo que o Dashboard ainda mostre configuração 24.x. Isso é uma pendência externa de configuração, não um desvio do runtime efetivamente usado no build.
 
@@ -240,11 +223,11 @@ O projeto continua usando Node 22.x por causa de `package.json#engines`, mesmo q
 
 ## Próximo marco
 
-1. concluir o CI/Preview do head final da PR #20;
-2. incorporar a PR mantendo a feature flag OFF;
-3. verificar deployment de produção e ausência de regressões;
-4. iniciar `criar_relacoes` conforme o grafo intelectual canônico;
-5. manter a primeira chamada real paga bloqueada até autorização explícita do proprietário.
+1. iniciar `criar_relacoes` conforme o grafo intelectual canônico;
+2. depois seguir para `gerar_embeddings`;
+3. manter a feature flag OFF durante a construção;
+4. manter a primeira chamada real paga bloqueada até autorização explícita do proprietário;
+5. preparar E2E controlado somente quando houver autorização para custo real.
 
 ## Regra permanente
 

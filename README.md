@@ -30,7 +30,8 @@ Conteúdo do usuário é **dado não confiável**, nunca instrução para o sist
 ```text
 villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
 branch principal: main
-PR atual: #20 — feature/normalizar-taxonomia
+main: e722e19c79f73671c123b7be6ff7ade6b4be3769
+PR #20: incorporada — normalizar_taxonomia auditável
 ```
 
 O repositório continua público por decisão explícita do proprietário. Não alterar visibilidade sem autorização.
@@ -42,7 +43,6 @@ Projeto: Biblioteca-Celebro-Reflex-es-
 Project ref: xzkzdaxxmizcgfkjgzoq
 Região: us-west-2
 PostgreSQL: 17.6
-Estado esperado: ACTIVE_HEALTHY
 ```
 
 Estado auditado após as migrations `0040–0046`:
@@ -66,9 +66,12 @@ As migrations criam infraestrutura, configuração, auditoria e persistência, m
 Projeto: cerebro-autoral
 Produção: https://cerebro-autoral.vercel.app
 Git: villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
+Deployment da PR #20: READY
 ```
 
-`PROCESSAMENTO_WORKFLOW_ATIVO=false` continua impedindo o início do Pipeline para usuários. Portanto o código de IA pode ser implantado sem autorizar chamadas pagas.
+A produção do commit `e722e19c79f73671c123b7be6ff7ade6b4be3769` foi validada com resposta HTTP 200 na tela de login e sem logs `error`/`fatal` no smoke check pós-merge.
+
+`PROCESSAMENTO_WORKFLOW_ATIVO=false` continua impedindo o início do Pipeline para usuários. Portanto o código de IA permanece implantado sem autorizar chamadas pagas.
 
 O Dashboard ainda pode reportar Node `24.x`, enquanto `package.json` exige Node `22.x`; CI e Vercel usam Node 22.x por causa de `engines`. Esse ajuste visual do painel permanece pendência externa.
 
@@ -116,7 +119,7 @@ Supply chain:
 | `criar_fragmentos` | ✅ concluída/testada/auditada |
 | `criar_sinteses` | ✅ implementada/auditada, sem chamada real |
 | `extrair_elementos` | ✅ implementada/auditada, sem chamada real |
-| `normalizar_taxonomia` | ✅ implementada/auditada, sem chamada real |
+| `normalizar_taxonomia` | ✅ incorporada/auditada, sem chamada real |
 | `criar_relacoes` | ⬜ próxima etapa |
 | `gerar_embeddings` | ⬜ não iniciada |
 | `criar_indices` | ⬜ não iniciada |
@@ -268,31 +271,34 @@ Advisor de segurança após `0046`: resta apenas `Leaked Password Protection Dis
 
 Advisor de performance após `0046`: somente `unused_index`, esperado enquanto o banco permanece sem corpus. Não remover índices de forma especulativa antes de existir carga real.
 
-## Gates obrigatórios
+## Gates da PR #20
 
-Antes de merge de qualquer etapa do Pipeline:
+O head final da PR #20 passou integralmente:
 
 ```text
-npm ci
-npm audit --omit=dev --audit-level=high
-npm run lint
-npm run typecheck
-npm test
-npm run build
-Supabase local + migrations
-supabase db reset
-supabase status / stop
-Vercel Preview READY
+npm ci                                      ✅
+npm audit --omit=dev --audit-level=high     ✅
+npm run lint                                ✅
+npm run typecheck                           ✅
+npm test                                    ✅
+npm run build                               ✅
+Supabase local + migrations                 ✅
+supabase db reset                           ✅
+supabase status / stop                      ✅
+Vercel Preview READY                        ✅
+merge em main                               ✅
+produção READY                              ✅
+smoke HTTP 200                              ✅
+sem logs error/fatal no smoke pós-merge     ✅
 ```
 
 ## Próximo marco
 
-1. concluir e incorporar a PR #20 mantendo `PROCESSAMENTO_WORKFLOW_ATIVO=false`;
-2. confirmar produção após merge;
-3. manter a primeira chamada real paga bloqueada até autorização explícita;
-4. iniciar `criar_relacoes` segundo o grafo intelectual canônico;
-5. depois seguir para `gerar_embeddings` e as etapas restantes;
-6. preparar E2E controlado somente quando houver autorização para custo real.
+1. iniciar `criar_relacoes` segundo o grafo intelectual canônico;
+2. depois seguir para `gerar_embeddings` e as etapas restantes;
+3. manter `PROCESSAMENTO_WORKFLOW_ATIVO=false` durante a construção;
+4. manter a primeira chamada real paga bloqueada até autorização explícita;
+5. preparar E2E controlado somente quando houver autorização para custo real.
 
 ## Regra permanente
 
