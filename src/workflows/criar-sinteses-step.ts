@@ -11,6 +11,7 @@ import {
   LIMITE_CARACTERES_ENTRADA_SINTESE,
   calcularHashEntradaSintese,
   gerarSinteseDocumental,
+  statusHttpOpenAIRetryable,
   type EntradaSinteseDocumental,
   type TipoAlvoSintese,
 } from '@/ia/motor-documental/gerar-sintese-documental'
@@ -172,12 +173,10 @@ function descreverErroSeguro(erro: unknown): string {
   return [nome, status !== null ? `status_${status}` : null, codigo].filter(Boolean).join(':').slice(0, 500)
 }
 
-function temStatusHttpExplicito(erro: unknown): boolean {
-  return Boolean(
-    erro &&
-      typeof erro === 'object' &&
-      typeof (erro as Record<string, unknown>).status === 'number'
-  )
+function obterStatusHttpExplicito(erro: unknown): number | null {
+  if (!erro || typeof erro !== 'object') return null
+  const status = (erro as Record<string, unknown>).status
+  return typeof status === 'number' ? status : null
 }
 
 async function marcarFalhaIa(
@@ -361,10 +360,16 @@ async function executarOuReusarSintese({
   } catch (erro) {
     const duracaoMs = Date.now() - inicioChamada
     const erroSeguro = descreverErroSeguro(erro)
+    const statusHttp = obterStatusHttpExplicito(erro)
 
-    if (temStatusHttpExplicito(erro)) {
+    if (statusHttp !== null) {
       await marcarFalhaIa(preparo.auditoria_id, 'falhou', erroSeguro, duracaoMs)
-      throw erro
+
+      if (statusHttpOpenAIRetryable(statusHttp)) {
+        throw erro
+      }
+
+      return { ok: false, motivo: `chamada_ia_http_${statusHttp}_nao_repetivel` }
     }
 
     await marcarFalhaIa(preparo.auditoria_id, 'incerta', erroSeguro, duracaoMs)
