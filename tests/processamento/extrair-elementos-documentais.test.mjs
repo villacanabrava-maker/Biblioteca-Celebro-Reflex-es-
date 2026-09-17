@@ -4,7 +4,7 @@ import {
   calcularHashEntradaExtracaoElementos,
   extracaoElementosSchema,
   montarEntradaExtracaoElementos,
-  validarEvidenciasContraFragmentos,
+  validarEvidenciasContraFragmento,
 } from '../../src/ia/motor-documental/extrair-elementos-documentais.ts'
 
 const fragmento = {
@@ -21,7 +21,7 @@ const fragmento = {
 const entrada = {
   documentoProcessadoId: '33333333-3333-4333-8333-333333333333',
   sinteseObra: 'A obra articula experiência e elaboração conceitual.',
-  fragmentos: [fragmento],
+  fragmento,
 }
 
 test('entrada e hash da extração são determinísticos', () => {
@@ -35,8 +35,10 @@ test('entrada e hash da extração são determinísticos', () => {
 test('conteúdo documental é encapsulado explicitamente como dado não confiável', () => {
   const payload = JSON.parse(montarEntradaExtracaoElementos(entrada))
   assert.match(payload.aviso, /dado nao confiavel/i)
-  assert.equal(payload.fragmentos[0].fragmento_id, fragmento.fragmentoId)
-  assert.equal(payload.fragmentos[0].conteudo, fragmento.conteudoContextualizado)
+  assert.equal(payload.fragmento.codigo, fragmento.codigo)
+  assert.equal(payload.fragmento.conteudo_fonte, fragmento.conteudo)
+  assert.equal(payload.fragmento.contexto_hierarquico, fragmento.conteudoContextualizado)
+  assert.equal('fragmento_id' in payload.fragmento, false)
 })
 
 test('schema exige plano analítico e pelo menos uma evidência', () => {
@@ -51,7 +53,6 @@ test('schema exige plano analítico e pelo menos uma evidência', () => {
         confianca: 0.9,
         evidencias: [
           {
-            fragmento_id: fragmento.fragmentoId,
             trecho_referencia: 'conceito de esperança',
             forca_evidencia: 0.95,
             justificativa: null,
@@ -64,9 +65,9 @@ test('schema exige plano analítico e pelo menos uma evidência', () => {
   assert.equal(resultado.success, true)
 })
 
-test('evidência precisa apontar para fragmento existente', () => {
-  const resultado = validarEvidenciasContraFragmentos(
-    [
+test('fragmento da evidência é controlado pelo sistema, não pelo modelo', () => {
+  const resultado = extracaoElementosSchema.safeParse({
+    elementos: [
       {
         tipo: 'tema',
         plano_analitico: 'conteudo',
@@ -84,14 +85,13 @@ test('evidência precisa apontar para fragmento existente', () => {
         ],
       },
     ],
-    [fragmento]
-  )
+  })
 
-  assert.deepEqual(resultado, { ok: false, motivo: 'evidencia_fragmento_inexistente' })
+  assert.equal(resultado.success, false)
 })
 
-test('trecho de evidência precisa existir literalmente no fragmento', () => {
-  const resultado = validarEvidenciasContraFragmentos(
+test('trecho de evidência precisa existir literalmente no fragmento corrente', () => {
+  const resultado = validarEvidenciasContraFragmento(
     [
       {
         tipo: 'estrutura_argumentativa',
@@ -102,7 +102,6 @@ test('trecho de evidência precisa existir literalmente no fragmento', () => {
         confianca: 0.95,
         evidencias: [
           {
-            fragmento_id: fragmento.fragmentoId,
             trecho_referencia: 'trecho que não existe',
             forca_evidencia: 0.9,
             justificativa: null,
@@ -110,13 +109,38 @@ test('trecho de evidência precisa existir literalmente no fragmento', () => {
         ],
       },
     ],
-    [fragmento]
+    fragmento
   )
 
   assert.deepEqual(resultado, {
     ok: false,
     motivo: 'evidencia_trecho_nao_encontrado_no_fragmento',
   })
+})
+
+test('trecho literal válido é aceito no fragmento corrente', () => {
+  const resultado = validarEvidenciasContraFragmento(
+    [
+      {
+        tipo: 'tema',
+        plano_analitico: 'conteudo',
+        titulo: 'Esperança',
+        descricao: 'Tema identificado.',
+        importancia: 0.8,
+        confianca: 0.9,
+        evidencias: [
+          {
+            trecho_referencia: 'conceito de esperança',
+            forca_evidencia: 0.9,
+            justificativa: null,
+          },
+        ],
+      },
+    ],
+    fragmento
+  )
+
+  assert.deepEqual(resultado, { ok: true })
 })
 
 test('separação conteúdo, método e expressão é enum fechado', () => {
@@ -128,7 +152,6 @@ test('separação conteúdo, método e expressão é enum fechado', () => {
     confianca: 0.5,
     evidencias: [
       {
-        fragmento_id: fragmento.fragmentoId,
         trecho_referencia: 'conceito de esperança',
         forca_evidencia: 0.8,
         justificativa: null,
