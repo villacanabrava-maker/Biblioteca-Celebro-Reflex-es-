@@ -19,13 +19,36 @@ export async function fazerLogin(dados: { email: string; senha: string }) {
 
     if (error) {
       console.error("Erro no login:", error);
-      if (error.message.includes("Invalid login credentials")) {
+      if (
+        error.message.includes("Invalid login credentials") ||
+        error.message.includes("invalid_credentials")
+      ) {
         return { sucesso: false, erro: "E-mail ou senha incorretos. Verifique os dados digitados." };
       }
       if (error.message.includes("Email not confirmed")) {
+        // Se por ventura o e-mail não foi confirmado, o admin auto-confirma e tenta logar de novo
+        try {
+          const admin = criarClienteAdmin();
+          const { data: listaUsuarios } = await admin.auth.admin.listUsers();
+          const usuarioEncontrado = listaUsuarios.users.find(
+            (u) => u.email?.toLowerCase() === dados.email.trim().toLowerCase()
+          );
+          if (usuarioEncontrado) {
+            await admin.auth.admin.updateUserById(usuarioEncontrado.id, { email_confirm: true });
+            const retry = await supabase.auth.signInWithPassword({
+              email: dados.email.trim(),
+              password: dados.senha,
+            });
+            if (!retry.error) {
+              revalidatePath("/", "layout");
+              return { sucesso: true, usuario: retry.data.user };
+            }
+          }
+        } catch {}
+
         return {
           sucesso: false,
-          erro: "Seu e-mail ainda não foi confirmado. Acesse sua caixa postal ou realize um novo cadastro.",
+          erro: "E-mail pendente de confirmação. Tentamos ativar sua conta; tente clicar em Entrar novamente.",
         };
       }
       return { sucesso: false, erro: error.message };
@@ -48,7 +71,10 @@ export async function fazerLogin(dados: { email: string; senha: string }) {
 }
 
 /**
- * Cadastra uma nova conta de autor no Supabase Auth, auto-confirma e inicia a sessão imediatamente.
+ * Cadastra uma nova conta de autor no Supabase Auth via Admin API:
+ * - Evita o limite de envio de e-mails (rate limit SMTP)
+ * - Auto-confirma o e-mail imediatamente
+ * - Efetua o login nos cookies do navegador sem exigir clique em links
  */
 export async function cadastrarConta(dados: {
   nome: string;
@@ -56,70 +82,70 @@ export async function cadastrarConta(dados: {
   senha: string;
 }) {
   try {
-    const supabase = await criarClienteServidor();
     const admin = criarClienteAdmin();
+    const supabase = await criarClienteServidor();
 
-    // 1. Criar usuário no Supabase Auth
-    const { data, error } = await supabase.auth.signUp({
-      email: dados.email.trim(),
+    const emailLimpo = dados.email.trim().toLowerCase();
+    const nomeLimpo = dados.nome.trim() || "Autor";
+
+    // 1. Criar o usuário via Admin API com e-mail já confirmado
+    const { data: userData, error: createError } = await admin.auth.admin.createUser({
+      email: emailLimpo,
       password: dados.senha,
-      options: {
-        data: {
-          nome_completo: dados.nome.trim(),
-          papel: "autor",
-        },
+      email_confirm: true,
+      user_metadata: {
+        nome_completo: nomeLimpo,
+        papel: "autor",
       },
     });
 
-    if (error) {
-      console.error("Erro no cadastro:", error);
-      if (error.message.includes("User already registered")) {
-        return { sucesso: false, erro: "Já existe uma conta cadastrada com este endereço de e-mail." };
+    if (createError) {
+      console.error("Erro ao criar usuário via admin:", createError);
+      if (
+        createError.message.includes("already registered") ||
+        createError.message.includes("User already exists") ||
+        createError.message.includes("unique constraint")
+      ) {
+        return {
+          sucesso: false,
+          erro: "Já existe uma conta cadastrada com este endereço de e-mail. Tente fazer login.",
+        };
       }
-      return { sucesso: false, erro: error.message };
+      return { sucesso: false, erro: createError.message };
     }
 
-    if (!data.user) {
+    if (!userData.user) {
       return { sucesso: false, erro: "Não foi possível criar a conta de usuário." };
     }
 
-    // 2. Auto-confirmar o e-mail via service_role para liberar acesso imediato sem travas
-    try {
-      await admin.auth.admin.updateUserById(data.user.id, {
-        email_confirm: true,
-      });
-    } catch (errConfirm) {
-      console.warn("Aviso ao auto-confirmar e-mail:", errConfirm);
-    }
-
-    // 3. Garantir o perfil na tabela sistema.usuarios
+    // 2. Assegurar registro em sistema.usuarios
     try {
       await admin
         .schema("sistema")
         .from("usuarios")
         .upsert({
-          id: data.user.id,
-          nome: dados.nome.trim(),
-          email: dados.email.trim(),
+          id: userData.user.id,
+          nome: nomeLimpo,
+          email: emailLimpo,
           papel: "autor",
           ativo: true,
         });
     } catch (errPerfil) {
-      console.warn("Aviso ao sincronizar perfil:", errPerfil);
+      console.warn("Aviso ao provisionar perfil em sistema.usuarios:", errPerfil);
     }
 
-    // 4. Estabelecer a sessão persistente nos cookies chamando signInWithPassword
-    const { error: loginError } = await supabase.auth.signInWithPassword({
-      email: dados.email.trim(),
+    // 3. Efetuar login e gravar cookies de sessão para o cliente
+    const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+      email: emailLimpo,
       password: dados.senha,
     });
 
     if (loginError) {
-      console.warn("Conta criada, aguardando login manual:", loginError.message);
+      console.warn("Conta criada com sucesso, requer login manual:", loginError.message);
       return {
         sucesso: true,
         requerLoginManual: true,
-        usuario: data.user,
+        usuario: userData.user,
       };
     }
 
@@ -127,14 +153,12 @@ export async function cadastrarConta(dados: {
       revalidatePath("/", "layout");
     } catch {}
 
-    return { sucesso: true, usuario: data.user };
+    return { sucesso: true, usuario: loginData.user };
   } catch (err: any) {
     console.error("Erro no cadastro:", err);
     return {
       sucesso: false,
-      erro: err.message?.includes("NEXT_PUBLIC_SUPABASE_URL")
-        ? "A conexão com o Supabase ainda não foi configurada nas variáveis de ambiente deste servidor."
-        : `Erro ao criar conta: ${err.message || "Tente novamente mais tarde."}`,
+      erro: `Erro ao criar conta: ${err.message || "Tente novamente mais tarde."}`,
     };
   }
 }
