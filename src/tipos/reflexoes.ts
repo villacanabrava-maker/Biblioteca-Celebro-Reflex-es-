@@ -1,0 +1,117 @@
+/**
+ * Tipos canônicos do domínio de Reflexões
+ * Idioma: Português do Brasil
+ */
+
+export type FormatoReflexao =
+  | "ensaio"
+  | "artigo"
+  | "aforismo"
+  | "newsletter"
+  | "dialogo"
+  | "tese";
+
+export type EstadoEntradaReflexao =
+  | "criada"
+  | "planejada"
+  | "em_redacao"
+  | "em_auditoria"
+  | "concluida"
+  | "arquivada";
+
+export type EstadoPlanoReflexao = "proposto" | "aprovado_pelo_autor" | "rejeitado";
+
+export type EstadoVersaoReflexao =
+  | "rascunho"
+  | "em_auditoria"
+  | "auditado"
+  | "aprovado"
+  | "publicado";
+
+export interface MovimentoArgumentativo {
+  ordem: number;
+  tipo: string;
+  descricao: string;
+  dimensao_metodologica?: string;
+  conceitos_chave?: string[];
+}
+
+export interface ContraArgumentoAntecipado {
+  objecao: string;
+  resposta_autoral: string;
+  grau_relevancia?: "alta" | "media" | "baixa";
+}
+
+export interface EntradaReflexao {
+  id: string;
+  usuario_id: string;
+  titulo: string;
+  tema_central: string;
+  provocacao_inicial: string;
+  objetivo_comunicativo?: string | null;
+  publico_alvo?: string | null;
+  formato_desejado: FormatoReflexao;
+  restricoes_especificas?: string | null;
+  estado: EstadoEntradaReflexao;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export interface PlanoReflexao {
+  id: string;
+  entrada_id: string;
+  usuario_id: string;
+  tese_central: string;
+  movimentos_argumentativos: MovimentoArgumentativo[];
+  conceitos_mobilizados: string[];
+  fontes_mobilizadas: string[];
+  regras_acionadas: string[];
+  contra_argumentos_antecipados: ContraArgumentoAntecipado[];
+  estado: EstadoPlanoReflexao;
+  criado_em: string;
+}
+
+export interface VersaoReflexao {
+  id: string;
+  entrada_id: string;
+  plano_id?: string | null;
+  usuario_id: string;
+  numero_versao: number;
+  titulo_gerado: string;
+  conteudo_markdown: string;
+  sumario_executivo?: string | null;
+  total_palavras: number;
+  estado: EstadoVersaoReflexao;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export interface CitacaoEvidencia {
+  id: string;
+  versao_reflexao_id: string;
+  fragmento_id?: string | null;
+  tipo_fonte: "nucleo_autoral" | "influencia_externa";
+  trecho_afirmacao_gerada: string;
+  trecho_original_citado: string;
+  obra_titulo?: string | null;
+  grau_aderencia?: number | null;
+  criado_em: string;
+}
+
+export interface ResumoReflexao {
+  entrada_id: string;
+  usuario_id: string;
+  titulo: string;
+  tema_central: string;
+  formato_desejado: FormatoReflexao;
+  estado_entrada: EstadoEntradaReflexao;
+  criado_em: string;
+  atualizado_em: string;
+  total_versoes: number;
+  ultima_versao_numero?: number | null;
+  ultima_versao_id?: string | null;
+  ultimo_titulo_gerado?: string | null;
+  ultimo_estado_versao?: EstadoVersaoReflexao | null;
+  ultimo_veredito_auditoria?: "aprovado" | "ressalvas" | "rejeitado" | null;
+  ultima_pontuacao_auditoria?: number | null;
+}
