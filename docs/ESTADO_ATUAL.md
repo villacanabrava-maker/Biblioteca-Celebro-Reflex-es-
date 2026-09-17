@@ -1,12 +1,12 @@
 # Estado Atual do Projeto
 
-Atualizado em **17/09/2026** após a incorporação e validação em produção da etapa `normalizar_taxonomia`, ainda com `PROCESSAMENTO_WORKFLOW_ATIVO=false` e sem chamada real paga à OpenAI.
+Atualizado em **17/09/2026** após a implementação e sincronização estrutural de `criar_relacoes`, ainda com `PROCESSAMENTO_WORKFLOW_ATIVO=false` e sem chamada real paga à OpenAI.
 
 ## Infraestrutura oficial
 
 - GitHub: `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`
-- `main`: `e722e19c79f73671c123b7be6ff7ade6b4be3769`
-- PR #20: incorporada — `normalizar_taxonomia` auditável
+- base da PR #22: `bc9820d45f5c6fc160055556ede48964c6e23da9`
+- PR #22: `feature/criar-relacoes`
 - Supabase: `xzkzdaxxmizcgfkjgzoq` — `us-west-2`, PostgreSQL 17.6
 - Vercel: `cerebro-autoral`
 - produção: `https://cerebro-autoral.vercel.app`
@@ -27,8 +27,8 @@ criar_fragmentos                 ✅
 criar_sinteses                   ✅ implementada/auditada; sem chamada real
 extrair_elementos                ✅ implementada/auditada; sem chamada real
 normalizar_taxonomia             ✅ incorporada/auditada; sem chamada real
-criar_relacoes                   ⬜ próxima etapa
-gerar_embeddings                 ⬜ não iniciada
+criar_relacoes                   ✅ implementada/auditada na PR #22; sem chamada real
+gerar_embeddings                 ⬜ próxima etapa
 criar_indices                    ⬜ não iniciada
 realizar_analise_autoral_local   ⬜ não iniciada
 validar_processamento            ⬜ não iniciada
@@ -37,197 +37,275 @@ avaliar_participacao_cerebro     ⬜ não iniciada
 atualizar_cerebro                ⬜ não iniciada
 ```
 
-A criação de novas execuções está alinhada ao workflow canônico de 18 etapas. Em especial:
+O Workflow integrado conclui `criar_relacoes` com:
 
 ```text
-extrair_elementos
-→ normalizar_taxonomia
-→ criar_relacoes
-→ gerar_embeddings
+estado = vetorizando
+etapa_atual = gerar_embeddings
 ```
 
 Nenhum resultado parcial alimenta o Cérebro Autoral.
 
 ## Estado real dos dados
 
-Auditoria do Supabase oficial após `0040–0046`:
+Auditoria do Supabase oficial após `0047–0048`:
 
 ```text
 execuções de processamento: 0
 Documentos Processados:     0
 elementos:                  0
-classificações:             0
-propostas taxonômicas:      0
-conceitos canônicos:        0
-termos taxonômicos:         0
+relações entre elementos:   0
 execuções de IA:            0
 ```
 
-Não existe corpus real processado e nenhum seed intelectual foi inventado.
+A aplicação das migrations não criou corpus nem fez chamada externa.
 
-## `normalizar_taxonomia` — estado incorporado
+## Fonte canônica do grafo intelectual
 
-A etapa transforma elementos já extraídos em ligações taxonômicas controladas, sem permitir que similaridade textual ou uma resposta de IA crie silenciosamente verdade canônica.
-
-Fluxo:
+O Dicionário Mestre define `processamento.relacoes_elementos` com:
 
 ```text
-elemento
-→ normalização determinística
-→ busca na Taxonomia Mestre ativa
-→ shortlist
-→ match exato único OU decisão estruturada por IA
-→ classificação existente OU proposta revisável
-→ proveniência
+id
+usuario_id
+elemento_origem_id
+tipo_relacao
+elemento_destino_id
+confianca
+justificativa
+criado_em
 ```
 
-### Match exato
-
-Quando o termo do elemento aponta exatamente para **um único conceito ativo** na versão de Taxonomia da execução:
-
-- não há chamada à OpenAI;
-- a classificação é determinística;
-- replay é somente leitura;
-- reexecução não cria uma nova classificação silenciosamente.
-
-Se houver mais de um conceito exato, o caso é ambíguo e segue para decisão estruturada.
-
-### Shortlist
-
-A recuperação consulta somente conceitos ativos da versão correta. `pg_trgm` e correspondências lexicais produzem candidatos, nunca confirmação automática.
-
-A shortlist é limitada a 20 conceitos e, antes de uma chamada de IA, é congelada em `auditoria.execucoes_ia`.
-
-O PostgreSQL rejeita shortlist com duplicatas, IDs de outra versão/estado, shortlist divergente da reserva original e qualquer `conceito_id` retornado pela IA que não estivesse entre os candidatos congelados.
-
-### Decisão por IA
-
-Contrato fechado:
+Vocabulário v1:
 
 ```text
-decisao = reutilizar_conceito | propor_conceito
-papel = principal | secundario | contextual | oposicao
+sustenta
+contradiz
+expande
+deriva_de
+exemplifica
+questiona
+responde_a
+evolui_para
+associa_se_a
+reformula
 ```
 
-A saída passa por Responses API + Structured Outputs + JSON Schema + Zod e por validações determinísticas antes da persistência.
+A tabela já possuía FKs compostas por usuário, confiança entre 0 e 1, proibição de relação reflexiva e unicidade da combinação origem + tipo + destino.
 
-`propor_conceito` nunca grava diretamente em `taxonomia.conceitos`. A sugestão fica em `taxonomia.propostas_conceitos`, com proveniência em `taxonomia.fontes_propostas_conceitos`, para revisão humana futura.
+## Estratégia de candidatos v1
 
-### Auditoria, replay e cobrança
+Os documentos canônicos especificam a entidade/vocabulário, mas não a estratégia de geração de pares candidatos.
 
-- operação: `normalizacao_taxonomica_elemento`;
-- reserva local antes da chamada externa;
-- chamada externa explicitamente marcada como iniciada;
-- chave idempotente inclui execução, elemento, modelo, prompt e hash da entrada;
-- replay exige modelo + prompt + hash exatos;
-- HTTP transitório conhecido (`408`, `409`, `425`, `429`, `5xx`) pode ser repetido de forma controlada;
+Para esta primeira implementação foi escolhida uma estratégia conservadora:
+
+```text
+fragmento
+→ elementos com evidência nesse fragmento
+→ relações locais entre esses elementos
+```
+
+Motivação:
+
+- evita comparar globalmente todos os elementos entre si antes dos embeddings;
+- reduz custo e ruído;
+- mantém a primeira inferência apoiada em evidência local comum;
+- preserva caminho futuro para relações distantes/interdocumentais usando recuperação híbrida.
+
+Essa limitação é operacional da v1, não uma limitação conceitual do produto.
+
+## Contrato da IA
+
+Prompt: `relacoes_elementos_locais` v1.
+
+Cada relação possui:
+
+```text
+elemento_origem_id
+tipo_relacao
+elemento_destino_id
+confianca
+justificativa
+```
+
+Guardrails:
+
+- saída `{ relacoes: [] }` é válida;
+- máximo 80 relações por fragmento;
+- máximo 40 elementos candidatos por chamada;
+- IDs precisam vir do conjunto fornecido;
+- origem e destino não podem ser iguais;
+- duplicação de origem + tipo + destino é rejeitada;
+- justificativa deve ter 1–1.200 caracteres;
+- conteúdo/evidência é dado não confiável, não instrução;
+- Structured Outputs + Zod;
+- `store:false`.
+
+Fragmentos com menos de 2 elementos retornam 0 relações sem chamar IA.
+
+## Auditoria e idempotência
+
+Operação de IA:
+
+```text
+relacoes_elementos_locais
+```
+
+Por fragmento analisável, a auditoria congela:
+
+- execução;
+- Documento Processado;
+- fragmento;
+- modelo;
+- versão de prompt;
+- hash da entrada;
+- lista exata de `elementos_ids`.
+
+Chave idempotente:
+
+```text
+operacao
++ execucao
++ fragmento
++ modelo
++ prompt
++ hash_entrada
+```
+
+Política de cobrança/retry:
+
+- reserva ainda não iniciada pode ser retomada;
+- chamada externa é explicitamente marcada como iniciada;
+- HTTP `408/409/425/429/5xx` pode permitir retry controlado;
 - HTTP permanente não é repetido automaticamente;
-- transporte ambíguo após início vira `incerta`;
-- resposta inválida vira estado terminal sem nova cobrança automática;
-- persistência pós-resposta pode ser repetida localmente sem nova chamada externa.
+- transporte ambíguo depois do início vira `incerta`;
+- saída inválida é cancelada sem nova chamada automática;
+- persistência pós-resposta pode ser repetida localmente sem refazer a chamada;
+- replay reutiliza resultado concluído e valida que os IDs persistidos ainda existam.
 
-## Migrations oficiais da etapa
+## Persistência determinística no PostgreSQL
+
+`backend_concluir_relacoes_elementos_ia` revalida antes do insert:
+
+- formato do array;
+- máximo 80 relações;
+- campos permitidos;
+- UUIDs;
+- vocabulário dos 10 tipos;
+- confiança 0–1;
+- justificativa não vazia e limitada;
+- não reflexividade;
+- ambos os elementos presentes na lista congelada;
+- ambos os elementos ainda possuem evidência no fragmento auditado;
+- ausência de duplicação no payload.
+
+A persistência usa a unique key já existente da tabela e reaproveita relação idêntica se ela já existir.
+
+Saída vazia também conclui a auditoria com `relacoes_ids=[]` e `quantidade_relacoes=0`.
+
+## Migrations oficiais
 
 ```text
-20260917040851_0040_fundacao_normalizacao_taxonomia.sql
-20260917040918_0041_catalogo_normalizacao_taxonomia.sql
-20260917040937_0042_hardening_taxonomia_ativa.sql
-20260917041025_0043_auditoria_normalizacao_taxonomia.sql
-20260917041039_0044_replay_match_exato_taxonomia.sql
-20260917041057_0045_alinha_etapas_pipeline_canonico.sql
-20260917041526_0046_hardening_propostas_taxonomia.sql
+20260917043826_0047_catalogo_contexto_relacoes_elementos.sql
+20260917043906_0048_auditoria_persistencia_relacoes_elementos.sql
 ```
 
-Os nomes dos arquivos no GitHub correspondem às versões reais registradas no Supabase. Nenhuma migration aplicada foi reescrita.
+`0047`:
+
+- catálogo do prompt/schema;
+- uso do modelo de finalidade `analise`;
+- RPC backend-only para configuração;
+- RPC backend-only para contexto local elemento/evidência por fragmento.
+
+`0048`:
+
+- adiciona operação `relacoes_elementos_locais` à auditoria;
+- reserva idempotente por fragmento;
+- congela `elementos_ids`;
+- conclusão transacional com revalidação no PostgreSQL;
+- replay auditado.
+
+As versões acima correspondem ao histórico real do Supabase e aos nomes no GitHub.
 
 ## Segurança auditada
 
-As RPCs taxonômicas sensíveis foram verificadas no Supabase oficial:
+As cinco RPCs novas foram verificadas no Supabase oficial:
 
-- `SECURITY DEFINER=true`;
-- `search_path=''`;
-- `anon`: sem `EXECUTE`;
-- `authenticated`: sem `EXECUTE`;
-- `service_role`: permitido somente pelas RPCs previstas.
+```text
+SECURITY DEFINER = true
+search_path = ''
+anon EXECUTE = false
+authenticated EXECUTE = false
+service_role EXECUTE = true
+```
 
-As duas tabelas de propostas possuem RLS ativo, acesso direto revogado e policies explícitas de negação ao cliente.
+Advisor de segurança após `0048`: apenas `Leaked Password Protection Disabled` no Supabase Auth.
 
-Advisor de segurança após `0046`: único aviso restante `Leaked Password Protection Disabled` no Supabase Auth.
+Advisor de performance após `0048`: apenas `unused_index`, esperado porque o banco permanece sem corpus.
 
-Advisor de performance após `0046`: somente `unused_index`; não há novas FKs sem índice. Como o banco está vazio, índices ainda não usados são esperados e não devem ser removidos especulativamente.
+## Validação automatizada
+
+Cobertura nova sem API real:
+
+- input/hash determinísticos;
+- schema persistido exatamente compatível;
+- menos de dois elementos → 0 chamadas e 0 custo;
+- rejeição de ID fora do contexto;
+- rejeição de relação reflexiva;
+- rejeição de duplicação;
+- Structured Output;
+- `store:false`;
+- saída vazia válida;
+- preservação da direção semântica;
+- tokens/custo estimado.
+
+Os runs de implementação já comprovaram:
+
+```text
+lint / TypeScript                             ✅
+testes unitários após correção do import      ✅
+build Vercel Preview                          ✅
+Supabase local + migrations 0047–0048         ✅
+supabase db reset                             ✅
+Supabase oficial 0047–0048                    ✅
+RPCs backend-only                             ✅
+0 dados / 0 execuções de IA                   ✅
+```
+
+O head documental final ainda deve repetir CI + Preview antes de merge.
 
 ## OpenAI
 
-Configuração server-only e centralizada:
-
-```text
-MODELO_IA_ANALISE
-MODELO_IA_EXTRACAO
-MODELO_IA_TAXONOMIA
-```
-
-Padrão atual da Taxonomia no código: `gpt-5.6-terra`.
+`criar_relacoes` usa a configuração central `MODELO_IA_ANALISE`; não foi criado um ID de modelo hardcoded dentro do Workflow.
 
 Política permanente:
 
-- `store:false`;
+- chave apenas no servidor;
 - `maxRetries:0` no SDK;
-- retry e idempotência controlados pela aplicação;
-- conteúdo intelectual tratado como dado não confiável;
-- nenhuma chave versionada;
+- `store:false`;
+- Structured Outputs + JSON Schema + Zod;
+- retries/cobrança controlados pela aplicação;
 - nenhuma chamada real paga sem autorização explícita do proprietário.
 
 Até este estado, **0 execuções de IA existem no banco oficial**.
 
-## Gates finais da PR #20
-
-O head final da PR #20 passou integralmente:
-
-```text
-npm ci                                      ✅
-npm audit --omit=dev --audit-level=high     ✅
-npm run lint                                ✅
-npm run typecheck                           ✅
-npm test                                    ✅
-npm run build                               ✅
-Supabase local + migrations                 ✅
-supabase db reset                           ✅
-supabase status / stop                      ✅
-Vercel Preview READY                        ✅
-```
-
-A PR foi incorporada por squash no commit `e722e19c79f73671c123b7be6ff7ade6b4be3769`.
-
-## Produção pós-merge
-
-O deployment Vercel correspondente ao merge ficou `READY` e assumiu os aliases oficiais.
-
-Smoke check pós-merge:
-
-- `https://cerebro-autoral.vercel.app` respondeu HTTP 200;
-- a tela de login foi renderizada com Supabase Auth;
-- não foram encontrados logs `error` ou `fatal` no deployment durante o smoke check.
-
-O projeto continua usando Node 22.x por causa de `package.json#engines`, mesmo que o Dashboard ainda mostre configuração 24.x. Isso é uma pendência externa de configuração, não um desvio do runtime efetivamente usado no build.
-
 ## O que ainda NÃO ocorreu
 
 - chamada real à OpenAI;
-- cobrança de API gerada por este Pipeline;
+- cobrança de API gerada por esta etapa;
 - ativação de `PROCESSAMENTO_WORKFLOW_ATIVO`;
 - E2E positivo com documento real;
-- criação de relações intelectuais (`criar_relacoes`);
-- embeddings e etapas posteriores;
+- enriquecimento de relações distantes/interdocumentais;
+- geração de embeddings;
 - publicação de Documento Processado ativo;
 - alimentação do Cérebro Autoral por corpus real.
 
 ## Próximo marco
 
-1. iniciar `criar_relacoes` conforme o grafo intelectual canônico;
-2. depois seguir para `gerar_embeddings`;
-3. manter a feature flag OFF durante a construção;
-4. manter a primeira chamada real paga bloqueada até autorização explícita do proprietário;
-5. preparar E2E controlado somente quando houver autorização para custo real.
+1. fechar CI/Preview do head final da PR #22;
+2. incorporar `criar_relacoes` mantendo a feature flag OFF;
+3. validar produção sem chamada de IA;
+4. iniciar `gerar_embeddings`;
+5. manter a primeira chamada real paga bloqueada até autorização explícita do proprietário.
 
 ## Regra permanente
 
