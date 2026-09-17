@@ -1,9 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  SCHEMA_SAIDA_NORMALIZACAO_TAXONOMIA_V1,
   calcularHashEntradaTaxonomia,
   montarEntradaNormalizacaoTaxonomia,
   normalizarElementoTaxonomia,
+  schemaSaidaNormalizacaoTaxonomiaV1Compativel,
   validarDecisaoContraCandidatos,
 } from '../../src/ia/taxonomia/normalizar-elemento-taxonomia.ts'
 
@@ -46,6 +48,17 @@ test('entrada e hash taxonômicos são determinísticos', () => {
   const entrada = { elemento, candidatos: [candidato] }
   assert.equal(montarEntradaNormalizacaoTaxonomia(entrada), montarEntradaNormalizacaoTaxonomia(entrada))
   assert.equal(calcularHashEntradaTaxonomia(entrada), calcularHashEntradaTaxonomia(entrada))
+})
+
+test('schema persistido precisa coincidir exatamente com o contrato v1', () => {
+  assert.equal(
+    schemaSaidaNormalizacaoTaxonomiaV1Compativel(SCHEMA_SAIDA_NORMALIZACAO_TAXONOMIA_V1),
+    true
+  )
+
+  const divergente = structuredClone(SCHEMA_SAIDA_NORMALIZACAO_TAXONOMIA_V1)
+  divergente.properties.confianca.maximum = 2
+  assert.equal(schemaSaidaNormalizacaoTaxonomiaV1Compativel(divergente), false)
 })
 
 test('match exato reutiliza conceito sem chamar IA e sem custo', async () => {
