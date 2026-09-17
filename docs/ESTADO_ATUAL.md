@@ -1,6 +1,6 @@
 # Estado Atual do Projeto
 
-Atualizado em **17/09/2026** durante a implementação auditável de `criar_sinteses`.
+Atualizado em **17/09/2026** após a auditoria final da primeira implementação de `criar_sinteses`, ainda sem chamada real à OpenAI.
 
 ## Infraestrutura oficial
 
@@ -16,7 +16,7 @@ Outros projetos conectados não pertencem a este aplicativo.
 
 ## Marco atual
 
-A parte determinística da Fase 3 está consolidada na `main` até `criar_fragmentos`. A primeira etapa cognitiva está sendo implementada no PR #16:
+A parte determinística da Fase 3 está consolidada na `main` até `criar_fragmentos`. A primeira etapa cognitiva está implementada e validada no PR #16:
 
 ```text
 validar_arquivo          ✅ main
@@ -26,7 +26,7 @@ normalizar_conteudo      ✅ main
 identificar_estrutura    ✅ main
 criar_hierarquia         ✅ main
 criar_fragmentos         ✅ main
-criar_sinteses           🟡 implementada/testada sem chamada real; PR #16
+criar_sinteses           ✅ implementada/testada sem chamada real; PR #16
 extrair_elementos        ⬜ não iniciada
 classificar_taxonomia    ⬜ não iniciada
 criar_embeddings         ⬜ não iniciada
@@ -39,23 +39,21 @@ Nenhum resultado parcial alimenta o Cérebro Autoral.
 
 ## Estado dos dados
 
-O banco oficial continua sem corpus real na última auditoria:
+A auditoria final do Supabase oficial confirmou:
 
-- 1 usuário Auth de teste;
-- 0 obras;
-- 0 versões de obra;
-- 0 execuções;
-- 0 Documentos Processados;
-- 0 fragmentos;
-- 0 elementos;
-- 1 versão ativa de Pipeline;
-- 1 versão ativa de Taxonomia.
+```text
+execuções de IA:          0
+sínteses:                 0
+fragmentos:               0
+Documentos Processados:   0
+execuções de processamento: 0
+```
 
-Os testes das RPCs de IA usam registros sintéticos dentro de `BEGIN ... ROLLBACK`; nada permanece no banco.
+Existe 1 usuário Auth de teste, 1 versão ativa de Pipeline e 1 versão ativa de Taxonomia. Os testes funcionais das RPCs de IA usaram registros sintéticos dentro de transações com `ROLLBACK`; nada permaneceu no banco.
 
 ## OpenAI
 
-A chave antiga foi rotacionada e a chave nova está configurada somente na Vercel. Nenhum segredo foi versionado.
+A chave antiga foi rotacionada e a chave nova está configurada somente no ambiente servidor/Vercel. Nenhum segredo foi versionado.
 
 A documentação oficial atual da OpenAI foi revalidada antes desta implementação. O modelo padrão v1 escolhido para síntese é `gpt-5.6-terra`, configurável por `MODELO_IA_ANALISE`.
 
@@ -66,24 +64,19 @@ Política v1:
 - `store:false`;
 - cliente server-only;
 - `maxRetries:0` no SDK;
-- retries/cobrança controlados pela nossa auditoria;
-- conteúdo do usuário sempre tratado como dado não confiável;
+- retries e idempotência controlados pela nossa camada auditável;
+- conteúdo do usuário sempre tratado como dado não confiável, nunca como instrução;
 - nenhuma chamada real paga sem confirmação explícita do proprietário.
 
 Até este momento **nenhuma chamada real à OpenAI foi executada**.
 
-## Nova fundação de IA — migrations `0030–0034`
+## Fundação de IA — migrations `0030–0035`
 
 ### `0030_fundacao_ia_sinteses`
 
 Versão real: `20260917020401`.
 
-Criou:
-
-- `auditoria.execucoes_ia`;
-- catálogo ativo do modelo `gpt-5.6-terra` para finalidade `analise`;
-- prompt `sintese_documental_hierarquica` v1 + hash + schema de saída;
-- RPCs server-only para obter configuração, reservar chamada, marcar início, concluir, falhar e listar sínteses.
+Criou `auditoria.execucoes_ia`, catálogo do `gpt-5.6-terra`, prompt `sintese_documental_hierarquica` v1, schema estruturado e RPCs server-only para configuração, reserva, início, conclusão, falha e listagem.
 
 A auditoria registra modelo, prompt, Pipeline, Taxonomia, tokens, duração, custo estimado, referências, estado, tentativa e erro sem duplicar desnecessariamente o texto privado.
 
@@ -91,10 +84,7 @@ A auditoria registra modelo, prompt, Pipeline, Taxonomia, tokens, duração, cus
 
 Versão real: `20260917021001`.
 
-Separa:
-
-- reserva criada mas chamada ainda não iniciada — recuperável após lease curto;
-- chamada externa já iniciada — se ficar ambígua, vira `incerta` e não é repetida automaticamente.
+Separa reserva local ainda não iniciada de chamada externa já iniciada. Reserva abandonada pode ser recuperada; chamada já iniciada e abandonada vira `incerta` em vez de ser repetida automaticamente.
 
 ### `0032_listagem_sinteses_auditadas`
 
@@ -106,37 +96,35 @@ Permite validar replay por síntese + modelo + versão do prompt + hash exato da
 
 Versão real: `20260917021601`.
 
-Adicionou policy RLS explícita de negação a clientes e índices das FKs apontadas pelo advisor.
+Adicionou policy RLS explícita de negação a clientes e índices das FKs da auditoria.
 
 ### `0034_corrige_ambiguidade_tentativa_ia`
 
 Versão real: `20260917022624`.
 
-O teste funcional da `0031` encontrou um bug PostgreSQL real: `tentativa = tentativa + 1` era ambíguo porque a função também possui uma coluna de saída `tentativa`. A `0034` qualifica a coluna da tabela e preserva o histórico imutável de migrations.
+Corrige a referência ambígua a `tentativa` dentro de `backend_preparar_sintese_ia`, preservando o histórico imutável das migrations.
+
+### `0035_contrato_schema_sintese`
+
+Versão real: `20260917023206`.
+
+Endurece `backend_obter_config_sintese`: a configuração só é entregue ao backend quando o JSON Schema ativo no catálogo corresponde exatamente ao contrato v1 esperado (`{ sintese: string }`, mínimo 1 e máximo 12.000 caracteres, sem propriedades extras).
+
+A `0035` já existia no histórico do Supabase e foi recuperada desse histórico para o GitHub durante a auditoria final. O CI do head final reconstruiu o banco local do zero incluindo `0030–0035`, eliminando novamente o drift GitHub ↔ Supabase.
 
 ## Testes de SQL no banco real
 
-Antes de `apply_migration`, a DDL foi validada em transação revertida.
+Antes das migrations estruturais, a DDL foi validada em transações revertidas. Os testes funcionais sintéticos comprovaram, sem deixar dados permanentes:
 
-Depois da `0030`, um teste funcional sintético em `BEGIN ... ROLLBACK` comprovou:
+- reserva inicial e proteção contra reserva duplicada;
+- recuperação de reserva não iniciada;
+- marcação explícita de início da chamada externa;
+- chamada iniciada/abandonada classificada como `incerta` sem retry automático;
+- conclusão de síntese e conclusão repetida idempotente;
+- replay auditado por hash/modelo/prompt;
+- ausência de SELECT direto do `service_role` na tabela interna de auditoria.
 
-- reserva inicial;
-- bloqueio de reserva duplicada;
-- início da chamada;
-- conclusão da síntese;
-- conclusão repetida idempotente;
-- replay concluído;
-- listagem da síntese;
-- ausência de SELECT direto do `service_role` na tabela de auditoria.
-
-Um teste posterior de recuperação detectou a ambiguidade da `0031`, que foi corrigida pela `0034`. A versão corrigida passou em transação revertida incluindo:
-
-- recuperação de reserva não iniciada após lease;
-- chamada iniciada/abandonada virando `incerta` sem retry automático;
-- conclusão auditada separada;
-- comprovação de hash/modelo/prompt pela RPC `0032`.
-
-Nenhum dado sintético permaneceu.
+A auditoria final confirmou que as seis RPCs de IA são `SECURITY DEFINER`, usam `search_path=''`, negam execução a `anon`/`authenticated` e permitem somente o backend `service_role`.
 
 ## Motor de síntese
 
@@ -158,22 +146,26 @@ Características:
 - input determinístico + SHA-256;
 - limite de 400.000 caracteres por chamada v1;
 - Structured Output estrito `{ sintese: string }`;
-- estimativa de custo pelo uso retornado;
-- prompt injection mitigada por prompt de sistema + encapsulamento explícito do conteúdo como dado;
+- estimativa de custo a partir do uso retornado;
+- defesa contra prompt injection por instrução de sistema + encapsulamento explícito do conteúdo como dado;
 - composição bottom-up: folhas → capítulos → partes → obra;
 - uma síntese por step durável;
 - replay só reutiliza resultado quando modelo, prompt e hash de entrada coincidem.
 
-## Política de erro/cobrança
+## Política de erro e cobrança
 
-- erro HTTP explícito: auditoria `falhou`; Workflow pode repetir dentro do limite controlado;
-- erro de transporte ambíguo depois de início: auditoria `incerta`; não repetir automaticamente;
-- resposta do provedor recebida mas persistência falha: tentar persistir de novo de forma local/idempotente, sem refazer a chamada;
-- reserva não iniciada: pode ser retomada sem risco de cobrança duplicada.
+- HTTP transitório (`408`, `409`, `425`, `429` e `5xx`): registra a tentativa como `falhou` e permite que o Workflow aplique retry controlado;
+- HTTP não transitório (`400`, `401`, `403`, `404`, `422` etc.): registra `falhou` e **não** repete automaticamente;
+- erro de transporte sem status depois de marcar a chamada como iniciada: registra `incerta` e não repete automaticamente, porque não é possível provar que o provedor não processou a requisição;
+- resposta conhecida sem saída estruturada válida: a síntese é rejeitada; a implementação atual mantém tratamento conservador sem persistir saída livre nem refazer a chamada automaticamente;
+- resposta válida recebida mas persistência local falha: tenta persistir novamente de forma local/idempotente, sem refazer a chamada ao provedor;
+- reserva ainda não iniciada pode ser retomada sem risco de cobrança duplicada.
 
-## Testes automatizados
+## Testes automatizados e gates finais
 
-A nova camada adicionou testes sem usar `OPENAI_API_KEY`:
+A camada de IA usa cliente falso nos testes; `OPENAI_API_KEY` não é usada e não existe cobrança.
+
+Cobertura nova inclui:
 
 - hash/input determinístico;
 - `store:false`;
@@ -182,18 +174,34 @@ A nova camada adicionou testes sem usar `OPENAI_API_KEY`:
 - prompt injection permanecendo como dado;
 - limite de entrada antes da chamada;
 - resposta sem `output_parsed` inválida;
+- compatibilidade exata do schema persistido;
+- classificação de status HTTP retryable vs. não retryable;
 - composição hierárquica;
 - ausência de chamada em seção sem fonte;
 - síntese de obra por sínteses de topo.
 
-Na rodada anterior à `0034` e documentação, a suíte completa chegou a **50/50 testes** com lint, TypeScript e build verdes. O head final deve repetir todos os gates.
+No head final auditado do PR #16, o GitHub Actions passou integralmente:
+
+```text
+npm ci                                      ✅
+npm audit --omit=dev --audit-level=high     ✅
+npm run lint                                ✅
+npm run typecheck                           ✅
+npm test                                    ✅
+npm run build                               ✅
+Supabase local + migrations 0001–0035       ✅
+supabase db reset                           ✅
+supabase status / stop                      ✅
+```
+
+O Preview Vercel do mesmo head também está `READY`.
 
 ## Segurança
 
-Após `0033`, os advisors voltaram ao estado esperado:
+Após `0035`, os advisors permanecem no estado esperado:
 
 - segurança: apenas `Leaked Password Protection Disabled`;
-- performance: apenas `unused_index` enquanto o banco permanece sem corpus.
+- performance: somente `unused_index` enquanto o banco não possui corpus.
 
 Mantido:
 
@@ -203,37 +211,8 @@ Mantido:
 - `anon`/`authenticated` sem execução de RPCs backend;
 - `service_role` acessando a auditoria somente por RPCs controladas;
 - `search_path=''` nas funções `SECURITY DEFINER`;
-- segredos somente no ambiente servidor.
-
-## Gates obrigatórios do PR #16
-
-Aplicação:
-
-```text
-npm ci
-npm audit --omit=dev --audit-level=high
-npm run lint
-npm run typecheck
-npm test
-npm run build
-```
-
-Banco:
-
-```text
-supabase start
-migrations + seed
-supabase db reset
-supabase status
-supabase stop --no-backup
-```
-
-Além disso:
-
-- Preview Vercel precisa estar `READY`;
-- advisors Supabase revisados;
-- migrations locais devem bater com o histórico remoto;
-- documentação do mesmo head.
+- segredos somente no ambiente servidor;
+- `PROCESSAMENTO_WORKFLOW_ATIVO=false` bloqueando o início do Pipeline em produção.
 
 ## O que ainda NÃO ocorreu
 
@@ -241,17 +220,15 @@ Além disso:
 - cobrança de API produzida por esta etapa;
 - E2E positivo com documento real;
 - ativação de `PROCESSAMENTO_WORKFLOW_ATIVO`;
-- merge do PR #16 enquanto estiver em validação;
 - implementação de `extrair_elementos` e etapas seguintes.
 
 ## Próximo marco
 
-1. fechar CI/local DB/Preview do head final do PR #16;
-2. registrar ADRs da nova arquitetura de IA;
-3. tirar o PR de draft somente se tudo estiver verde;
-4. incorporar a infraestrutura/steps com feature flag ainda OFF;
-5. solicitar confirmação explícita do proprietário para a primeira chamada real paga, com input controlado e custo mínimo;
-6. preparar o primeiro E2E controlado do Pipeline.
+1. incorporar o PR #16 com a feature flag ainda OFF;
+2. confirmar deployment de produção e ausência de erros de runtime;
+3. manter a primeira chamada real paga bloqueada até confirmação explícita do proprietário;
+4. preparar E2E controlado com documento pequeno e custo mínimo quando houver essa confirmação;
+5. seguir para `extrair_elementos` sem permitir que uma saída parcial alimente o Cérebro Autoral.
 
 ## Regra permanente
 
