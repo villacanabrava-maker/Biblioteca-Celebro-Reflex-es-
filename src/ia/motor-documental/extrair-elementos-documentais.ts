@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import type OpenAI from 'openai'
 import { zodTextFormat } from 'openai/helpers/zod'
 import { z } from 'zod'
+import { estimarCustoUsd } from '../../infraestrutura/openai/modelos.ts'
 
 export const TIPOS_ELEMENTO = [
   'tema',
@@ -59,6 +60,78 @@ export const extracaoElementosSchema = z
     elementos: z.array(elementoExtraidoSchema).max(30),
   })
   .strict()
+
+export const SCHEMA_SAIDA_EXTRACAO_ELEMENTOS_V1 = {
+  type: 'object',
+  properties: {
+    elementos: {
+      type: 'array',
+      maxItems: 30,
+      items: {
+        type: 'object',
+        properties: {
+          tipo: { type: 'string', enum: [...TIPOS_ELEMENTO] },
+          plano_analitico: { type: 'string', enum: [...PLANOS_ANALITICOS] },
+          titulo: { type: 'string', minLength: 1, maxLength: 300 },
+          descricao: { type: 'string', minLength: 1, maxLength: 4_000 },
+          importancia: { type: 'number', minimum: 0, maximum: 1 },
+          confianca: { type: 'number', minimum: 0, maximum: 1 },
+          evidencias: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 5,
+            items: {
+              type: 'object',
+              properties: {
+                trecho_referencia: { type: 'string', minLength: 1, maxLength: 4_000 },
+                forca_evidencia: { type: 'number', minimum: 0, maximum: 1 },
+                justificativa: {
+                  anyOf: [
+                    { type: 'string', minLength: 1, maxLength: 2_000 },
+                    { type: 'null' },
+                  ],
+                },
+              },
+              required: ['trecho_referencia', 'forca_evidencia', 'justificativa'],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: [
+          'tipo',
+          'plano_analitico',
+          'titulo',
+          'descricao',
+          'importancia',
+          'confianca',
+          'evidencias',
+        ],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['elementos'],
+  additionalProperties: false,
+} as const
+
+function normalizarJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizarJson)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([chave, valor]) => [chave, normalizarJson(valor)])
+    )
+  }
+  return value
+}
+
+export function schemaSaidaExtracaoElementosV1Compativel(schema: unknown): boolean {
+  return (
+    JSON.stringify(normalizarJson(schema)) ===
+    JSON.stringify(normalizarJson(SCHEMA_SAIDA_EXTRACAO_ELEMENTOS_V1))
+  )
+}
 
 export type ElementoExtraido = z.infer<typeof elementoExtraidoSchema>
 export type EvidenciaExtraida = z.infer<typeof evidenciaSchema>
@@ -178,15 +251,24 @@ export async function extrairElementosDocumentais({
     }
   }
 
+  const tokensEntrada = resposta.usage?.input_tokens ?? 0
+  const tokensSaida = resposta.usage?.output_tokens ?? 0
+  const tokensEntradaCache = resposta.usage?.input_tokens_details?.cached_tokens ?? 0
+
   return {
     ok: true as const,
     elementos: resposta.output_parsed.elementos,
     fragmentoId: entrada.fragmento.fragmentoId,
     hashEntrada,
     responseId: resposta.id,
-    tokensEntrada: resposta.usage?.input_tokens ?? 0,
-    tokensSaida: resposta.usage?.output_tokens ?? 0,
-    tokensEntradaCache: resposta.usage?.input_tokens_details?.cached_tokens ?? 0,
+    tokensEntrada,
+    tokensSaida,
+    tokensEntradaCache,
     duracaoMs,
+    custoEstimadoUsd: estimarCustoUsd(modelo, {
+      tokensEntrada,
+      tokensSaida,
+      tokensEntradaCache,
+    }),
   }
 }
