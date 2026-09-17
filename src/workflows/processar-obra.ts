@@ -22,6 +22,14 @@ import {
   criarFragmentosStep,
   type ResultadoCriarFragmentosStep,
 } from '@/workflows/criar-fragmentos-step'
+import {
+  concluirSintesesStep,
+  criarSinteseObraStep,
+  criarSinteseSecaoStep,
+  planejarSintesesStep,
+  type PlanoSinteses,
+  type ResultadoSinteseAlvo,
+} from '@/workflows/criar-sinteses-step'
 import { createBackendClient } from '@/infraestrutura/supabase/backend'
 
 type ContextoExecucao = {
@@ -94,6 +102,10 @@ type ResultadoProcessamentoInicial = {
   identificacaoEstrutura?: ResultadoIdentificacaoEstruturaStep
   criacaoHierarquia?: ResultadoCriarHierarquiaStep
   criacaoFragmentos?: ResultadoCriarFragmentosStep
+  planejamentoSinteses?: PlanoSinteses
+  sintesesSecoes?: ResultadoSinteseAlvo[]
+  sinteseObra?: ResultadoSinteseAlvo
+  conclusaoSinteses?: ResultadoSinteseAlvo
 }
 
 export async function processarObraWorkflow(
@@ -272,8 +284,116 @@ export async function processarObraWorkflow(
     throw error
   }
 
+  if (!criacaoFragmentos.ok) {
+    return {
+      ok: false,
+      execucaoId,
+      validacao,
+      identificacaoFormato,
+      extracao,
+      normalizacao,
+      identificacaoEstrutura,
+      criacaoHierarquia,
+      criacaoFragmentos,
+    }
+  }
+
+  let planejamentoSinteses: PlanoSinteses
+  const sintesesSecoes: ResultadoSinteseAlvo[] = []
+  let sinteseObra: ResultadoSinteseAlvo | undefined
+  let conclusaoSinteses: ResultadoSinteseAlvo | undefined
+
+  try {
+    planejamentoSinteses = await planejarSintesesStep(execucaoId)
+
+    if (
+      !planejamentoSinteses.ok ||
+      !planejamentoSinteses.documentoProcessadoId ||
+      !planejamentoSinteses.secoesIds ||
+      typeof planejamentoSinteses.permitirCriacao !== 'boolean'
+    ) {
+      return {
+        ok: false,
+        execucaoId,
+        validacao,
+        identificacaoFormato,
+        extracao,
+        normalizacao,
+        identificacaoEstrutura,
+        criacaoHierarquia,
+        criacaoFragmentos,
+        planejamentoSinteses,
+        sintesesSecoes,
+      }
+    }
+
+    for (const secaoId of planejamentoSinteses.secoesIds) {
+      const resultado = await criarSinteseSecaoStep(
+        execucaoId,
+        secaoId,
+        planejamentoSinteses.permitirCriacao
+      )
+      sintesesSecoes.push(resultado)
+
+      if (!resultado.ok) {
+        return {
+          ok: false,
+          execucaoId,
+          validacao,
+          identificacaoFormato,
+          extracao,
+          normalizacao,
+          identificacaoEstrutura,
+          criacaoHierarquia,
+          criacaoFragmentos,
+          planejamentoSinteses,
+          sintesesSecoes,
+        }
+      }
+    }
+
+    sinteseObra = await criarSinteseObraStep(
+      execucaoId,
+      planejamentoSinteses.documentoProcessadoId,
+      planejamentoSinteses.permitirCriacao
+    )
+
+    if (!sinteseObra.ok) {
+      return {
+        ok: false,
+        execucaoId,
+        validacao,
+        identificacaoFormato,
+        extracao,
+        normalizacao,
+        identificacaoEstrutura,
+        criacaoHierarquia,
+        criacaoFragmentos,
+        planejamentoSinteses,
+        sintesesSecoes,
+        sinteseObra,
+      }
+    }
+
+    conclusaoSinteses = await concluirSintesesStep(
+      execucaoId,
+      planejamentoSinteses.documentoProcessadoId,
+      planejamentoSinteses.permitirCriacao
+    )
+  } catch (error) {
+    const tipoErro = error instanceof Error ? error.name : 'erro_desconhecido'
+    await registrarFalhaFinalEtapa(
+      execucaoId,
+      'criar_sinteses',
+      'CRIACAO_SINTESES_ESGOTOU_RETRIES',
+      'A criação de sínteses falhou após as tentativas automáticas do workflow.',
+      tipoErro
+    )
+    throw error
+  }
+
   return {
-    ok: criacaoFragmentos.ok,
+    ok: conclusaoSinteses.ok,
     execucaoId,
     validacao,
     identificacaoFormato,
@@ -282,6 +402,10 @@ export async function processarObraWorkflow(
     identificacaoEstrutura,
     criacaoHierarquia,
     criacaoFragmentos,
+    planejamentoSinteses,
+    sintesesSecoes,
+    sinteseObra,
+    conclusaoSinteses,
   }
 }
 
