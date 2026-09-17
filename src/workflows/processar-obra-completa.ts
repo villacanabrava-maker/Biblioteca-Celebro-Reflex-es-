@@ -16,6 +16,14 @@ import {
   type ResultadoConclusaoTaxonomia,
   type ResultadoNormalizacaoElemento,
 } from '@/workflows/normalizar-taxonomia-step'
+import {
+  concluirRelacoesElementosStep,
+  criarRelacoesFragmentoStep,
+  planejarRelacoesElementosStep,
+  type PlanoRelacoesElementos,
+  type ResultadoConclusaoRelacoes,
+  type ResultadoRelacoesFragmento,
+} from '@/workflows/criar-relacoes-step'
 import { createBackendClient } from '@/infraestrutura/supabase/backend'
 
 type ResultadoPipelineBase = Awaited<ReturnType<typeof processarObraWorkflow>>
@@ -27,6 +35,9 @@ type ResultadoProcessamentoCompleto = ResultadoPipelineBase & {
   planejamentoTaxonomia?: PlanoNormalizacaoTaxonomia
   normalizacoesTaxonomia?: ResultadoNormalizacaoElemento[]
   conclusaoTaxonomia?: ResultadoConclusaoTaxonomia
+  planejamentoRelacoes?: PlanoRelacoesElementos
+  relacoesFragmentos?: ResultadoRelacoesFragmento[]
+  conclusaoRelacoes?: ResultadoConclusaoRelacoes
 }
 
 async function iniciarPipelineBase(execucaoId: string): Promise<string> {
@@ -79,6 +90,27 @@ async function registrarFalhaFinalTaxonomia(
       p_codigo_erro: 'NORMALIZACAO_TAXONOMIA_ESGOTOU_RETRIES',
       p_mensagem_erro:
         'A normalização taxonômica falhou após as tentativas automáticas seguras do workflow.',
+      p_detalhes: { tipo_erro: tipoErro },
+    })
+
+  if (error) throw error
+}
+
+async function registrarFalhaFinalRelacoes(
+  execucaoId: string,
+  tipoErro: string
+): Promise<void> {
+  'use step'
+
+  const backend = createBackendClient()
+  const { error } = await backend
+    .schema('aplicacao')
+    .rpc('backend_falhar_execucao', {
+      p_execucao_id: execucaoId,
+      p_nome_etapa: 'criar_relacoes',
+      p_codigo_erro: 'CRIACAO_RELACOES_ESGOTOU_RETRIES',
+      p_mensagem_erro:
+        'A criação de relações falhou após as tentativas automáticas seguras do workflow.',
       p_detalhes: { tipo_erro: tipoErro },
     })
 
@@ -229,14 +261,98 @@ export async function processarObraCompletaWorkflow(
     throw error
   }
 
+  if (!conclusaoTaxonomia.ok) {
+    return {
+      ...resultadoBase,
+      ok: false,
+      planejamentoElementos,
+      extracoesElementos,
+      conclusaoElementos,
+      planejamentoTaxonomia,
+      normalizacoesTaxonomia,
+      conclusaoTaxonomia,
+    }
+  }
+
+  let planejamentoRelacoes: PlanoRelacoesElementos
+  const relacoesFragmentos: ResultadoRelacoesFragmento[] = []
+  let conclusaoRelacoes: ResultadoConclusaoRelacoes | undefined
+
+  try {
+    planejamentoRelacoes = await planejarRelacoesElementosStep(execucaoId)
+
+    if (
+      !planejamentoRelacoes.ok ||
+      !planejamentoRelacoes.fragmentosIds ||
+      typeof planejamentoRelacoes.permitirCriacao !== 'boolean' ||
+      !planejamentoRelacoes.config
+    ) {
+      return {
+        ...resultadoBase,
+        ok: false,
+        planejamentoElementos,
+        extracoesElementos,
+        conclusaoElementos,
+        planejamentoTaxonomia,
+        normalizacoesTaxonomia,
+        conclusaoTaxonomia,
+        planejamentoRelacoes,
+        relacoesFragmentos,
+      }
+    }
+
+    let quantidadeRelacoes = 0
+
+    for (const fragmentoId of planejamentoRelacoes.fragmentosIds) {
+      const resultado = await criarRelacoesFragmentoStep(
+        execucaoId,
+        fragmentoId,
+        planejamentoRelacoes.permitirCriacao,
+        planejamentoRelacoes.config
+      )
+      relacoesFragmentos.push(resultado)
+
+      if (!resultado.ok) {
+        return {
+          ...resultadoBase,
+          ok: false,
+          planejamentoElementos,
+          extracoesElementos,
+          conclusaoElementos,
+          planejamentoTaxonomia,
+          normalizacoesTaxonomia,
+          conclusaoTaxonomia,
+          planejamentoRelacoes,
+          relacoesFragmentos,
+        }
+      }
+
+      quantidadeRelacoes += resultado.quantidadeRelacoes ?? 0
+    }
+
+    conclusaoRelacoes = await concluirRelacoesElementosStep(
+      execucaoId,
+      planejamentoRelacoes.permitirCriacao,
+      planejamentoRelacoes.fragmentosIds.length,
+      quantidadeRelacoes
+    )
+  } catch (error) {
+    const tipoErro = error instanceof Error ? error.name : 'erro_desconhecido'
+    await registrarFalhaFinalRelacoes(execucaoId, tipoErro)
+    throw error
+  }
+
   return {
     ...resultadoBase,
-    ok: conclusaoTaxonomia.ok,
+    ok: conclusaoRelacoes.ok,
     planejamentoElementos,
     extracoesElementos,
     conclusaoElementos,
     planejamentoTaxonomia,
     normalizacoesTaxonomia,
     conclusaoTaxonomia,
+    planejamentoRelacoes,
+    relacoesFragmentos,
+    conclusaoRelacoes,
   }
 }
