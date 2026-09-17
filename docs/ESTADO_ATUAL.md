@@ -1,160 +1,48 @@
 # Estado Atual do Projeto
 
-Atualizado em **17/09/2026** após auditoria completa de handoff, correção de RLS (`0022`) e implementação de `identificar_estrutura` (`0023`), `criar_hierarquia` (`0024`) e `criar_fragmentos` (`0025`–`0027`).
-
-## Auditoria de handoff — 17/09/2026
-
-O PR #13 já estava incorporado à `main` (não há PRs abertos). Uma nova sessão assumiu o projeto e executou, no mesmo commit (`7ab215b`):
-
-- `npm ci`, `npm audit --omit=dev --audit-level=high`, `npm run lint`, `npm run typecheck`, `npm test` (12/12) e `npm run build`: todos passaram sem alteração de código;
-- leitura completa do código de segurança (`proxy.ts`, cliente backend, RPCs `aplicacao.backend_*`, workflow `processar-obra.ts`) confirmando que corresponde exatamente ao descrito nos ADRs;
-- auditoria do Supabase oficial (`xzkzdaxxmizcgfkjgzoq`) via advisors de segurança/performance, `list_tables` e `list_migrations`;
-- auditoria do Vercel oficial (`cerebro-autoral`): produção `READY` na `main` atual, Node do dashboard ainda em 24.x (ADR-027 pendente de ajuste manual).
-
-**Achado corrigido:** o advisor de segurança apontava como crítico o RLS desabilitado em 8 tabelas de catálogo (`sistema.*`, `taxonomia.*`). A `0022_rls_catalogos_sistema_taxonomia` habilitou RLS + policy de leitura para `authenticated` nessas tabelas, sem novo GRANT (ver ADR-057). Reexecutado o advisor após a migration: o achado crítico desapareceu; resta apenas o aviso externo pré-existente `Leaked Password Protection Disabled`.
-
-**Recursos de infraestrutura fora deste projeto:** a conta possui outros projetos Supabase/Vercel/GitHub (ex.: `Celebro-Biblioteca-Cloude`, `MEMORIA-REFLEXIMA-`, `memoria-reflexiva-oficial`, `app-geovane-cloud`) que **não pertencem** a este aplicativo e não foram tocados nesta auditoria, por decisão explícita do proprietário.
-
-## Nova etapa — `identificar_estrutura` (0023)
-
-Implementada em `src/dominios/processamento/identificar-estrutura.ts` (lógica pura, testada) e `src/workflows/identificar-estrutura-step.ts` (etapa durável, integrada a `processar-obra.ts`). Consome `conteudo_normalizado` validado e produz o artefato `estrutura_identificada` com sinais determinísticos (cabeçalhos Markdown, marcadores "Parte/Capítulo/Seção/Subseção/Anexo" numerados, "Prefácio"/"Posfácio" isolados, candidatos de baixa confiança em maiúsculas) — ver ADR-058/059/060 e `docs/PIPELINE_DOCUMENTAL.md`. Não materializa `processamento.secoes`; isso ficou para `criar_hierarquia`.
-
-## Nova etapa — `criar_hierarquia` (0024)
-
-Implementada em `src/dominios/processamento/criar-hierarquia.ts` (algoritmo de árvore por pilha de níveis, puro e testado) e `src/workflows/criar-hierarquia-step.ts` (etapa durável). Consome apenas os sinais de `confianca: alta` de `estrutura_identificada` e materializa, pela primeira vez, dados reais em `processamento.documentos_processados` (estado `candidato`) e `processamento.secoes` — via a função de banco `aplicacao.backend_criar_hierarquia_documento` (migration `0024`), no mesmo padrão de segurança das etapas anteriores (SECURITY DEFINER, sem GRANT direto). Ver ADR-061/062/063.
-
-Sem nenhum sinal de alta confiança, cria uma única seção cobrindo o documento inteiro, em vez de inventar divisão. A função de banco foi validada manualmente contra o Supabase oficial dentro de uma transação com `ROLLBACK`: confirmou criação do documento + 3 seções de teste com vínculo pai/filho correto e idempotência em uma segunda chamada — nenhum dado permanente foi criado no banco oficial.
-
-## Nova etapa — `criar_fragmentos` (0025–0027)
-
-Implementada em `src/dominios/processamento/criar-fragmentos.ts` e `src/workflows/criar-fragmentos-step.ts`. Cria um fragmento por seção (v1 não subdivide seções grandes), usando o texto **próprio** de cada seção — até a próxima seção na ordem de leitura, nunca até `pagina_final`/`indice_fim` (que cobre também as subseções, e duplicaria texto). Ver ADR-064/065/066.
-
-A validação manual contra o Supabase oficial (dentro de transação com `ROLLBACK`, sem dado permanente criado) encontrou e corrigiu **dois erros reais** na primeira versão de `aplicacao.backend_criar_fragmentos_documento`, antes de qualquer uso: contagem de fragmentos que só via a última linha inserida no laço (`0026`), e um erro de ambiguidade de coluna que impedia a função de sequer executar (`0027`). Ver ADR-067 para o detalhe técnico completo — é um bom exemplo de por que toda função nova é testada contra o schema real antes de ser considerada pronta, e não apenas simulada em memória.
-
-`npm test` agora cobre 36 casos (12 do handoff original + 8 de `identificar_estrutura` + 10 de `criar_hierarquia` + 6 de `criar_fragmentos`). O advisor de segurança do Supabase permanece sem achados críticos após as migrations `0023`–`0027`.
+Atualizado em **17/09/2026** durante a auditoria de handoff da Fase 3.
 
 ## Infraestrutura oficial
 
+Somente estes recursos pertencem ao projeto:
+
 - GitHub: `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`
-- `main`: `15250537998d36c5c4df5375990c1f6c4cc66ed3`
-- Supabase: `xzkzdaxxmizcgfkjgzoq` — `ACTIVE_HEALTHY`, região `us-west-2`, PostgreSQL `17.6`
+- Supabase: `xzkzdaxxmizcgfkjgzoq` — `Biblioteca-Celebro-Reflex-es-`, `ACTIVE_HEALTHY`, `us-west-2`, PostgreSQL 17.6
 - Vercel: projeto `cerebro-autoral`
 - Produção: `https://cerebro-autoral.vercel.app`
-- `PROCESSAMENTO_WORKFLOW_ATIVO=false`
 
-## Marco atual
+Outros projetos das contas conectadas não pertencem a este aplicativo e não devem ser alterados.
 
-A Fase 3 avançou até `identificar_estrutura`, implementada na branch corrente:
+## Handoff em revisão
+
+O trabalho determinístico feito por outro agente foi isolado no **PR #14**, branch `review/handoff-claude-fase3`, para revisão antes de chegar à `main`.
+
+Escopo consolidado nessa revisão:
 
 ```text
 validar_arquivo          ✅ main
-  ↓
 identificar_formato      ✅ main
-  ↓
 extrair_conteudo         ✅ main — PDF textual/TXT/Markdown
-  ↓
-normalizar_conteudo      ✅ main (PR #13)
-  ↓
-identificar_estrutura    ✅ implementado e testado (0023)
-  ↓
-criar_hierarquia         ✅ implementado e testado (0024)
-  ↓
-criar_fragmentos         ✅ implementado e testado (0025–0027)
-  ↓
-criar_sinteses           próxima etapa (primeira cognitiva; exige IA)
+normalizar_conteudo      ✅ main
+identificar_estrutura    ✅ auditado no PR #14
+criar_hierarquia         ✅ auditado no PR #14
+criar_fragmentos         ✅ auditado e endurecido no PR #14
+criar_sinteses           ⬜ ainda não consolidado
 ```
 
-Nenhum artefato parcial é Documento Processado ativo e nenhum resultado parcial alimenta o Cérebro Autoral.
-
-## Normalização — política v1
-
-A etapa `normalizar_conteudo` é determinística e conservadora. Ela não corrige estilo, gramática, argumentos ou escolhas linguísticas.
-
-Regras:
-
-- Unicode NFC;
-- CRLF/CR → LF;
-- não usar NFKC/NFKD como normalização autoral;
-- preservar caixa, pontuação, aspas, travessões e escolhas lexicais;
-- preservar espaços internos e espaços significativos de Markdown;
-- preservar número, ordem e fronteira de páginas PDF;
-- validar schema e cadeia de proveniência `original → conteudo_extraido → conteudo_normalizado`;
-- persistir `conteudo_normalizado.json` no bucket privado de artefatos;
-- revalidar bytes/hash/tamanho/schema/proveniência também quando um replay reutilizar artefato existente;
-- não repetir a transição de estado se o workflow já tiver avançado.
-
-A escolha de NFC foi revisada contra a especificação Unicode atual: NFC preserva equivalência canônica; formas de compatibilidade podem remover distinções e não são adotadas para o texto autoral.
-
-## Validação do PR #13
-
-No head anterior ao hardening final, o job de aplicação passou:
-
-- `npm ci`;
-- `npm audit --omit=dev --audit-level=high`;
-- ESLint;
-- TypeScript;
-- testes unitários;
-- build Next.js.
-
-O primeiro job `banco-local` conseguiu subir o Supabase e aplicar migrations, mas falhou uma vez em `supabase db reset` com erro genérico do container. A repetição isolada do mesmo job passou integralmente:
-
-- `supabase start`;
-- aplicação de todas as migrations/seed;
-- `supabase db reset`;
-- `supabase status`;
-- shutdown limpo.
-
-Portanto, a primeira falha foi classificada como transitória do runner/container, não como migration inválida. O commit final do PR ainda deverá repetir todos os gates depois das atualizações de código/documentação antes do merge.
-
-Os Previews Vercel recentes da branch `feature/processamento-normalizacao` estão `READY`.
-
-## Supabase — migrations recentes
-
-- `0017` (`20260916202853`): RPCs server-only e máquina de etapas;
-- `0018` (`20260916212133`): reserva/recuperação do Workflow;
-- `0019` (`20260916221057`): locks e transições monotônicas/idempotentes;
-- `0020` (`20260916223016`): artefatos intermediários + bucket privado;
-- `0021` (`20260916225622`): policy explícita de negação para clientes.
-
-O advisor de segurança após `0021` mostra apenas a pendência externa **Leaked Password Protection Disabled**. O advisor de performance não aponta FK sem índice; `unused_index` permanece informativo enquanto não há corpus real.
-
-## Identificação e extração
-
-Formatos processáveis v1:
-
-- PDF com camada textual;
-- TXT UTF-8;
-- Markdown UTF-8.
-
-DOCX permanece fora do escopo até validação segura OOXML. PDF sem camada textual retorna caso específico para futura estratégia de OCR; não é enviado à IA.
-
-A extração usa `unpdf 1.8.1`/PDF.js serverless para PDF e decodificação UTF-8 determinística para texto. O original é revalidado por SHA-256/tamanho imediatamente antes da extração. O resultado vira `conteudo_extraido.json` no bucket privado `artefatos-processamento`, com hash, tamanho, MIME e metadados registrados em `processamento.artefatos_execucao`.
-
-Guardrails v1:
+A feature flag permanece:
 
 ```text
-TXT/Markdown original: 20 MiB
-PDF original:          50 MiB
-PDF:                   até 1.000 páginas
-Texto extraído:        até 12.000.000 caracteres
-Artefato JSON:         até 30 MiB
-Imagem interna PDF:    até 16.777.216 pixels
-Parsing PDF:           até 90 s
+PROCESSAMENTO_WORKFLOW_ATIVO=false
 ```
 
-## Produção Vercel
+Nenhum Documento Processado parcial alimenta o Cérebro Autoral.
 
-O domínio de produção está `READY`, mas ainda aponta para o commit `3a3a25f450fa1bdc2b56ec8f91120718de21adc2`, anterior às entregas de identificação/extração/normalização.
+## Banco oficial
 
-Os Previews das branches posteriores estão `READY`. O atraso de `main` decorreu de `build-rate-limit` da conta Vercel, não de erro de compilação confirmado no código. Como `PROCESSAMENTO_WORKFLOW_ATIVO=false`, funcionalidades parciais não estão expostas aos usuários.
+Última fotografia auditada:
 
-O Dashboard ainda informa Node 24.x, enquanto `package.json` exige Node 22.x; os builds têm respeitado a engine do projeto. O setting administrativo deve ser alinhado manualmente.
-
-## Estado dos dados
-
-O banco oficial ainda possui, na última auditoria:
-
-- 1 usuário Auth;
+- 1 usuário Auth de teste;
 - 0 obras;
 - 0 versões de obra;
 - 0 execuções;
@@ -164,25 +52,109 @@ O banco oficial ainda possui, na última auditoria:
 - 1 versão ativa de Pipeline;
 - 1 versão ativa de Taxonomia.
 
-Por isso ainda não existe um E2E positivo com corpus real. A feature flag continuará desligada até um documento controlado percorrer o Pipeline com sucesso.
+As migrations oficiais chegaram a:
 
-## Segurança externa pendente antes de corpus real
+- `0022` — RLS nos catálogos globais;
+- `0023` — artefato `estrutura_identificada`;
+- `0024` — Documento Processado candidato + hierarquia de seções;
+- `0025` — RPCs de fragmentos + índices de caractere;
+- `0026` — correção de contagem de fragmentos;
+- `0027` — correção de ambiguidade SQL;
+- `0028` (`20260917012837`) — `offset_pagina_inicio` para fragmentação PDF precisa;
+- `0029` (`20260917014156`) — listagem backend-only dos fragmentos para replay seguro.
 
-1. Supabase Auth: habilitar Leaked Password Protection, se o plano permitir, e confirmar URLs/templates SSR.
-2. GitHub: tornar o repositório privado e proteger `main` com Ruleset/PR/checks/sem force push; considerar CodeQL.
-3. Vercel: alinhar Node para 22.x e liberar/concluir um novo build de produção de `main`.
-4. E2E: usar uma obra controlada antes de ligar o Workflow no frontend.
+Nenhuma migration aplicada foi reescrita.
+
+## Achados desta auditoria
+
+### 1. Fronteira PDF era insuficiente
+
+A versão anterior conhecia o número da página em que uma seção começava, mas não persistia o offset do título dentro da página. Isso produzia dois riscos:
+
+- duas seções na mesma página poderiam compartilhar/duplicar texto;
+- quando uma nova seção começava no meio da página seguinte, o texto anterior ao novo título poderia ser descartado do fragmento precedente.
+
+**Correção:** `0028` persiste `offset_pagina_inicio` e o domínio de fragmentação usa página + offset para recortar o texto próprio da seção.
+
+### 2. Replay de `criar_fragmentos` confiava cedo demais no estado
+
+A primeira versão retornava sucesso imediatamente quando `backend_iniciar_etapa` informava que a etapa já havia sido concluída.
+
+**Correção:** o replay agora revalida o artefato normalizado, recalcula os fragmentos determinísticos e compara com os fragmentos persistidos. A nova RPC `backend_listar_fragmentos_documento` (`0029`) é `SECURITY DEFINER`, `search_path=''` e executável somente por `service_role`.
+
+A execução normal também relê e compara os fragmentos depois da persistência, antes de concluir a etapa.
+
+### 3. Rascunho de IA antigo não faz parte do banco
+
+A branch `claude/confident-cannon-ovdoev` possui um commit WIP (`0b9d739...`) com um arquivo local chamado `0028_ia_sinteses_secao`. Ele **nunca foi aplicado ao Supabase**, não possui testes completos nem integração de workflow.
+
+O número oficial `0028` agora pertence a `0028_offsets_pdf_fragmentacao`. O rascunho de IA deverá ser revisado e renumerado após `0029`; não pode ser aplicado como está.
+
+## Validação
+
+Na rodada de CI que incluiu as correções funcionais e os três novos testes:
+
+- `npm ci`: passou;
+- `npm audit --omit=dev --audit-level=high`: 0 vulnerabilidades;
+- ESLint: passou (um warning cosmético do novo teste foi depois removido);
+- TypeScript: passou;
+- testes: **39/39 passaram**;
+- build Next.js: passou;
+- banco local: `supabase start` + migrations + seed + `db reset` + `status` + shutdown: passou;
+- Preview Vercel do código/testes: `READY`.
+
+Depois da remoção do warning e das atualizações documentais, o head final do PR precisa repetir os mesmos gates antes do merge.
+
+## Segurança
+
+A auditoria após `0028/0029` confirma:
+
+- schemas internos continuam fechados;
+- RLS permanece ativo nas superfícies pessoais/sensíveis;
+- Storage permanece privado;
+- `anon` e `authenticated` não executam RPCs `backend_*`;
+- RPCs internas usam `SECURITY DEFINER` + `search_path=''`;
+- `service_role` só acessa operações internas pelas RPCs deliberadamente concedidas;
+- nenhuma nova FK sem índice foi apontada.
+
+Advisor de segurança: único aviso remanescente é **Leaked Password Protection Disabled**.
+
+Advisor de performance: apenas `unused_index` informativo enquanto o banco continua sem corpus.
+
+## Vercel
+
+- projeto correto: `cerebro-autoral`;
+- Preview do PR #14 com as correções/testes está `READY`;
+- produção continua ligada à `main`, que ainda não contém o PR #14;
+- Dashboard ainda reporta Node 24.x, enquanto o projeto exige Node 22.x; ajuste administrativo continua pendente.
+
+`PROCESSAMENTO_WORKFLOW_ATIVO=false` impede exposição do Pipeline parcial.
 
 ## OpenAI
 
-A chave antiga foi rotacionada e a nova está configurada diretamente na Vercel. Nenhum segredo foi versionado. A IA ainda não participa das etapas implementadas porque validação, identificação, extração e normalização são deliberadamente determinísticas.
+A chave antiga foi rotacionada e a nova está configurada diretamente na Vercel. Nenhum segredo foi versionado.
 
-A futura camada cognitiva seguirá Responses API com `store:false`, Structured Outputs/JSON Schema, Zod, modelos centralizados em `MODELO_IA_*` e auditoria completa.
+A IA ainda não é parte da implementação consolidada do Pipeline. A próxima etapa, `criar_sinteses`, será a primeira cognitiva e deverá ser reconstruída com:
 
-## Próximo passo
+- documentação oficial atual da OpenAI revalidada;
+- Responses API;
+- `store:false`;
+- Structured Outputs/JSON Schema;
+- validação Zod;
+- cliente injetável para testes sem custo;
+- auditoria de modelo/prompt/execução;
+- SQL validado em `BEGIN ... ROLLBACK` antes de aplicação.
 
-Implementar `criar_sinteses`, a primeira etapa verdadeiramente cognitiva do Pipeline: gerar sínteses hierárquicas (fragmento → seção → capítulo → parte → obra) a partir dos fragmentos já materializados. Isso exigirá ativar a camada de IA (OpenAI Responses API, `store: false`, Structured Outputs/JSON Schema, validação Zod, modelos centralizados por `MODELO_IA_*`), ainda não ligada nesta versão. Nenhum Documento Processado parcial deve ser publicado antes de `validar_resultado`/`publicar_documento`.
+Nenhuma chamada real paga será executada sem confirmação do proprietário.
+
+## Próximo marco
+
+1. fechar os gates finais do PR #14;
+2. incorporar a parte determinística auditada à `main`;
+3. verificar Production Vercel no commit de merge;
+4. sincronizar a fotografia documental pós-merge;
+5. iniciar uma branch nova para reconstruir/revisar `criar_sinteses` a partir das decisões canônicas, usando o WIP antigo apenas como referência.
 
 ## Regra permanente
 
-Nenhuma migration aplicada é reescrita para esconder correções. Nenhum segredo é commitido. Toda mudança estrutural é cumulativa, testável e documentada. O usuário permanece a autoridade final sobre autoria e incorporação ao Cérebro Autoral.
+Nenhuma migration aplicada é reescrita para esconder correções. Nenhum segredo é commitido. Todo resultado parcial permanece separado de Documento Processado ativo. O usuário continua sendo a autoridade final sobre autoria e incorporação ao Cérebro Autoral.
