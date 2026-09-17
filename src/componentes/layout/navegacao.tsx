@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, BookOpen, Brain, Sparkles, Settings } from "lucide-react";
+import { Home, BookOpen, Brain, Sparkles, Settings, Compass } from "lucide-react";
 import { clsx } from "clsx";
 
 export const itensNavegacao = [
   { href: "/", rotulo: "Início", icone: Home },
   { href: "/biblioteca", rotulo: "Biblioteca", icone: BookOpen },
+  { href: "/taxonomia", rotulo: "Taxonomia", icone: Compass },
   { href: "/cerebro", rotulo: "Meu Cérebro", icone: Brain },
   { href: "/reflexoes", rotulo: "Reflexões", icone: Sparkles },
   { href: "/configuracoes", rotulo: "Mais", icone: Settings },
