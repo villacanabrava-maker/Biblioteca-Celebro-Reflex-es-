@@ -68,17 +68,18 @@ Os documentos canônicos completos ainda serão transpostos para arquivos de doc
 
 ```text
 villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
-main: 15250537998d36c5c4df5375990c1f6c4cc66ed3
-PR atual: #13 — feature/processamento-normalizacao
+main: 7ab215bcf100da829d7ee64c52b58b79e774b31e
+Sem PRs abertos; desenvolvimento corrente em claude/confident-cannon-ovdoev
 ```
 
 - Fase 2 incorporada;
 - PR #9 incorporado: orquestração durável e validação de original;
 - PR #10 incorporado: identificação de formato, extração determinística e artefatos intermediários;
 - PR #11 incorporado: sincronização documental pós-PR #10;
-- PR #13 em validação final: normalização determinística/conservadora;
+- PR #13 incorporado: normalização determinística/conservadora;
+- `identificar_estrutura` implementado (sinais determinísticos v1) na branch corrente;
 - `PROCESSAMENTO_WORKFLOW_ATIVO=false` permanece;
-- repositório atualmente **público**;
+- repositório atualmente **público**, por decisão explícita do proprietário (ADR-029/051 seguem registrando o risco);
 - `main` ainda não possui Ruleset/proteção obrigatória;
 - nenhum segredo deve existir no código ou histórico.
 
@@ -187,10 +188,11 @@ ESLint permanece em `9.39.5` enquanto a combinação atual do ecossistema Next.j
 | `validar_arquivo` | implementado e testado |
 | `identificar_formato` | implementado e testado |
 | `extrair_conteudo` | implementado e testado para PDF textual/TXT/Markdown |
-| `normalizar_conteudo` | **implementado no PR #13; validação final em andamento** |
-| Artefatos intermediários privados | migrations `0020`/`0021` aplicadas |
+| `normalizar_conteudo` | implementado e testado (PR #13, incorporado à `main`) |
+| Artefatos intermediários privados | migrations `0020`/`0021`/`0023` aplicadas |
 | Supabase local reproduzível | implementado e testado no CI |
-| `identificar_estrutura` | próxima etapa após PR #13 |
+| `identificar_estrutura` | **implementado e testado; sinais determinísticos v1** |
+| `criar_hierarquia` | próxima etapa |
 | OpenAI operacional no Pipeline | pendente por arquitetura, não por credencial |
 | Cérebro Autoral | pendente |
 | Recuperação híbrida | pendente |
@@ -228,6 +230,7 @@ Migration aplicada não é reescrita. Toda correção posterior recebe nova migr
 | `20260916223016` | `0020_artefatos_intermediarios_processamento` | artefatos parciais privados |
 | `20260916225622` | `0021_politica_negacao_artefatos_processamento` | negação explícita a clientes |
 | `20260917000231` | `0022_rls_catalogos_sistema_taxonomia` | RLS + leitura autenticada nos catálogos globais |
+| `20260917001607` | `0023_artefato_estrutura_identificada` | novo tipo de artefato para sinais de estrutura |
 
 O CI reconstrói um Supabase local do zero com migrations + seed e executa `db reset`, provando reprodutibilidade. Uma falha transitória de container ocorrida no PR #13 foi repetida isoladamente e o mesmo job passou integralmente sem alteração de migration.
 
@@ -380,6 +383,10 @@ conteudo_normalizado
 
 Em replay, um artefato existente também é baixado e revalidado; se o workflow já avançou, ele é reutilizado sem repetir a transição de estado.
 
+### `identificar_estrutura`
+
+Consome somente `conteudo_normalizado` validado e produz o artefato `estrutura_identificada`, sem materializar `processamento.secoes`. Sinais de alta confiança: cabeçalhos Markdown; marcadores "Parte"/"Capítulo" + algarismo arábico ou numeral romano **maiúsculo**; "Seção"/"Subseção" + algarismo arábico; "Anexo" + algarismo ou letra; "Prefácio"/"Posfácio" isolados. Uma linha inteiramente maiúscula é candidata de baixa confiança, sem tipo atribuído. Marcadores só valem em linhas de até 120 caracteres, para não confundir prosa que apenas menciona a palavra-chave (ex.: "Parte civil...") com um título real. Sem sinal de alta confiança, `possui_indicios_estruturais` fica `false` e nenhuma hierarquia é inventada. Em PDF, cada página é analisada separadamente e cada unidade preserva seu número de página.
+
 A feature flag permanece:
 
 ```text
@@ -401,7 +408,7 @@ npm test
 npm run build
 ```
 
-A suíte cobre detecção/spoofing, TXT/Markdown, binário disfarçado, DOCX fora do escopo, UTF-8/BOM/vazio, extração real de PDF textual, Unicode NFC, preservação de espaços Markdown, preservação de páginas e validação de proveniência da normalização.
+A suíte (20 testes) cobre detecção/spoofing, TXT/Markdown, binário disfarçado, DOCX fora do escopo, UTF-8/BOM/vazio, extração real de PDF textual, Unicode NFC, preservação de espaços Markdown, preservação de páginas, validação de proveniência da normalização e, para `identificar_estrutura`: cabeçalhos Markdown, marcadores numerados versus prosa ambígua, Prefácio/Posfácio isolados versus mencionados em frase, página de PDF preservada, ausência de invenção de estrutura sem evidência e proveniência do artefato.
 
 ### Banco local
 
@@ -420,18 +427,16 @@ Ainda não há obra real no banco oficial. O caminho positivo `upload → workfl
 
 ---
 
-## 12. Próxima etapa: identificar estrutura
+## 12. Próxima etapa: criar hierarquia
 
-Depois que o PR #13 for incorporado, a próxima implementação é `identificar_estrutura`.
+Com `identificar_estrutura` implementado, a próxima implementação é `criar_hierarquia`.
 
 Princípio inicial:
 
-- consumir apenas `conteudo_normalizado` validado;
-- preservar a proveniência até a unidade estrutural;
-- detectar sinais determinísticos quando forem confiáveis;
-- não inventar capítulos/seções onde houver ambiguidade;
-- registrar incerteza para etapas cognitivas posteriores quando necessário;
-- separar identificação de estrutura de `criar_hierarquia`, que materializa as entidades canônicas;
+- consumir `estrutura_identificada` (quando `possui_indicios_estruturais = true`) e `conteudo_normalizado`;
+- materializar `processamento.secoes` preservando ordem, nível hierárquico, página inicial/final e proveniência até a unidade de origem;
+- quando não houver indício de alta confiança, tratar a obra inteira como uma única seção de nível 0 em vez de inventar divisões;
+- sinais de baixa confiança (`linha_maiuscula_candidata`) não geram seção sozinhos nesta primeira versão — ficam disponíveis para revisão humana/IA futura;
 - nenhuma estrutura parcial alimenta o Cérebro.
 
 ---
@@ -444,7 +449,7 @@ Princípio inicial:
 | Dicionário/Taxonomia — estrutura | concluída |
 | Biblioteca/Storage/Auth/API | concluídos |
 | Pipeline — modelo de dados | concluído |
-| Pipeline — workflow | **em construção; até normalização no PR #13** |
+| Pipeline — workflow | **em construção; até `identificar_estrutura`** |
 | Documentos Processados — execução real | pendente do workflow completo |
 | Taxonomia inteligente | pendente |
 | Recuperação híbrida | pendente |

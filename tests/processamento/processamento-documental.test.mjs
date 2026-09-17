@@ -10,6 +10,10 @@ import {
   normalizarArtefatoExtraido,
   validarArtefatoNormalizado,
 } from '../../src/dominios/processamento/normalizar-conteudo.ts'
+import {
+  identificarEstruturaArtefatoNormalizado,
+  validarArtefatoEstrutura,
+} from '../../src/dominios/processamento/identificar-estrutura.ts'
 
 const encoder = new TextEncoder()
 
@@ -304,4 +308,223 @@ test('artefato normalizado é rejeitado se apontar para outra extração', () =>
 
   assert.equal(validacao.ok, false)
   if (!validacao.ok) assert.equal(validacao.codigo, 'ARTEFATO_NORMALIZADO_ORIGEM_DIVERGENTE')
+})
+
+function artefatoNormalizadoTexto(conteudo, formato = 'texto') {
+  return {
+    schema_version: 1,
+    formato,
+    encoding: 'utf-8',
+    metodo: 'normalizacao_tecnica_nfc_v1',
+    fonte: {
+      nome_arquivo: formato === 'markdown' ? 'ensaio.md' : 'ensaio.txt',
+      tipo_mime_registrado: formato === 'markdown' ? 'text/markdown' : 'text/plain',
+      hash_sha256_original: 'e'.repeat(64),
+      hash_sha256_artefato_extraido: '5'.repeat(64),
+    },
+    total_paginas: null,
+    conteudo,
+    normalizacao: {
+      unicode: 'NFC',
+      quebras_linha: 'LF',
+      preserva_espacos_internos: true,
+      alteracoes: {
+        quebras_crlf_convertidas: 0,
+        quebras_cr_isoladas_convertidas: 0,
+        segmentos_alterados_nfc: 0,
+        caracteres_antes: conteudo.length,
+        caracteres_depois: conteudo.length,
+      },
+    },
+  }
+}
+
+function artefatoNormalizadoPdf(paginas) {
+  return {
+    schema_version: 1,
+    formato: 'pdf',
+    encoding: 'utf-8',
+    metodo: 'normalizacao_tecnica_nfc_v1',
+    fonte: {
+      nome_arquivo: 'livro.pdf',
+      tipo_mime_registrado: 'application/pdf',
+      hash_sha256_original: 'e'.repeat(64),
+      hash_sha256_artefato_extraido: '5'.repeat(64),
+    },
+    total_paginas: paginas.length,
+    paginas,
+    normalizacao: {
+      unicode: 'NFC',
+      quebras_linha: 'LF',
+      preserva_espacos_internos: true,
+      alteracoes: {
+        quebras_crlf_convertidas: 0,
+        quebras_cr_isoladas_convertidas: 0,
+        segmentos_alterados_nfc: 0,
+        caracteres_antes: 0,
+        caracteres_depois: 0,
+      },
+    },
+  }
+}
+
+function identificarEstrutura(artefato) {
+  return identificarEstruturaArtefatoNormalizado({
+    bytes: bytes(JSON.stringify(artefato)),
+    hashArtefatoNormalizado: '8'.repeat(64),
+    hashOriginalEsperado: artefato.fonte.hash_sha256_original,
+    hashArtefatoExtraidoEsperado: artefato.fonte.hash_sha256_artefato_extraido,
+  })
+}
+
+test('identifica cabeçalhos Markdown com nível e marca indícios estruturais de alta confiança', () => {
+  const artefato = artefatoNormalizadoTexto(
+    '# Capítulo Um\n\nTexto do capítulo.\n\n## Uma seção interna\n\nMais texto.',
+    'markdown'
+  )
+  const resultado = identificarEstrutura(artefato)
+
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+
+  assert.equal(resultado.artefato.possui_indicios_estruturais, true)
+  assert.equal(resultado.artefato.unidades.length, 2)
+  assert.equal(resultado.artefato.unidades[0].tipo_sinal, 'cabecalho_markdown')
+  assert.equal(resultado.artefato.unidades[0].nivel_markdown, 1)
+  assert.equal(resultado.artefato.unidades[0].titulo_detectado, 'Capítulo Um')
+  assert.equal(resultado.artefato.unidades[1].nivel_markdown, 2)
+  assert.equal(resultado.artefato.unidades[0].confianca, 'alta')
+})
+
+test('identifica marcadores numerados em texto plano e ignora prosa que apenas menciona a palavra-chave', () => {
+  const artefato = artefatoNormalizadoTexto(
+    [
+      'Capítulo 1',
+      '',
+      'Tudo começou em uma tarde qualquer.',
+      '',
+      'Parte civil do processo não é mencionada aqui como título.',
+      '',
+      'Capítulo II',
+      '',
+      'A história continua.',
+    ].join('\n')
+  )
+
+  const resultado = identificarEstrutura(artefato)
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+
+  const sinais = resultado.artefato.unidades.filter((u) => u.tipo_sinal === 'marcador_numerado')
+  assert.equal(sinais.length, 2)
+  assert.equal(sinais[0].tipo_sugerido, 'capitulo')
+  assert.equal(sinais[0].titulo_detectado, 'Capítulo 1')
+  assert.equal(sinais[1].titulo_detectado, 'Capítulo II')
+  assert.equal(
+    resultado.artefato.unidades.some((u) => u.titulo_detectado.startsWith('Parte civil')),
+    false
+  )
+})
+
+test('reconhece Prefácio e Posfácio isolados, mas não quando fazem parte de uma frase', () => {
+  const artefato = artefatoNormalizadoTexto(
+    [
+      'Prefácio',
+      '',
+      'Escrevo estas linhas antes de tudo.',
+      '',
+      'Este não é o prefácio do livro, apenas uma menção.',
+      '',
+      'Posfácio',
+    ].join('\n')
+  )
+
+  const resultado = identificarEstrutura(artefato)
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+
+  const isolados = resultado.artefato.unidades.filter((u) => u.tipo_sinal === 'marcador_isolado')
+  assert.equal(isolados.length, 2)
+  assert.deepEqual(isolados.map((u) => u.tipo_sugerido).sort(), ['posfacio', 'prefacio'])
+})
+
+test('em PDF, preserva o número da página de cada sinal detectado', () => {
+  const artefato = artefatoNormalizadoPdf([
+    { numero: 1, conteudo: 'Capítulo 1\n\nTexto da primeira página.' },
+    { numero: 2, conteudo: 'Texto contínuo sem nenhum marcador nesta página.' },
+  ])
+
+  const resultado = identificarEstrutura(artefato)
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+
+  assert.equal(resultado.artefato.unidades.length, 1)
+  assert.equal(resultado.artefato.unidades[0].pagina, 1)
+})
+
+test('sem sinais de alta confiança, preserva a incerteza em vez de inventar estrutura', () => {
+  const artefato = artefatoNormalizadoTexto(
+    'Um texto corrido, sem capítulos nem seções nomeadas, apenas reflexão contínua ao longo de várias linhas.'
+  )
+
+  const resultado = identificarEstrutura(artefato)
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+
+  assert.equal(resultado.artefato.possui_indicios_estruturais, false)
+  assert.equal(resultado.artefato.unidades.length, 0)
+})
+
+test('linha inteiramente maiúscula é candidata de baixa confiança, sem tipo definido', () => {
+  const artefato = artefatoNormalizadoTexto('INTRODUÇÃO\n\nConteúdo normal do parágrafo aqui.')
+
+  const resultado = identificarEstrutura(artefato)
+  assert.equal(resultado.ok, true)
+  if (!resultado.ok) return
+
+  assert.equal(resultado.artefato.unidades.length, 1)
+  assert.equal(resultado.artefato.unidades[0].tipo_sinal, 'linha_maiuscula_candidata')
+  assert.equal(resultado.artefato.unidades[0].confianca, 'baixa')
+  assert.equal(resultado.artefato.unidades[0].tipo_sugerido, null)
+  assert.equal(resultado.artefato.possui_indicios_estruturais, false)
+})
+
+test('identificação de estrutura propaga rejeição quando o artefato normalizado não pertence à execução', () => {
+  const artefato = artefatoNormalizadoTexto('Conteúdo qualquer.')
+
+  const resultado = identificarEstruturaArtefatoNormalizado({
+    bytes: bytes(JSON.stringify(artefato)),
+    hashArtefatoNormalizado: '8'.repeat(64),
+    hashOriginalEsperado: '9'.repeat(64),
+    hashArtefatoExtraidoEsperado: artefato.fonte.hash_sha256_artefato_extraido,
+  })
+
+  assert.equal(resultado.ok, false)
+  if (!resultado.ok) assert.equal(resultado.codigo, 'ARTEFATO_NORMALIZADO_ORIGEM_DIVERGENTE')
+})
+
+test('validarArtefatoEstrutura aceita a cadeia correta e rejeita proveniência divergente', () => {
+  const artefato = artefatoNormalizadoTexto('# Capítulo Um\n\nTexto.', 'markdown')
+  const identificacao = identificarEstrutura(artefato)
+  assert.equal(identificacao.ok, true)
+  if (!identificacao.ok) return
+
+  const bytesEstrutura = bytes(JSON.stringify(identificacao.artefato))
+
+  const valido = validarArtefatoEstrutura({
+    bytes: bytesEstrutura,
+    hashOriginalEsperado: artefato.fonte.hash_sha256_original,
+    hashArtefatoExtraidoEsperado: artefato.fonte.hash_sha256_artefato_extraido,
+    hashArtefatoNormalizadoEsperado: '8'.repeat(64),
+  })
+  assert.equal(valido.ok, true)
+
+  const divergente = validarArtefatoEstrutura({
+    bytes: bytesEstrutura,
+    hashOriginalEsperado: artefato.fonte.hash_sha256_original,
+    hashArtefatoExtraidoEsperado: artefato.fonte.hash_sha256_artefato_extraido,
+    hashArtefatoNormalizadoEsperado: 'a'.repeat(64),
+  })
+  assert.equal(divergente.ok, false)
+  if (!divergente.ok) assert.equal(divergente.codigo, 'ARTEFATO_ESTRUTURA_ORIGEM_DIVERGENTE')
 })

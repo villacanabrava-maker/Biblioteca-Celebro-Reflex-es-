@@ -10,6 +10,10 @@ import {
   normalizarConteudoStep,
   type ResultadoNormalizacaoStep,
 } from '@/workflows/normalizar-conteudo-step'
+import {
+  identificarEstruturaStep,
+  type ResultadoIdentificacaoEstruturaStep,
+} from '@/workflows/identificar-estrutura-step'
 import { createBackendClient } from '@/infraestrutura/supabase/backend'
 
 type ContextoExecucao = {
@@ -79,6 +83,7 @@ type ResultadoProcessamentoInicial = {
   identificacaoFormato?: ResultadoFormato
   extracao?: ResultadoExtracao
   normalizacao?: ResultadoNormalizacaoStep
+  identificacaoEstrutura?: ResultadoIdentificacaoEstruturaStep
 }
 
 export async function processarObraWorkflow(
@@ -173,13 +178,41 @@ export async function processarObraWorkflow(
     throw error
   }
 
+  if (!normalizacao.ok) {
+    return {
+      ok: false,
+      execucaoId,
+      validacao,
+      identificacaoFormato,
+      extracao,
+      normalizacao,
+    }
+  }
+
+  let identificacaoEstrutura: ResultadoIdentificacaoEstruturaStep
+
+  try {
+    identificacaoEstrutura = await identificarEstruturaStep(execucaoId)
+  } catch (error) {
+    const tipoErro = error instanceof Error ? error.name : 'erro_desconhecido'
+    await registrarFalhaFinalEtapa(
+      execucaoId,
+      'identificar_estrutura',
+      'IDENTIFICACAO_ESTRUTURA_ESGOTOU_RETRIES',
+      'A identificação de estrutura falhou após as tentativas automáticas do workflow.',
+      tipoErro
+    )
+    throw error
+  }
+
   return {
-    ok: normalizacao.ok,
+    ok: identificacaoEstrutura.ok,
     execucaoId,
     validacao,
     identificacaoFormato,
     extracao,
     normalizacao,
+    identificacaoEstrutura,
   }
 }
 

@@ -1,6 +1,6 @@
 # Estado Atual do Projeto
 
-Atualizado em **17/09/2026** após auditoria completa de handoff (código, testes, banco e infraestrutura) e aplicação da `0022_rls_catalogos_sistema_taxonomia`.
+Atualizado em **17/09/2026** após auditoria completa de handoff, correção de RLS (`0022`) e implementação de `identificar_estrutura` (`0023`).
 
 ## Auditoria de handoff — 17/09/2026
 
@@ -15,6 +15,10 @@ O PR #13 já estava incorporado à `main` (não há PRs abertos). Uma nova sess�
 
 **Recursos de infraestrutura fora deste projeto:** a conta possui outros projetos Supabase/Vercel/GitHub (ex.: `Celebro-Biblioteca-Cloude`, `MEMORIA-REFLEXIMA-`, `memoria-reflexiva-oficial`, `app-geovane-cloud`) que **não pertencem** a este aplicativo e não foram tocados nesta auditoria, por decisão explícita do proprietário.
 
+## Nova etapa — `identificar_estrutura` (0023)
+
+Implementada em `src/dominios/processamento/identificar-estrutura.ts` (lógica pura, testada) e `src/workflows/identificar-estrutura-step.ts` (etapa durável, integrada a `processar-obra.ts`). Consome `conteudo_normalizado` validado e produz o artefato `estrutura_identificada` com sinais determinísticos (cabeçalhos Markdown, marcadores "Parte/Capítulo/Seção/Subseção/Anexo" numerados, "Prefácio"/"Posfácio" isolados, candidatos de baixa confiança em maiúsculas) — ver ADR-058/059/060 e `docs/PIPELINE_DOCUMENTAL.md`. Não materializa `processamento.secoes`; isso fica para `criar_hierarquia`, a próxima etapa a implementar. `npm test` agora cobre 20 casos (12 anteriores + 8 novos). O advisor de segurança do Supabase permanece sem achados críticos após a migration `0023`.
+
 ## Infraestrutura oficial
 
 - GitHub: `villacanabrava-maker/Biblioteca-Celebro-Reflex-es-`
@@ -26,7 +30,7 @@ O PR #13 já estava incorporado à `main` (não há PRs abertos). Uma nova sess�
 
 ## Marco atual
 
-A segunda entrega da Fase 3 foi incorporada à `main` pelos PRs #10/#11. O PR #13 implementa e valida a etapa seguinte:
+A Fase 3 avançou até `identificar_estrutura`, implementada na branch corrente:
 
 ```text
 validar_arquivo          ✅ main
@@ -35,9 +39,11 @@ identificar_formato      ✅ main
   ↓
 extrair_conteudo         ✅ main — PDF textual/TXT/Markdown
   ↓
-normalizar_conteudo      🟡 PR #13 — código/Preview em validação final
+normalizar_conteudo      ✅ main (PR #13)
   ↓
-identificar_estrutura    próxima etapa após merge
+identificar_estrutura    ✅ implementado e testado (0023)
+  ↓
+criar_hierarquia         próxima etapa
 ```
 
 Nenhum artefato parcial é Documento Processado ativo e nenhum resultado parcial alimenta o Cérebro Autoral.
@@ -157,9 +163,7 @@ A futura camada cognitiva seguirá Responses API com `store:false`, Structured O
 
 ## Próximo passo
 
-Concluir o PR #13 somente quando o **head final** voltar a passar os dois jobs de CI e possuir Preview Vercel `READY`. Depois abrir uma branch própria para `identificar_estrutura`.
-
-A primeira versão de `identificar_estrutura` deverá consumir somente `conteudo_normalizado` validado, usar sinais determinísticos quando confiáveis, registrar incerteza em vez de inventar níveis e preparar dados para `criar_hierarquia` sem publicar Documento Processado parcial.
+Implementar `criar_hierarquia`: consumir `estrutura_identificada` (0023) e `conteudo_normalizado`, materializar `processamento.secoes` preservando ordem/nível/páginas/proveniência, e tratar `possui_indicios_estruturais = false` como uma única seção de nível 0 em vez de inventar divisões. Nenhum Documento Processado parcial deve ser publicado antes de `validar_resultado`.
 
 ## Regra permanente
 

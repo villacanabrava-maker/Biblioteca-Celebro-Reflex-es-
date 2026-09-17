@@ -119,9 +119,33 @@ Antes de normalizar, `conteudo_extraido` é baixado do Storage privado e revalid
 
 Se já existir `conteudo_normalizado`, o replay **não confia apenas no registro do banco**: baixa novamente os bytes, verifica hash/tamanho/schema/proveniência e só então reutiliza. Quando a máquina de estados já avançou, o replay não repete a transição `normalizar_conteudo -> identificar_estrutura`.
 
+## `identificar_estrutura`
+
+A etapa consome exclusivamente `conteudo_normalizado` validado (bytes revalidados por MIME, limite, SHA-256, tamanho, schema e proveniência, como nas etapas anteriores). Ela **não** materializa `processamento.secoes` — apenas produz um artefato de evidência (`estrutura_identificada`) que a futura `criar_hierarquia` usará para decidir a estrutura real.
+
+Sinais determinísticos reconhecidos, por linha:
+
+```text
+alta confiança:
+  cabeçalho Markdown (#, ##, ... ######) — apenas quando formato = markdown
+  marcador numerado: Parte/Capítulo + algarismo arábico ou numeral romano MAIÚSCULO
+  marcador numerado: Seção/Subseção + algarismo arábico (1, 1.2, ...)
+  marcador numerado: Anexo + algarismo ou letra maiúscula
+  marcador isolado: linha igual a "Prefácio" ou "Posfácio"
+
+baixa confiança:
+  linha inteiramente maiúscula, curta, candidata a título (sem tipo atribuído)
+```
+
+O numeral romano após Parte/Capítulo é comparado com distinção de maiúsculas/minúsculas (apenas `IVXLCDM` maiúsculo) — isso evita falsos positivos como "Parte civil..." ou "Parte dividida...", cujas palavras seguintes por acaso só contêm letras válidas em numeral romano minúsculo. Marcadores só são considerados em linhas de até 120 caracteres, para não confundir um parágrafo de prosa que apenas menciona a palavra-chave com um título real.
+
+Quando nenhum sinal de alta confiança é encontrado, o artefato registra `possui_indicios_estruturais: false` e a lista de unidades pode ficar vazia ou conter apenas candidatos de baixa confiança — a etapa nunca inventa hierarquia para preencher a ausência de evidência.
+
+Para PDF, cada página é analisada separadamente e cada unidade detectada preserva o número da página de origem, sem tratar a quebra de página, por si só, como evidência estrutural.
+
 ## Artefatos intermediários
 
-Extração e normalização precisam sobreviver a retry/crash sem transformar conteúdo parcial em Documento Processado. Por isso `0020` criou:
+Extração, normalização e identificação de estrutura precisam sobreviver a retry/crash sem transformar conteúdo parcial em Documento Processado. Por isso `0020` criou:
 
 - `processamento.artefatos_execucao` para identidade/proveniência;
 - bucket privado `artefatos-processamento` para o conteúdo maior;
@@ -130,7 +154,7 @@ Extração e normalização precisam sobreviver a retry/crash sem transformar co
 - SHA-256, tamanho, MIME e metadados do artefato;
 - RPCs server-only de consulta/registro.
 
-`0021` torna explícita a negação de acesso direto de clientes à tabela.
+`0021` torna explícita a negação de acesso direto de clientes à tabela. `0023` estende o tipo permitido para incluir `estrutura_identificada`, mantendo o mesmo modelo de proveniência e sem novo GRANT para `anon`/`authenticated`.
 
 ## Documento Processado
 
@@ -159,10 +183,10 @@ npm run build
 
 Além disso, um segundo job sobe Supabase local e executa migrations + seed + `db reset`, provando que o banco é reconstruível a partir do GitHub.
 
-A suíte cobre detector de formato, spoofing básico, TXT/Markdown, extração de PDF textual mínimo, Unicode NFC, preservação de espaços significativos de Markdown, preservação de páginas PDF e validação da cadeia de proveniência da normalização.
+A suíte cobre detector de formato, spoofing básico, TXT/Markdown, extração de PDF textual mínimo, Unicode NFC, preservação de espaços significativos de Markdown, preservação de páginas PDF, validação da cadeia de proveniência da normalização e, para `identificar_estrutura`: cabeçalhos Markdown com nível, marcadores numerados válidos versus prosa que apenas menciona a palavra-chave, Prefácio/Posfácio isolados versus mencionados em frase, preservação do número de página em PDF, ausência de invenção de estrutura sem evidência e validação de proveniência do artefato de estrutura.
 
 ## Próxima etapa
 
-`identificar_estrutura` deverá consumir somente `conteudo_normalizado` validado. A primeira versão deve privilegiar sinais determinísticos e preservar incerteza em vez de inventar hierarquia. A etapa seguinte, `criar_hierarquia`, materializará a estrutura validada nas entidades canônicas de `processamento.secoes`.
+`criar_hierarquia` deverá consumir `estrutura_identificada` (quando houver indícios de alta confiança) e o `conteudo_normalizado`, e materializar as entidades canônicas de `processamento.secoes`. Quando `possui_indicios_estruturais` for `false`, a primeira versão deve tratar a obra inteira como uma única seção de nível 0 em vez de inventar divisões.
 
 IA só entra quando uma etapa realmente cognitiva exigir interpretação. Nessas etapas, a política prevista é OpenAI server-only, Responses API com `store: false`, Structured Outputs/JSON Schema, validação Zod e auditoria de modelo/prompt/execução.

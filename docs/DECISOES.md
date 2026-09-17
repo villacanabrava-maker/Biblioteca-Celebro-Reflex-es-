@@ -459,3 +459,27 @@ Este arquivo registra escolhas técnicas que não estavam completamente congelad
 **Decisão:** `0022_rls_catalogos_sistema_taxonomia` habilita RLS nas 8 tabelas e cria apenas policy de `select` para `authenticated` (`using (true)`), sem policy de escrita e sem policy para `anon`. Nenhum `GRANT` de schema ou tabela é concedido nesta migration. A exposição real desses catálogos para a interface continuará exigindo view/RPC própria em `aplicacao`, conforme ADR-017, quando houver necessidade de produto.
 
 **Consequência:** o achado crítico do advisor foi eliminado sem alterar o comportamento observável do sistema hoje (o acesso continua zero via Data API). Fica registrada uma segunda camada de defesa independente do REVOKE de schema: se um GRANT for concedido por engano no futuro, a leitura continuará restrita a `authenticated` e a escrita permanecerá bloqueada. O aviso externo restante do advisor (`Leaked Password Protection Disabled`) permanece pendência de configuração de Auth (ADR-039), fora do alcance de migration SQL.
+
+## ADR-058 — `identificar_estrutura` usa sinais determinísticos com guarda contra falso positivo de numeral romano
+
+**Contexto:** a etapa precisa detectar partes/capítulos/seções sem inventar hierarquia onde houver ambiguidade (regra canônica). Um primeiro desenho usando `[ivxlcdm]+` case-insensitive após "Parte"/"Capítulo" gerava falsos positivos graves: palavras comuns do português inteiramente compostas por letras válidas em numeral romano (ex.: "civil", "dividi") seriam lidas como numeral quando a checagem ignorava caixa.
+
+**Decisão:** o numeral após "Parte"/"Capítulo" só é aceito em algarismos arábicos ou numerais romanos **maiúsculos** (comparação sensível a caixa); "Seção"/"Subseção" aceitam apenas algarismo arábico (`1`, `1.2`, ...); "Anexo" aceita algarismo ou letra maiúscula única. Marcadores só são avaliados em linhas de até 120 caracteres (título, não parágrafo de prosa). Cabeçalhos Markdown (`#`...`######`) são sinal de alta confiança só quando o formato do documento é `markdown`. "Prefácio"/"Posfácio" exigem a linha inteira, isolada. Uma linha inteiramente maiúscula e curta é candidata de **baixa confiança**, sem `tipo_sugerido`. Sem nenhum sinal de alta confiança, `possui_indicios_estruturais` é `false` e a lista de unidades pode ficar vazia — a etapa não força estrutura. A etapa não materializa `processamento.secoes`; produz um artefato de evidência (`estrutura_identificada`, migration `0023`) versionado e ligado por hash a `conteudo_normalizado`/`conteudo_extraido`/original, reutilizando `validarArtefatoNormalizado` para herdar toda a cadeia de proveniência já validada.
+
+**Consequência:** o detector é auditável, testado (8 casos novos) e documentado como heurística v1 com limitação conhecida (não usa NLP nem confirma numerais romanos minúsculos); `criar_hierarquia` decide com essa evidência em mãos, incluindo o caso `possui_indicios_estruturais = false`, sem que esta etapa tenha assumido essa decisão por ela.
+
+## ADR-059 — Estados do workflow mapeiam `identificar_estrutura` para `estruturando`→`segmentando`
+
+**Contexto:** os estados de `processamento.execucoes` (ADR-004/migration `0008`) não têm relação 1:1 com as 14 etapas do pipeline; cada estado cobre uma fase mais ampla.
+
+**Decisão:** `identificar_estrutura` roda com `estado_execucao = 'estruturando'` (o mesmo estado para o qual `normalizar_conteudo` já avançava a execução) e, ao concluir, avança para `estado = 'segmentando'`, `etapa = 'criar_hierarquia'`.
+
+**Consequência:** mantém a convenção existente sem exigir novos valores de estado; `criar_hierarquia` e `criar_fragmentos` (ambas etapas de segmentação) poderão compartilhar `segmentando` até haver motivo para diferenciá-las.
+
+## ADR-060 — `allowImportingTsExtensions` habilitado para permitir import `.ts` explícito entre módulos de domínio
+
+**Contexto:** `identificar-estrutura.ts` precisa importar em runtime (não apenas tipos) `validarArtefatoNormalizado` de `normalizar-conteudo.ts`. O test runner nativo do Node (usado por `npm test`, sem bundler) exige extensão explícita para resolver um import de valor entre dois arquivos `.ts`; sem a extensão, a suíte falhava com `ERR_MODULE_NOT_FOUND`. `tsc`, por padrão, rejeita a extensão `.ts` explícita no import.
+
+**Decisão:** habilitar `"allowImportingTsExtensions": true` em `tsconfig.json` (compatível com `noEmit: true`, já vigente) e importar com extensão explícita (`from './normalizar-conteudo.ts'`) apenas quando o import cruza arquivos de domínio com dependência de valor em runtime, como neste caso.
+
+**Consequência:** `npm run typecheck`, `npm test` e `npm run build` passam juntos no mesmo commit; a convenção vale para futuros imports de valor entre módulos de `src/dominios/**` executados diretamente pelo test runner nativo.
