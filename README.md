@@ -2,11 +2,11 @@
 
 Plataforma de **Inteligência Autoral Personalizada** para preservar a produção intelectual do usuário, transformá-la em conhecimento estruturado, inferir padrões de pensamento com evidências/proveniência e usar esse Cérebro Autoral para apoiar novas reflexões com revisão humana.
 
-> **Este README é o painel mestre operacional do projeto.** Os quatro documentos canônicos fornecidos pelo proprietário continuam sendo a fonte de verdade do produto; este arquivo registra o estado técnico real, testes, riscos, decisões e próximos passos.
+> **Este README é o painel mestre operacional do projeto.** Os documentos canônicos fornecidos pelo proprietário continuam sendo a fonte de verdade do produto; este arquivo registra o estado técnico real, testes, riscos, decisões e próximos passos.
 
 ## 1. Regra central do produto
 
-A IA pode interpretar, organizar, relacionar, propor e escrever. A identidade autoral, as permissões, versões, proveniência, publicação e persistência continuam sob controle determinístico do sistema e do autor.
+A IA pode interpretar, organizar, relacionar, propor e escrever. Identidade autoral, permissões, estados, versões, proveniência, publicação e persistência permanecem sob controle determinístico do sistema e do autor.
 
 ```text
 BIBLIOTECA
@@ -29,9 +29,12 @@ BIBLIOTECA
 
 ```text
 villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
-main atual: ef1b56af9f2a8a97f614dd956628c4a8bfce4d0c
-PR #16: incorporado — criar_sinteses com IA auditável
+branch principal: main
+PR #16: incorporada — criar_sinteses com IA auditável
+PR #19: extrair_elementos — implementação/auditoria em validação final
 ```
+
+A base da PR #19 foi sincronizada com a `main` após o commit documental `d3e2d0d2f846da16baf299e0390e048e2a29470e`.
 
 O repositório continua **público por decisão explícita do proprietário**. Não alterar visibilidade sem autorização.
 
@@ -45,20 +48,17 @@ PostgreSQL: 17.6
 Estado: ACTIVE_HEALTHY
 ```
 
-Última fotografia auditada antes de corpus real:
+Fotografia auditada após as migrations `0036–0039` e antes de corpus real:
 
 ```text
-1 usuário Auth de teste
 0 execuções de processamento
 0 Documentos Processados
-0 fragmentos
+0 elementos
+0 evidências
 0 execuções de IA
-0 sínteses
-1 versão ativa de Pipeline
-1 versão ativa de Taxonomia
 ```
 
-As migrations de IA `0030–0035` criam infraestrutura, configuração e auditoria, mas **não processaram nenhuma obra real e não fizeram nenhuma chamada externa**.
+As migrations de IA criam infraestrutura, configuração, auditoria e persistência, mas **não processaram nenhuma obra real e não fizeram nenhuma chamada externa à OpenAI**.
 
 ### Vercel
 
@@ -68,11 +68,11 @@ Produção: https://cerebro-autoral.vercel.app
 Git: villacanabrava-maker/Biblioteca-Celebro-Reflex-es-
 ```
 
-A produção está `READY` no commit `ef1b56af9f2a8a97f614dd956628c4a8bfce4d0c`. Smoke tests de `/` e `/biblioteca` confirmam autenticação/proteção normal e a Vercel não reporta erros de runtime no deployment pós-merge.
+A produção acompanha `main`; a base anterior à incorporação da PR #19 está `READY`. Os Previews da PR #19 também foram validados como `READY` depois das correções de integração do Workflow.
 
-`PROCESSAMENTO_WORKFLOW_ATIVO=false` continua impedindo o início do Pipeline para usuários.
+`PROCESSAMENTO_WORKFLOW_ATIVO=false` continua impedindo o início do Pipeline para usuários. Portanto, o código de IA pode ser implantado sem autorizar chamadas pagas.
 
-O Dashboard ainda reporta Node `24.x`, enquanto `package.json` exige Node `22.x`; CI e engine usam Node 22.x. O ajuste do painel continua pendência externa.
+O Dashboard ainda reporta Node `24.x`, enquanto `package.json` exige Node `22.x`; CI e Vercel usam Node 22.x por causa do `engines`. O ajuste do painel continua pendência externa.
 
 Outros projetos GitHub/Supabase/Vercel da conta **não pertencem** ao Cérebro Autoral e não devem ser tocados.
 
@@ -85,7 +85,7 @@ Outros projetos GitHub/Supabase/Vercel da conta **não pertencem** ao Cérebro A
 - TypeScript `6.0.3`
 - Node `22.x`
 - npm `11.19.1`
-- ESLint `9.39.5` por compatibilidade comprovada
+- ESLint `9.39.5`
 - App Router + `proxy.ts`
 
 ### Supabase / upload
@@ -95,7 +95,10 @@ Outros projetos GitHub/Supabase/Vercel da conta **não pertencem** ao Cérebro A
 - `tus-js-client` `4.3.1`
 - `hash-wasm` `4.12.0`
 - Supabase CLI `2.117.0` no CI
-- Storage privado, RLS, pgvector/HNSW
+- PostgreSQL + pgvector/HNSW
+- Full Text Search
+- Storage privado
+- RLS
 - SHA-256 incremental + deduplicação
 
 ### Pipeline documental
@@ -106,6 +109,7 @@ Outros projetos GitHub/Supabase/Vercel da conta **não pertencem** ao Cérebro A
 - normalização LF + Unicode NFC
 - artefatos intermediários privados
 - steps duráveis/idempotentes
+- workflow composto para preservar o pipeline já estabilizado e encadear novas etapas
 - `PROCESSAMENTO_WORKFLOW_ATIVO=false`
 
 ### Supply chain
@@ -123,23 +127,30 @@ Outros projetos GitHub/Supabase/Vercel da conta **não pertencem** ao Cérebro A
 
 - pacote `openai` `7.15.0`
 - Zod `4.6.5`
-- chave antiga exposta foi rotacionada
-- chave nova está somente no ambiente servidor/Vercel
-- nenhuma chave é versionada
+- chave somente em ambiente servidor/Vercel
+- nenhuma chave versionada
 - Responses API + Structured Outputs
-- `store:false` obrigatório para o conteúdo intelectual privado
-- SDK com `maxRetries:0`; retries/cobrança são controlados pela nossa camada auditável
+- `store:false` obrigatório para conteúdo intelectual privado
+- SDK com `maxRetries:0`; retries/cobrança são controlados pela camada auditável
 
-Modelo padrão v1 para síntese: **`gpt-5.6-terra`**, configurável por `MODELO_IA_ANALISE`. A escolha foi revalidada contra documentação oficial atual da OpenAI em 17/09/2026 por equilíbrio entre qualidade e custo; mudança de modelo é decisão versionada, não troca silenciosa.
-
-Snapshot de custo usado apenas para estimativa operacional:
+Configuração atual:
 
 ```text
-GPT-5.6 Terra
-entrada:       US$ 2,00 / 1M tokens
-entrada cache: US$ 0,20 / 1M tokens
-saída:         US$ 12,00 / 1M tokens
+MODELO_IA_ANALISE  → padrão gpt-5.6-terra
+MODELO_IA_EXTRACAO → padrão gpt-5.6-terra
 ```
+
+A extração possui configuração própria para que o modelo possa ser trocado sem alterar o restante do Pipeline.
+
+Snapshot operacional pesquisado em 17/09/2026:
+
+| Modelo | Entrada / 1M | Cache / 1M | Saída / 1M | Uso planejado |
+|---|---:|---:|---:|---|
+| `gpt-5.6-luna` | US$ 0,20 | US$ 0,02 | US$ 1,20 | candidato a alto volume após avaliação |
+| `gpt-5.6-terra` | US$ 2,00 | US$ 0,20 | US$ 12,00 | padrão atual: equilíbrio qualidade/custo |
+| `gpt-5.6-sol` | US$ 4,00 | US$ 0,40 | US$ 20,00 | escalonamento de alta complexidade |
+
+A estratégia não é usar o modelo mais caro em tudo. Luna será comparada com Terra em avaliações próprias do aplicativo antes de qualquer troca de etapa. Sol fica reservado a exceções de alta complexidade.
 
 **Nenhuma chamada real paga foi executada até este ponto.**
 
@@ -154,30 +165,32 @@ saída:         US$ 12,00 / 1M tokens
 | `identificar_estrutura` | ✅ concluída/testada |
 | `criar_hierarquia` | ✅ concluída/testada |
 | `criar_fragmentos` | ✅ concluída/testada/auditada |
-| `criar_sinteses` | ✅ incorporada/testada sem chamada real |
-| `extrair_elementos` | ⬜ próxima implementação |
-| `classificar_taxonomia` | ⬜ não iniciada |
-| `criar_embeddings` | ⬜ não iniciada |
+| `criar_sinteses` | ✅ implementada/auditada, sem chamada real |
+| `extrair_elementos` | ✅ implementada/auditada, sem chamada real |
+| `normalizar_taxonomia` | ⬜ próxima etapa |
 | `criar_relacoes` | ⬜ não iniciada |
-| `validar_resultado` | ⬜ não iniciada |
-| `publicar_documento` | ⬜ não iniciada |
+| `gerar_embeddings` | ⬜ não iniciada |
+| `criar_indices` | ⬜ não iniciada |
+| `realizar_analise_autoral_local` | ⬜ não iniciada |
+| `validar_processamento` | ⬜ não iniciada |
+| `publicar_documento_processado` | ⬜ não iniciada |
+| `avaliar_participacao_cerebro` | ⬜ não iniciada |
+| `atualizar_cerebro` | ⬜ não iniciada |
 
-Depois ainda faltam Cérebro Autoral, Influências Externas deliberadas, Recuperação Contextual, Motor de Reflexões e Aprendizado por Revisão.
+Depois ainda faltam Cérebro Autoral consolidado, Influências Externas deliberadas, Recuperação Contextual, Motor de Reflexões e Aprendizado por Revisão.
 
 ## 5. Parte determinística consolidada
-
-A `main` e a produção já contêm as correções auditadas da Fase 3:
 
 - `identificar_estrutura` preserva incerteza e só materializa sinais de alta confiança;
 - `criar_hierarquia` constrói Documento Processado em estado `candidato`;
 - `criar_fragmentos` usa texto próprio de cada seção;
 - PDF usa `offset_pagina_inicio` para fronteiras intrapágina (`0028`);
 - replay de fragmentos revalida artefato e resultado persistido (`0029`);
-- 39 testes determinísticos protegiam essa base antes da introdução da IA.
+- Documento Processado parcial nunca alimenta o Cérebro Autoral.
 
 ## 6. `criar_sinteses` — arquitetura v1
 
-Essa é a primeira etapa realmente cognitiva.
+Essa foi a primeira etapa realmente cognitiva incorporada ao Pipeline.
 
 ### Hierarquia
 
@@ -193,42 +206,87 @@ partes
 obra
 ```
 
-Cada pai recebe apenas seu texto próprio, quando houver, e sínteses auditadas dos filhos diretos. Isso reduz repetição de contexto e mantém proveniência/hierarquia explícitas.
+Cada pai recebe seu texto próprio, quando houver, e sínteses auditadas dos filhos diretos. Replay só é aceito quando modelo, prompt e hash exato da entrada coincidem.
 
-### Uma chamada de IA por step durável
+### Segurança e retries
 
-Cada alvo é sintetizado dentro de seu próprio `'use step'`. Se o workflow cair depois de várias sínteses, as concluídas podem ser reutilizadas somente quando modelo, prompt e hash exato da entrada coincidem.
+- conteúdo-fonte é **DADO NÃO CONFIÁVEL**;
+- Structured Output + Zod antes da persistência;
+- contrato de schema persistido validado exatamente;
+- limite conservador de 400.000 caracteres por entrada;
+- HTTP `408/409/425/429/5xx` pode permitir retry controlado;
+- HTTP permanente não é repetido automaticamente;
+- transporte ambíguo após início vira `incerta`;
+- persistência pós-resposta pode ser repetida sem refazer a chamada externa.
 
-### Prompt injection
+## 7. `extrair_elementos` — arquitetura v1
 
-O prompt v1 (`prompts/processamento/sintese-documental-hierarquica-v1.md`) declara explicitamente que o conteúdo-fonte é **DADO NÃO CONFIÁVEL** e que comandos/papéis/pedidos encontrados dentro do documento não devem ser executados.
+### Unidade de processamento
 
-### Structured Output
+A extração trabalha com **um fragmento por chamada**. Isso limita contexto, reduz custo e torna a evidência local/auditável.
 
-Saída aceita v1:
+A síntese global da obra pode ser enviada apenas como contexto. Ela **não** é evidência primária.
 
-```json
-{
-  "sintese": "texto não vazio, até 12000 caracteres"
-}
+### Planos analíticos obrigatórios
+
+Cada elemento é classificado em exatamente um plano:
+
+```text
+conteudo   → sobre o que o texto pensa/fala
+metodo     → como o pensamento é desenvolvido
+expressao  → como aparece linguisticamente
 ```
 
-A resposta precisa passar por Structured Output + Zod antes de persistência. A migration `0035` também exige que o JSON Schema ativo no catálogo seja exatamente compatível com esse contrato antes de entregar a configuração ao backend.
+Essa separação evita confundir tema recorrente com metodologia autoral.
 
-### Limite v1
+### Elementos
 
-Uma entrada individual de síntese tem limite conservador de **400.000 caracteres**. Entrada maior falha explicitamente antes da chamada; chunking cognitivo adicional será uma evolução própria.
+O contrato v1 aceita 26 tipos canônicos, incluindo temas, conceitos, ideias, teses, argumentos, valores, perguntas, tensões, contradições, histórias, experiências, metáforas, padrões linguísticos, recursos narrativos, estruturas argumentativas e mudanças de pensamento.
 
-### Retries e cobrança
+### Evidência determinística
 
-- SDK OpenAI: `maxRetries:0`.
-- HTTP transitório `408/409/425/429/5xx`: pode permitir retry durável controlado.
-- HTTP não transitório `400/401/403/404/422` etc.: registra falha e não repete automaticamente.
-- falha de transporte sem status depois de uma chamada marcada como iniciada vira `incerta` e **não é repetida automaticamente**;
-- reserva criada mas ainda não iniciada pode ser recuperada sem risco de cobrança duplicada;
-- depois de resposta válida, persistência é repetida localmente/idempotentemente sem refazer a chamada externa.
+O modelo **não escolhe `fragmento_id`**. A associação ao fragmento corrente é feita pelo sistema.
 
-## 7. Auditoria de IA
+Cada elemento exige de 1 a 5 evidências. `trecho_referencia` precisa existir literalmente no conteúdo-fonte do fragmento antes de persistir.
+
+A validação ocorre duas vezes:
+
+1. na aplicação, depois do Structured Output/Zod;
+2. no RPC transacional do PostgreSQL, antes da persistência definitiva.
+
+Se uma evidência falhar, a transação é revertida; elemento parcial não fica gravado.
+
+### Idempotência e cobrança
+
+A chave inclui:
+
+```text
+operação
++ execução
++ fragmento
++ modelo
++ prompt
++ hash da entrada
+```
+
+Estados operacionais:
+
+- `reservada`: ainda não houve chamada externa;
+- `em_execucao`: chamada externa iniciada;
+- `concluida`: resultado persistido e reutilizável;
+- `falhou`: falha conhecida que pode ser elegível a retry;
+- `incerta`: não repetir automaticamente;
+- `cancelada`: resposta/erro permanente conhecido; não repetir automaticamente.
+
+Saída que viola evidência/schema depois de uma resposta do provedor vira `cancelada`, evitando cobrança automática repetida por uma saída semanticamente inválida.
+
+### Workflow composto
+
+O pipeline anterior permanece encapsulado em `processarObraWorkflow`. O novo `processarObraCompletaWorkflow` inicia o pipeline estabilizado como workflow filho e, após sua conclusão, encadeia `extrair_elementos` por fragmento.
+
+O Preview Vercel compilou essa composição como **21 steps e 2 workflows**.
+
+## 8. Auditoria de IA
 
 `auditoria.execucoes_ia` registra:
 
@@ -246,45 +304,56 @@ Uma entrada individual de síntese tem limite conservador de **400.000 caractere
 
 O texto integral privado não é duplicado na tabela de auditoria; referências e hashes são preferidos.
 
-As RPCs de IA são `SECURITY DEFINER`, `search_path=''`, sem execução para `anon/authenticated` e executáveis apenas pelo backend `service_role`. O backend não possui SELECT direto na tabela interna de auditoria.
+As RPCs de IA são `SECURITY DEFINER`, `search_path=''`, sem `EXECUTE` para `anon/authenticated` e executáveis apenas por `service_role`.
 
-## 8. Histórico de migrations — continuação
+## 9. Migrations cognitivas oficiais
 
-A sequência oficial anterior vai de `0001` a `0029`. A camada de síntese usa:
+A sequência anterior `0001–0029` cobre Fundação, Biblioteca e pipeline determinístico. A camada cognitiva atualmente versionada é:
 
 | Versão | Migration | Finalidade |
 |---|---|---|
-| `20260917020401` | `0030_fundacao_ia_sinteses` | auditoria IA, modelo/prompt e RPCs server-only |
-| `20260917021001` | `0031_recuperacao_reserva_ia` | separa reserva local de chamada externa iniciada |
-| `20260917021151` | `0032_listagem_sinteses_auditadas` | replay por modelo/prompt/hash de entrada |
-| `20260917021601` | `0033_hardening_auditoria_ia` | RLS deny explícito + índices de FKs |
-| `20260917022624` | `0034_corrige_ambiguidade_tentativa_ia` | corrige ambiguidade SQL encontrada no teste funcional |
-| `20260917023206` | `0035_contrato_schema_sintese` | exige contrato exato do JSON Schema antes de fornecer configuração |
+| `20260917020401` | `0030_fundacao_ia_sinteses` | auditoria IA, modelo/prompt e RPCs de síntese |
+| `20260917021001` | `0031_recuperacao_reserva_ia` | separa reserva de chamada iniciada |
+| `20260917021151` | `0032_listagem_sinteses_auditadas` | replay de síntese por modelo/prompt/hash |
+| `20260917021601` | `0033_hardening_auditoria_ia` | hardening RLS/índices |
+| `20260917022624` | `0034_corrige_ambiguidade_tentativa_ia` | correção SQL de retry |
+| `20260917023206` | `0035_contrato_schema_sintese` | contrato exato de Structured Output |
+| `20260917030126` | `0036_plano_analitico_elementos` | materializa conteúdo/método/expressão |
+| `20260917032107` | `0037_fundacao_extracao_elementos_ia` | catálogo, prompt, reserva e persistência atômica |
+| `20260917032115` | `0038_estado_terminal_saida_ia_invalida` | estado terminal `cancelada` sem retry cego |
+| `20260917032125` | `0039_replay_extracao_elementos` | replay auditado sem nova reserva |
 
-A `0035` já existia no histórico do Supabase quando a auditoria final detectou que seu arquivo ainda não estava na branch. O SQL exato foi recuperado do próprio histórico do Supabase, versionado no GitHub e o CI reconstruiu o banco local do zero com `0001–0035`.
+Os nomes/timestamps `0037–0039` no GitHub foram alinhados aos IDs reais atribuídos pelo Supabase, reutilizando os mesmos blobs SQL.
 
-O antigo WIP `0028_ia_sinteses_secao` **nunca foi aplicado** e não deve ser usado; a numeração oficial `0028–0029` pertence às correções determinísticas consolidadas.
+## 10. Testes
 
-## 9. Testes da camada de IA
+A suíte sem chave real cobre, entre outros:
 
-Sem usar a chave real, a suíte cobre:
+### Sínteses
 
-- input JSON determinístico + SHA-256;
-- `store:false` no cliente falso;
+- input determinístico + SHA-256;
+- `store:false`;
 - Structured Output/Zod;
-- uso de tokens/custo estimado;
-- prompt injection permanecendo apenas como dado;
-- entrada excessiva falhando antes da chamada;
-- ausência de `output_parsed` rejeitada;
-- contrato exato do schema persistido;
-- classificação de status HTTP transitório vs. permanente;
-- custo desconhecido retornando `null` em vez de preço inventado;
-- ordem bottom-up das seções;
-- pais combinando texto próprio + sínteses dos filhos;
-- seção sem fonte sem criar chamada;
-- síntese da obra usando apenas sínteses de topo.
+- tokens/custo estimado;
+- defesa contra prompt injection;
+- contrato exato do schema;
+- classificação de status HTTP;
+- ordem bottom-up e composição hierárquica.
 
-No head final do PR #16, passaram juntos:
+### Extração de elementos
+
+- input/hash determinísticos;
+- chamada por fragmento;
+- `fragmento_id` proibido na saída do modelo;
+- conteúdo/método/expressão como enum fechado;
+- evidência literal obrigatória;
+- schema persistido igual ao contrato v1;
+- cliente OpenAI falso com `store:false`;
+- contabilização de tokens/cache/custo sem API real;
+- migrations `0036–0039` reconstruindo o banco local do zero;
+- Workflow composto compilando em Vercel.
+
+Gates usados na PR #19:
 
 ```text
 npm ci                                      ✅
@@ -293,31 +362,34 @@ npm run lint                                ✅
 npm run typecheck                           ✅
 npm test                                    ✅
 npm run build                               ✅
-Supabase local + migrations 0001–0035       ✅
+Supabase local + migrations 0001–0039       ✅
 supabase db reset                           ✅
 Preview Vercel                              ✅ READY
 ```
 
-## 10. Testes no Supabase real
+Qualquer commit documental final ainda precisa passar pelo mesmo CI antes do merge.
 
-As migrations novas foram validadas com transações revertidas e dados sintéticos. Foram comprovados, sem deixar dados permanentes:
+## 11. Supabase oficial após `0039`
 
-- reserva idempotente de chamada IA;
-- bloqueio de reserva duplicada;
-- início da chamada;
-- conclusão de síntese;
-- conclusão repetida idempotente;
-- replay concluído;
-- listagem auditada com hash/modelo/prompt;
-- recuperação de reserva não iniciada;
-- bloqueio de retry automático de chamada já iniciada e ambígua;
-- `service_role` sem SELECT direto em `auditoria.execucoes_ia`.
+Validado diretamente no projeto oficial:
 
-O teste funcional encontrou um bug real na `0031` (`tentativa = tentativa + 1` ambíguo por existir coluna de saída homônima). A correção foi feita em nova migration `0034`, sem reescrever histórico aplicado.
+- `gpt-5.6-terra` catalogado e ativo para finalidade `extracao`;
+- prompt `extracao_elementos_documentais` v1 ativo;
+- JSON Schema da extração presente;
+- RPCs de extração com `SECURITY DEFINER` e `search_path=''`;
+- `anon`/`authenticated` sem execução nas RPCs backend-only;
+- `service_role` com execução;
+- 0 execuções de processamento;
+- 0 Documentos Processados;
+- 0 elementos;
+- 0 evidências;
+- 0 execuções de IA.
 
-## 11. Segurança atual
+Portanto, a estrutura está implantada, mas **nenhum custo de IA foi gerado**.
 
-Confirmado até `0035`:
+## 12. Segurança atual
+
+Confirmado até `0039`:
 
 - RLS nas superfícies pessoais/sensíveis;
 - Storage privado;
@@ -327,26 +399,32 @@ Confirmado até `0035`:
 - OpenAI server-only;
 - `store:false`;
 - audit trail de modelo/prompt/hash/tokens/custo;
-- nenhuma nova FK sem índice após `0033`;
+- evidência literal validada antes de persistência;
+- retry controlado para evitar cobrança duplicada;
 - `PROCESSAMENTO_WORKFLOW_ATIVO=false` bloqueando início do Pipeline.
 
-Advisor Supabase: permanece apenas a pendência externa **Leaked Password Protection Disabled**. Performance apresenta somente `unused_index` enquanto o banco está sem corpus.
+Advisor Supabase:
 
-## 12. O que ainda NÃO foi feito
+- segurança: permanece a pendência externa **Leaked Password Protection Disabled**;
+- performance: somente `unused_index` informativo enquanto o banco está sem corpus; não remover índices planejados antes de observar carga real.
 
-- nenhuma chamada real à OpenAI;
-- nenhum gasto de API gerado por esta implementação;
+## 13. O que ainda NÃO foi feito
+
+- nenhuma chamada real paga à OpenAI;
 - nenhum documento real processado ponta a ponta;
 - `PROCESSAMENTO_WORKFLOW_ATIVO` não foi ativado;
-- `extrair_elementos` e etapas posteriores ainda não foram implementadas.
+- nenhum resultado parcial foi publicado como Documento Processado ativo;
+- `normalizar_taxonomia` e as etapas posteriores ainda não foram implementadas.
 
-## 13. Próximo marco
+## 14. Próximo marco
 
-1. manter a primeira chamada real paga bloqueada até autorização explícita do proprietário;
-2. preparar um E2E controlado com documento pequeno e custo mínimo quando houver essa autorização;
-3. iniciar `extrair_elementos` de forma auditável, preservando os planos CONTEÚDO/MÉTODO/EXPRESSÃO e proveniência por fragmento;
-4. manter Documento Processado como `candidato` até `validar_resultado`/`publicar_documento`.
+1. concluir e incorporar a PR #19 mantendo a feature flag desligada;
+2. manter a primeira chamada real paga bloqueada até autorização explícita do proprietário;
+3. quando autorizado, executar um E2E controlado com documento pequeno e custo mínimo, registrando tokens/custo/qualidade;
+4. comparar Luna × Terra apenas com avaliações reais do projeto antes de deslocar operações para o modelo mais barato;
+5. iniciar `normalizar_taxonomia`, reutilizando conceitos existentes antes de propor novos;
+6. manter Documento Processado como `candidato` até `validar_processamento` e `publicar_documento_processado`.
 
-## 14. Regra permanente
+## 15. Regra permanente
 
 O README deve dizer claramente o que existe, o que foi testado, o que está ativo, quanto pode custar, quais migrations estão aplicadas, quais alertas permanecem e qual é o próximo passo — sem tratar intenção futura como funcionalidade pronta.

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { start } from 'workflow/api'
 import { createClient } from '@/infraestrutura/supabase/server'
 import { createBackendClient } from '@/infraestrutura/supabase/backend'
-import { processarObraWorkflow } from '@/workflows/processar-obra'
+import { processarObraCompletaWorkflow } from '@/workflows/processar-obra-completa'
 
 const entradaSchema = z.object({
   versaoObraId: z.string().uuid(),
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
   try {
     // Workflow SDK 4.8.x não aceita `region` em start(). A região não é
     // forçada nesta chamada enquanto permanecermos na linha estável 4.8.x.
-    await start(processarObraWorkflow, [execucao.execucao_id])
+    await start(processarObraCompletaWorkflow, [execucao.execucao_id])
   } catch {
     try {
       await backend.schema('aplicacao').rpc('backend_falhar_execucao', {
