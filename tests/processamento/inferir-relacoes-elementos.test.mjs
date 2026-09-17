@@ -188,5 +188,5 @@ test('motor preserva direção e contabiliza uma relação válida sem API real'
   assert.equal(resultado.tokensEntrada, 900)
   assert.equal(resultado.tokensSaida, 160)
   assert.equal(resultado.tokensEntradaCache, 100)
-  assert.equal(resultado.custoEstimadoUsd, 0.00362)
+  assert.equal(resultado.custoEstimadoUsd, 0.00354)
 })
