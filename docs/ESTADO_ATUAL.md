@@ -1,6 +1,19 @@
 # Estado Atual do Projeto
 
-Atualizado em **16/09/2026** durante a validação final do PR #13 (`feature/processamento-normalizacao`).
+Atualizado em **17/09/2026** após auditoria completa de handoff (código, testes, banco e infraestrutura) e aplicação da `0022_rls_catalogos_sistema_taxonomia`.
+
+## Auditoria de handoff — 17/09/2026
+
+O PR #13 já estava incorporado à `main` (não há PRs abertos). Uma nova sessão assumiu o projeto e executou, no mesmo commit (`7ab215b`):
+
+- `npm ci`, `npm audit --omit=dev --audit-level=high`, `npm run lint`, `npm run typecheck`, `npm test` (12/12) e `npm run build`: todos passaram sem alteração de código;
+- leitura completa do código de segurança (`proxy.ts`, cliente backend, RPCs `aplicacao.backend_*`, workflow `processar-obra.ts`) confirmando que corresponde exatamente ao descrito nos ADRs;
+- auditoria do Supabase oficial (`xzkzdaxxmizcgfkjgzoq`) via advisors de segurança/performance, `list_tables` e `list_migrations`;
+- auditoria do Vercel oficial (`cerebro-autoral`): produção `READY` na `main` atual, Node do dashboard ainda em 24.x (ADR-027 pendente de ajuste manual).
+
+**Achado corrigido:** o advisor de segurança apontava como crítico o RLS desabilitado em 8 tabelas de catálogo (`sistema.*`, `taxonomia.*`). A `0022_rls_catalogos_sistema_taxonomia` habilitou RLS + policy de leitura para `authenticated` nessas tabelas, sem novo GRANT (ver ADR-057). Reexecutado o advisor após a migration: o achado crítico desapareceu; resta apenas o aviso externo pré-existente `Leaked Password Protection Disabled`.
+
+**Recursos de infraestrutura fora deste projeto:** a conta possui outros projetos Supabase/Vercel/GitHub (ex.: `Celebro-Biblioteca-Cloude`, `MEMORIA-REFLEXIMA-`, `memoria-reflexiva-oficial`, `app-geovane-cloud`) que **não pertencem** a este aplicativo e não foram tocados nesta auditoria, por decisão explícita do proprietário.
 
 ## Infraestrutura oficial
 

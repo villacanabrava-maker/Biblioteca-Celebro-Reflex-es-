@@ -227,6 +227,7 @@ Migration aplicada não é reescrita. Toda correção posterior recebe nova migr
 | `20260916221057` | `0019_idempotencia_transicoes_workflow` | locks/transições monotônicas |
 | `20260916223016` | `0020_artefatos_intermediarios_processamento` | artefatos parciais privados |
 | `20260916225622` | `0021_politica_negacao_artefatos_processamento` | negação explícita a clientes |
+| `20260917000231` | `0022_rls_catalogos_sistema_taxonomia` | RLS + leitura autenticada nos catálogos globais |
 
 O CI reconstrói um Supabase local do zero com migrations + seed e executa `db reset`, provando reprodutibilidade. Uma falha transitória de container ocorrida no PR #13 foi repetida isoladamente e o mesmo job passou integralmente sem alteração de migration.
 
@@ -242,8 +243,10 @@ Auditorias confirmam:
 - RPCs `backend_*` `SECURITY DEFINER` com `search_path = ''`;
 - `anon` e `authenticated` não executam RPCs backend;
 - artefatos intermediários possuem RLS + policy explícita de negação + grants revogados;
+- catálogos globais (`sistema.*`, `taxonomia.*`) têm RLS + leitura restrita a `authenticated` desde `0022`, como segunda camada independente do REVOKE de schema (ADR-057);
 - nenhuma FK sem índice apontada pelo advisor;
-- `unused_index` é informativo enquanto o banco não tem corpus real.
+- `unused_index` é informativo enquanto o banco não tem corpus real;
+- advisor de segurança do Supabase, reexecutado em 17/09/2026, não aponta mais nenhum item crítico — resta apenas o aviso externo de Leaked Password Protection.
 
 Pendências externas obrigatórias antes de usuários/corpus reais:
 
