@@ -61,7 +61,7 @@ test('schema persistido precisa coincidir exatamente com o contrato v1', () => {
   assert.equal(schemaSaidaNormalizacaoTaxonomiaV1Compativel(divergente), false)
 })
 
-test('match exato reutiliza conceito sem chamar IA e sem custo', async () => {
+test('match exato único reutiliza conceito sem chamar IA e sem custo', async () => {
   const exato = { ...candidato, tipoCorrespondencia: 'exata', similaridade: 1 }
   const fake = clienteFalso({})
 
@@ -77,6 +77,42 @@ test('match exato reutiliza conceito sem chamar IA e sem custo', async () => {
   assert.equal(resultado.decisao.conceito_id, exato.conceitoId)
   assert.equal(resultado.custoEstimadoUsd, 0)
   assert.equal(fake.chamadas.length, 0)
+})
+
+test('dois conceitos com match exato são ambíguos e exigem decisão estruturada', async () => {
+  const exatoA = { ...candidato, tipoCorrespondencia: 'exata', similaridade: 1 }
+  const exatoB = {
+    ...exatoA,
+    conceitoId: '44444444-4444-4444-8444-444444444444',
+    definicao: 'Outro conceito canônico com o mesmo termo normalizado.',
+  }
+  const fake = clienteFalso({
+    id: 'resp_taxonomia_ambigua',
+    output_parsed: {
+      decisao: 'reutilizar_conceito',
+      conceito_id: exatoA.conceitoId,
+      proposta: null,
+      papel: 'principal',
+      confianca: 0.8,
+      justificativa: 'A definição do primeiro candidato representa melhor o elemento.',
+    },
+    usage: {
+      input_tokens: 300,
+      output_tokens: 80,
+      input_tokens_details: { cached_tokens: 0 },
+    },
+  })
+
+  const resultado = await normalizarElementoTaxonomia({
+    cliente: fake.cliente,
+    modelo: 'gpt-5.6-terra',
+    promptSistema: 'Resolver somente entre candidatos fornecidos.',
+    entrada: { elemento, candidatos: [exatoA, exatoB] },
+  })
+
+  assert.equal(resultado.ok, true)
+  assert.equal(resultado.origem, 'ia')
+  assert.equal(fake.chamadas.length, 1)
 })
 
 test('IA não pode reutilizar conceito fora da shortlist', () => {
