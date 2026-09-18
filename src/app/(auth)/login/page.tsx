@@ -14,6 +14,10 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { fazerLogin, cadastrarConta } from "@/acoes/auth";
+import {
+  SENHA_MINIMA_CARACTERES,
+  validarDadosCadastroConta,
+} from "@/dominios/auth/validacao-cadastro";
 
 export default function PaginaLogin() {
   const router = useRouter();
@@ -36,12 +40,9 @@ export default function PaginaLogin() {
     setMensagemSucesso(null);
 
     if (modo === "cadastro") {
-      if (!nome.trim()) {
-        setErro("Por favor, informe seu nome completo.");
-        return;
-      }
-      if (senha.length < 6) {
-        setErro("A senha deve conter no mínimo 6 caracteres.");
+      const validacao = validarDadosCadastroConta({ nome, email, senha });
+      if (!validacao.sucesso) {
+        setErro(validacao.erro);
         return;
       }
       if (senha !== confirmarSenha) {
@@ -251,13 +252,20 @@ export default function PaginaLogin() {
                   required
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
-                  placeholder="Mínimo de 6 caracteres"
-                  autoComplete="current-password"
+                  placeholder={
+                    modo === "cadastro"
+                      ? `Mínimo de ${SENHA_MINIMA_CARACTERES} caracteres`
+                      : "Sua senha"
+                  }
+                  minLength={modo === "cadastro" ? SENHA_MINIMA_CARACTERES : undefined}
+                  autoComplete={modo === "cadastro" ? "new-password" : "current-password"}
                   className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-xs"
                 />
                 <button
                   type="button"
                   onClick={() => setMostrarSenha(!mostrarSenha)}
+                  aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
+                  aria-pressed={mostrarSenha}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
                   {mostrarSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -278,6 +286,8 @@ export default function PaginaLogin() {
                     value={confirmarSenha}
                     onChange={(e) => setConfirmarSenha(e.target.value)}
                     placeholder="Repita sua senha"
+                    minLength={SENHA_MINIMA_CARACTERES}
+                    autoComplete="new-password"
                     className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-xs"
                   />
                 </div>
