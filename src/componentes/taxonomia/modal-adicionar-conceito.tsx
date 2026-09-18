@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, Plus, Compass, AlertCircle, Loader2 } from "lucide-react";
 import { cadastrarConceito } from "@/acoes/taxonomia";
+import { useDialogModalAcessivel } from "@/componentes/comum/use-dialog-modal-acessivel";
 import type { DominioTaxonomico } from "@/tipos/taxonomia";
 
 interface Props {
@@ -30,6 +31,11 @@ export function ModalAdicionarConceito({ aberto, aoFechar, aoSucesso }: Props) {
   const [sinonimosTexto, setSinonimosTexto] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const dialogRef = useDialogModalAcessivel({
+    aberto,
+    aoFechar,
+    bloqueado: salvando,
+  });
 
   if (!aberto) return null;
 
@@ -68,7 +74,14 @@ export function ModalAdicionarConceito({ aberto, aoFechar, aoSucesso }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden p-6 space-y-6">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-taxonomia-titulo"
+        tabIndex={-1}
+        className="relative w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden p-6 space-y-6"
+      >
         {/* Cabeçalho */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -76,7 +89,12 @@ export function ModalAdicionarConceito({ aberto, aoFechar, aoSucesso }: Props) {
               <Compass className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-serif text-lg font-medium text-neutral-100">
+              <h3
+                id="modal-taxonomia-titulo"
+                data-dialog-initial-focus
+                tabIndex={-1}
+                className="font-serif text-lg font-medium text-neutral-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-400"
+              >
                 Novo Conceito Ontológico
               </h3>
               <p className="text-xs text-neutral-400">
@@ -95,7 +113,7 @@ export function ModalAdicionarConceito({ aberto, aoFechar, aoSucesso }: Props) {
         </div>
 
         {erro && (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-start gap-2.5 text-rose-300 text-xs">
+          <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-start gap-2.5 text-rose-300 text-xs">
             <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
             <span>{erro}</span>
           </div>
