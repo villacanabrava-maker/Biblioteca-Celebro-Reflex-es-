@@ -2,13 +2,13 @@
 
 Este repositório contém a plataforma de **Memória Reflexiva e Cérebro Autoral**, construída com Next.js 15, TypeScript, Tailwind CSS, Supabase e OpenAI.
 
+## Repositório Oficial Único
+- **GitHub**: https://github.com/villacanabrava-maker/Biblioteca-Celebro-Reflex-es-.git
+
 ## Deploys Canônicos de Produção (Vercel)
 - **Produção Oficial**: https://reflex-01.vercel.app
 - **Release Branch Main**: https://reflex-01-git-main-naninne.vercel.app
 - **Build de Produção**: https://reflex-01-u3df2906o-naninne.vercel.app
-
-## Repositório Oficial Único
-- **GitHub**: https://github.com/villacanabrava-maker/cerebroa-autoral-app-anty.git
 
 ## Arquitetura e Stack
 - **Framework Web**: Next.js 15 (App Router com `src/app/(auth)` e `src/app/(dashboard)`)

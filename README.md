@@ -8,17 +8,15 @@ Plataforma pessoal de inteligência autoral que aprende, a partir das obras do a
 
 ## 🌐 Deploys Oficiais de Produção (Vercel)
 
-Estes são os únicos domínios de deploy de produção oficiais e ativos da plataforma:
-
 - **Domínio Principal**: [https://reflex-01.vercel.app](https://reflex-01.vercel.app)
 - **Domínio de Release (Branch Main)**: [https://reflex-01-git-main-naninne.vercel.app](https://reflex-01-git-main-naninne.vercel.app)
 - **Domínio Canônico de Build**: [https://reflex-01-u3df2906o-naninne.vercel.app](https://reflex-01-u3df2906o-naninne.vercel.app)
 
 ---
 
-## 📦 Repositório Oficial
+## 📦 Repositório Oficial Canônico
 
-- **GitHub**: [https://github.com/villacanabrava-maker/cerebroa-autoral-app-anty.git](https://github.com/villacanabrava-maker/cerebroa-autoral-app-anty.git)
+- **GitHub Oficial**: [https://github.com/villacanabrava-maker/Biblioteca-Celebro-Reflex-es-.git](https://github.com/villacanabrava-maker/Biblioteca-Celebro-Reflex-es-.git)
 
 ---
 
