@@ -274,7 +274,7 @@ export function WizardCriarReflexao() {
             <h2 className="text-base font-bold text-slate-900">
               1. Reflexão Externa
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-sm text-slate-500 mt-1 leading-6">
               Insira o conteúdo externo que deseja analisar (artigo, texto, mensagem, transcrição ou citação).
             </p>
           </div>
@@ -335,7 +335,7 @@ export function WizardCriarReflexao() {
               onChange={(e) => setTextoExterno(e.target.value)}
               placeholder="Cole aqui o texto, artigo, mensagem ou trecho recebido que você deseja examinar à luz do seu método autoral..."
               rows={6}
-              className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none font-sans"
+              className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 text-sm leading-6 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none font-sans"
             />
             <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1">
               <span>Tratado com isolamento de dados para análise dialética</span>
@@ -370,7 +370,7 @@ export function WizardCriarReflexao() {
             <h2 className="text-base font-bold text-slate-900">
               2. Seu Comentário Atual
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-sm text-slate-500 mt-1 leading-6">
               Informe o que você pensa atualmente sobre aquilo. Você pode escrever, articular divergências ou registrar impressões iniciais.
             </p>
           </div>
@@ -384,7 +384,7 @@ export function WizardCriarReflexao() {
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
               placeholder="Ex: Sobre a maturidade da espera frente ao imediatismo"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
             />
           </div>
 
@@ -397,7 +397,7 @@ export function WizardCriarReflexao() {
               value={temaCentral}
               onChange={(e) => setTemaCentral(e.target.value)}
               placeholder="Ex: Paciência, Tempo, Maturidade, Pensamento Crítico"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
             />
           </div>
 
@@ -452,7 +452,7 @@ export function WizardCriarReflexao() {
             <h2 className="text-base font-bold text-slate-900">
               3. Documentos e Memórias Processadas Relevantes
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-sm text-slate-500 mt-1 leading-6">
               O Cérebro Autoral comparou este tema com seus fragmentos processados e trouxe as memórias autorais mais próximas. Selecione o que fará parte do dossiê:
             </p>
           </div>
@@ -481,7 +481,7 @@ export function WizardCriarReflexao() {
                     <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
                       {mem.origem}
                     </span>
-                    <h3 className="text-xs font-bold text-slate-800">{mem.titulo}</h3>
+                    <h3 className="text-sm font-bold text-slate-800">{mem.titulo}</h3>
                   </div>
                   <span
                     className={`text-xs font-bold px-2.5 py-1 rounded-full ${
@@ -493,7 +493,7 @@ export function WizardCriarReflexao() {
                     {mem.selecionada ? "✓ Incluída no Dossiê" : "Descartar"}
                   </span>
                 </div>
-                <p className="text-xs font-serif italic text-slate-600 mt-2 leading-relaxed">
+                <p className="text-sm sm:text-base font-serif italic text-slate-700 mt-3 leading-7">
                   &ldquo;{mem.trecho}&rdquo;
                 </p>
               </div>
@@ -528,14 +528,14 @@ export function WizardCriarReflexao() {
             <h2 className="text-base font-bold text-slate-900">
               4. Tensões Dialéticas e Oportunidades Cognitivas
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-sm text-slate-500 mt-1 leading-6">
               O sistema combinou estímulo externo, seu pensamento presente e a base histórica autoral:
             </p>
           </div>
 
           <div className="space-y-3">
             {conflitos.length === 0 ? (
-              <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/70 space-y-1.5 text-xs text-amber-900">
+              <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/70 space-y-2 text-sm text-amber-900">
                 <span className="font-bold">Atrito Dialético Inicial:</span>
                 <p className="text-slate-700">
                   O estímulo externo propõe conclusões superficiais imediatas, gerando oportunidade para fundamentar a posição autoral com densidade e perspectiva histórica.
@@ -543,14 +543,14 @@ export function WizardCriarReflexao() {
               </div>
             ) : (
               conflitos.map((c, i) => (
-                <div key={i} className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-2 text-xs">
+                <div key={i} className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-2.5 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-amber-900 uppercase text-[10px] tracking-wider">
                       {c.tipo}
                     </span>
                   </div>
                   <p className="text-slate-800 font-semibold">{c.descricao}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm pt-1">
                     <div className="bg-white p-2.5 rounded-xl border border-amber-100">
                       <span className="text-[10px] font-bold text-slate-400 block uppercase">Estímulo Externo:</span>
                       <span className="text-slate-700">{c.posicao_externa}</span>
@@ -604,7 +604,7 @@ export function WizardCriarReflexao() {
               <h2 className="text-base font-bold text-slate-900">
                 5. Plano Metodológico da Reflexão
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-sm text-slate-500 mt-1 leading-6">
                 Arquitetura de raciocínio concebida pelo Cérebro Autoral antes de redigir.
               </p>
             </div>
