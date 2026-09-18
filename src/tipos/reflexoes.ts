@@ -19,6 +19,54 @@ export type TipoOrigemExterna =
   | "audio_transcricao"
   | "observacao";
 
+export type TipoFonteReflexao =
+  | "texto"
+  | "documento"
+  | "link"
+  | "audio"
+  | "biblioteca";
+
+export interface FonteReflexaoPreparada {
+  tipo: TipoFonteReflexao;
+  titulo?: string;
+  autorNome?: string;
+  urlOrigem?: string;
+  obraId?: string;
+  storageBucket?: string;
+  storageCaminho?: string;
+  arquivoNomeOriginal?: string;
+  arquivoMimeType?: string;
+  arquivoTamanhoBytes?: number;
+  hashSha256?: string;
+  conteudoExtraido: string;
+  conteudoConfirmado?: string;
+  metadados?: Record<string, unknown>;
+}
+
+export interface FonteReflexao {
+  id: string;
+  entrada_id: string;
+  usuario_id: string;
+  tipo_fonte: TipoFonteReflexao;
+  titulo?: string | null;
+  autor_nome?: string | null;
+  url_origem?: string | null;
+  obra_id?: string | null;
+  storage_bucket?: string | null;
+  storage_caminho?: string | null;
+  arquivo_nome_original?: string | null;
+  arquivo_mime_type?: string | null;
+  arquivo_tamanho_bytes?: number | null;
+  hash_sha256?: string | null;
+  conteudo_extraido: string;
+  conteudo_confirmado?: string | null;
+  estado: "pronta" | "falha";
+  erro_processamento?: string | null;
+  metadados: Record<string, unknown>;
+  criado_em: string;
+  atualizado_em: string;
+}
+
 export type EstadoEntradaReflexao =
   | "criada"
   | "planejada"
