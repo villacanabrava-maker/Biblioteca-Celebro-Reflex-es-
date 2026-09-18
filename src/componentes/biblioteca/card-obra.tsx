@@ -131,9 +131,17 @@ export function CardObra({
     : [];
   const tagsVisiveis = tagsObra.slice(0, 3);
   const totalTagsOcultas = Math.max(0, tagsObra.length - tagsVisiveis.length);
+  const temAcaoSecundaria =
+    (estaProcessado && Boolean(aoVerFragmentos)) ||
+    (estaPendente && Boolean(aoIniciarProcessamento)) ||
+    estaProcessando;
+  const tituloId = `obra-titulo-${obra.id}`;
 
   return (
-    <div className="group relative bg-white border border-slate-200 hover:border-blue-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col">
+    <article
+      aria-labelledby={tituloId}
+      className="group relative bg-white border border-slate-200 hover:border-blue-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col"
+    >
       {/* Linha Superior Colorida por Status */}
       <div className={`h-1 w-full ${estaProcessado ? "bg-emerald-500" : estaProcessando ? "bg-blue-500" : "bg-amber-400"}`} />
 
@@ -176,7 +184,10 @@ export function CardObra({
             )}
           </div>
 
-          <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug truncate group-hover:text-blue-600">
+          <h3
+            id={tituloId}
+            className="font-bold text-slate-900 text-sm sm:text-base leading-snug truncate group-hover:text-blue-600"
+          >
             <Link
               href={`/biblioteca/${obra.id}`}
               className="transition-colors after:absolute after:inset-0 after:z-0 after:rounded-2xl after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-blue-500 focus-visible:after:ring-inset"
@@ -353,34 +364,41 @@ export function CardObra({
           Abrir
         </Link>
 
-        <span aria-hidden="true" className="text-slate-300">|</span>
+        {temAcaoSecundaria && (
+          <>
+            <span aria-hidden="true" className="text-slate-300">|</span>
 
-        {estaProcessado && aoVerFragmentos ? (
-          <button
-            onClick={() => aoVerFragmentos(obra)}
-            className="inline-flex min-h-6 items-center gap-1.5 rounded-md px-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            Ver Fragmentos
-          </button>
-        ) : estaPendente && aoIniciarProcessamento ? (
-          <button
-            onClick={() => aoIniciarProcessamento(obra)}
-            className="inline-flex min-h-6 items-center gap-1.5 rounded-md px-1 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          >
-            <Zap className="w-3.5 h-3.5" />
-            Processar com IA
-          </button>
-        ) : estaProcessando ? (
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-500">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            Processando...
-          </span>
-        ) : null}
+            {estaProcessado && aoVerFragmentos ? (
+              <button
+                type="button"
+                onClick={() => aoVerFragmentos(obra)}
+                className="inline-flex min-h-6 items-center gap-1.5 rounded-md px-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Ver Fragmentos
+              </button>
+            ) : estaPendente && aoIniciarProcessamento ? (
+              <button
+                type="button"
+                onClick={() => aoIniciarProcessamento(obra)}
+                className="inline-flex min-h-6 items-center gap-1.5 rounded-md px-1 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Processar com IA
+              </button>
+            ) : estaProcessando ? (
+              <span className="inline-flex min-h-6 items-center gap-1.5 text-xs font-medium text-blue-500">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Processando...
+              </span>
+            ) : null}
+          </>
+        )}
 
         <span aria-hidden="true" className="text-slate-300">|</span>
 
         <button
+          type="button"
           onClick={lidarDownload}
           disabled={baixando || !obra.arquivo_caminho}
           className="inline-flex min-h-6 items-center gap-1.5 rounded-md px-1 text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
@@ -393,6 +411,6 @@ export function CardObra({
           Baixar
         </button>
       </div>
-    </div>
+    </article>
   );
 }
