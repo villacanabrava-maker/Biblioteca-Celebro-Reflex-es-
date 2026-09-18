@@ -186,7 +186,7 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
           </div>
         )}
 
-        {/* As 5 Etapas Visuais da Metodologia */}
+        {/* Etapas declaradas da metodologia; o status intermediário não é simulado. */}
         <div className="space-y-2.5">
           <h4 className="text-xs uppercase tracking-wider text-slate-500 font-bold px-0.5">
             Metodologia de Processamento em 6 Fases
@@ -224,11 +224,7 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
                   <div className="flex-1 min-w-0">
                     <p
                       className={`text-xs font-bold leading-tight ${
-                        isAndamento
-                          ? "text-blue-900"
-                          : isConcluido
-                          ? "text-emerald-900"
-                          : "text-slate-800"
+                        isConcluido ? "text-emerald-900" : "text-slate-800"
                       }`}
                     >
                       {et.titulo}
@@ -290,7 +286,7 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
               </div>
 
               <div className="p-2.5 bg-white border border-emerald-100 rounded-xl text-center">
-                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Custo Estimado</span>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Custo de Embeddings</span>
                 <span className="text-base font-extrabold text-slate-800 font-mono">${resultado.custoEstimadoUsd.toFixed(5)}</span>
               </div>
             </div>
