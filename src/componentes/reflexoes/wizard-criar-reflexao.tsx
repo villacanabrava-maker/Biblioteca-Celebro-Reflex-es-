@@ -94,6 +94,9 @@ export function WizardCriarReflexao() {
   // Etapa 2: Comentário Pessoal
   const [comentarioPessoal, setComentarioPessoal] = useState("");
   const [titulo, setTitulo] = useState("");
+  const [fonteComentarioAudio, setFonteComentarioAudio] = useState<FonteReflexaoPreparada | null>(null);
+  const [processandoComentarioAudio, setProcessandoComentarioAudio] = useState(false);
+  const [progressoComentarioAudio, setProgressoComentarioAudio] = useState(0);
 
   // Etapa 3: Memórias Relacionadas
   const [memorias, setMemorias] = useState<MemoriaItem[]>([]);
@@ -287,6 +290,75 @@ export function WizardCriarReflexao() {
     }
   }
 
+  async function prepararAudioComentario(file: File | null) {
+    setFonteComentarioAudio(null);
+    if (!file) return;
+
+    const limiteTranscricao = 24 * 1024 * 1024;
+    if (file.size > limiteTranscricao) {
+      setErro("O comentário gravado excedeu 24 MB. Grave um trecho menor.");
+      return;
+    }
+
+    try {
+      setProcessandoComentarioAudio(true);
+      setProgressoComentarioAudio(0);
+      setErro(null);
+
+      const auth = await obterTokenAutenticadoBrowser();
+      const hashSha256 = await calcularHashSha256(file);
+      const timestamp = Date.now();
+      const nomeSanitizado = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const caminho = `${auth.usuarioId}/${timestamp}/comentario/${nomeSanitizado}`;
+
+      await new Promise<void>((resolve, reject) => {
+        iniciarUploadTus({
+          arquivo: file,
+          caminhoDestino: caminho,
+          bucket: "fontes-reflexoes",
+          tokenAutenticacao: auth.token,
+          aoProgredir: (porcentagem) => setProgressoComentarioAudio(porcentagem),
+          aoSucesso: () => resolve(),
+          aoErro: (erroUpload) => reject(erroUpload),
+        }).catch(reject);
+      });
+
+      const transcricao = await transcreverFonteAudioTemporaria({
+        storageCaminho: caminho,
+        arquivoNomeOriginal: file.name,
+        arquivoMimeType: file.type || "audio/webm",
+      });
+
+      setComentarioPessoal(transcricao.texto);
+      setFonteComentarioAudio({
+        tipo: "audio",
+        titulo: "Comentário do autor",
+        storageBucket: "fontes-reflexoes",
+        storageCaminho: caminho,
+        arquivoNomeOriginal: file.name,
+        arquivoMimeType: file.type || "audio/webm",
+        arquivoTamanhoBytes: file.size,
+        hashSha256,
+        conteudoExtraido: transcricao.texto,
+        conteudoConfirmado: transcricao.texto,
+        metadados: {
+          papel: "comentario_autor",
+          idiomas: transcricao.idiomas,
+          totalCaracteres: transcricao.totalCaracteres,
+          totalPalavras: transcricao.totalPalavras,
+          origem: "gravacao_microfone",
+        },
+      });
+    } catch (err: unknown) {
+      const mensagem = err instanceof Error ? err.message : "Falha ao transcrever o comentário.";
+      console.error("Erro ao preparar comentário em áudio:", err);
+      setErro(mensagem);
+      setFonteComentarioAudio(null);
+    } finally {
+      setProcessandoComentarioAudio(false);
+    }
+  }
+
   async function prepararLinkComoFonte() {
     if (!urlFonte.trim()) {
       setErro("Informe o endereço do artigo ou página que deseja usar como fonte.");
@@ -368,6 +440,14 @@ export function WizardCriarReflexao() {
         titulo: titulo.trim() || undefined,
         formatoDesejado: formato,
         fonte: fonteAtual,
+        fontesAdicionais: fonteComentarioAudio
+          ? [
+              {
+                ...fonteComentarioAudio,
+                conteudoConfirmado: comentarioPessoal,
+              },
+            ]
+          : [],
       });
 
       setEntradaId(res.entradaId);
@@ -973,8 +1053,34 @@ export function WizardCriarReflexao() {
               onChange={(e) => setComentarioPessoal(e.target.value)}
               placeholder="Escreva sua visão autêntica: onde você discorda, o que falta ser dito, qual tensão merece ser aprofundada..."
               rows={5}
-              className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 text-sm leading-6 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none font-sans"
+              className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 text-sm leading-6 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-y font-sans"
             />
+          </div>
+
+          <div className="space-y-3 border-t border-slate-100 pt-4">
+            <div>
+              <p className="text-sm font-bold text-slate-900">Ou grave seu comentário</p>
+              <p className="mt-1 text-xs text-slate-500">
+                A transcrição substituirá o texto acima para você revisar antes de consultar o Cérebro.
+              </p>
+            </div>
+
+            <GravadorAudio
+              desabilitado={processandoComentarioAudio || carregando}
+              onArquivoPronto={(arquivo) => void prepararAudioComentario(arquivo)}
+            />
+
+            {processandoComentarioAudio && (
+              <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-medium text-blue-700">
+                Enviando e transcrevendo comentário · {progressoComentarioAudio}%
+              </div>
+            )}
+
+            {fonteComentarioAudio && !processandoComentarioAudio && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-700">
+                Comentário transcrito. Revise o texto acima antes de continuar.
+              </div>
+            )}
           </div>
 
           <div className="pt-2 flex justify-between">
