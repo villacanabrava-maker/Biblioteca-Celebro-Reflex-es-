@@ -1,17 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import {
-  Search,
-  Plus,
-  ArrowUpDown,
-  BookOpen,
-  Inbox,
-  CheckCircle2,
-  Clock,
-  Cpu,
-} from "lucide-react";
-import type { ObraDetalhada, TipoObra } from "@/tipos/biblioteca";
+import { Search, Plus, ArrowUpDown, BookOpen, Inbox, CheckCircle2, Clock, Cpu } from "lucide-react";
+import type { ObraDetalhada } from "@/tipos/biblioteca";
 import { CardObra } from "./card-obra";
 import { ModalAdicionarConteudo } from "./modal-adicionar-conteudo";
 import { ModalProcessamento } from "@/componentes/processamento/modal-processamento";
