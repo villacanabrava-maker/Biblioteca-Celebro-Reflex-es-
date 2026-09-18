@@ -174,6 +174,8 @@ export interface VersaoReflexao {
   conteudo_markdown: string;
   sumario_executivo?: string | null;
   total_palavras: number;
+  origem_versao?: "ia" | "edicao_autor";
+  versao_base_id?: string | null;
   estado: EstadoVersaoReflexao;
   criado_em: string;
   atualizado_em: string;
