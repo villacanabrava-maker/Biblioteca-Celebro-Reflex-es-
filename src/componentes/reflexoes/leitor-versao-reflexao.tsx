@@ -196,9 +196,9 @@ export function LeitorVersaoReflexao({
                       setMensagemEdicao("Nenhuma alteração textual foi detectada; a versão existente foi preservada.");
                     } else if (resultado.avisoAprendizado) {
                       setMensagemEdicao(resultado.avisoAprendizado);
-                    } else if (resultado.totalPropostasAprendizado > 0) {
+                    } else if ((resultado.totalPropostasAprendizado ?? 0) > 0) {
                       setMensagemEdicao(
-                        `Edição salva. ${resultado.totalPropostasAprendizado} proposta(s) de aprendizado foram enviadas ao Cérebro para sua revisão.`
+                        `Edição salva. ${resultado.totalPropostasAprendizado ?? 0} proposta(s) de aprendizado foram enviadas ao Cérebro para sua revisão.`
                       );
                     } else {
                       setMensagemEdicao(
