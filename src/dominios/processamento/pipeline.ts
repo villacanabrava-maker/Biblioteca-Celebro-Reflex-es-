@@ -7,6 +7,7 @@ import {
   gerarSintesesHierarquicas,
   type SecaoParaSintese,
 } from "./gerador-sinteses";
+import { taxonomizarDocumentoProcessado } from "@/dominios/taxonomia/aplicador-taxonomia";
 
 export interface OpcoesPipeline {
   versaoObraId: string;
@@ -20,6 +21,8 @@ export interface ResultadoPipeline {
   totalSecoes: number;
   totalFragmentos: number;
   totalSinteses: number;
+  totalConceitosTaxonomia?: number;
+  avisoTaxonomia?: string | null;
   totalTokens: number;
   custoEstimadoUsd: number;
 }
@@ -149,7 +152,7 @@ export async function executarPipelineProcessamento({
     .insert({
       versao_obra_id: versaoObraId,
       usuario_id: usuarioId,
-      pipeline_versao: "v1.1",
+      pipeline_versao: "v1.2",
       estado: "em_execucao",
       correlacao_id: correlacaoId,
     })
@@ -646,7 +649,85 @@ export async function executarPipelineProcessamento({
       })
       .eq("id", versaoObraId);
 
-    // Conclui execução
+    // ------------------------------------------------------------------------
+    // ETAPA 7: TAXONOMIA AUTOMATICA (NAO DESTRUTIVA)
+    // ------------------------------------------------------------------------
+    // A extração/documento já estão canonicamente publicados. Uma falha do
+    // classificador taxonômico é registrada, mas não invalida o processamento.
+    const chaveEtapaTaxonomia = calcularChaveIdempotencia([
+      versaoObraId,
+      "taxonomia_automatica",
+      "v1",
+      execucao.id,
+    ]);
+    const inicioTaxonomia = Date.now();
+    const { data: etapaTaxonomia } = await admin
+      .schema("processamento")
+      .from("etapas_execucao")
+      .insert({
+        execucao_id: execucao.id,
+        nome_etapa: "taxonomia_automatica",
+        estado: "em_execucao",
+        chave_idempotencia: chaveEtapaTaxonomia,
+      })
+      .select()
+      .single();
+
+    let totalConceitosTaxonomia = 0;
+    let avisoTaxonomia: string | null = null;
+
+    try {
+      const resultadoTaxonomia = await taxonomizarDocumentoProcessado({
+        documentoProcessadoId: docProc.id,
+        usuarioId,
+      });
+      totalConceitosTaxonomia =
+        resultadoTaxonomia.totalConceitosPropostos +
+        resultadoTaxonomia.totalConceitosReutilizados;
+
+      if (etapaTaxonomia) {
+        await admin
+          .schema("processamento")
+          .from("etapas_execucao")
+          .update({
+            estado: "concluido",
+            duracao_ms: Date.now() - inicioTaxonomia,
+            resultado: {
+              totalConceitosPropostos:
+                resultadoTaxonomia.totalConceitosPropostos,
+              totalConceitosReutilizados:
+                resultadoTaxonomia.totalConceitosReutilizados,
+              reutilizada: resultadoTaxonomia.reutilizada,
+            },
+            concluido_em: new Date().toISOString(),
+          })
+          .eq("id", etapaTaxonomia.id);
+      }
+    } catch (erroTaxonomia: unknown) {
+      const mensagem =
+        erroTaxonomia instanceof Error
+          ? erroTaxonomia.message
+          : "Falha desconhecida na Taxonomia automática.";
+      avisoTaxonomia =
+        "O documento foi processado, mas a análise taxonômica precisa ser refeita.";
+
+      if (etapaTaxonomia) {
+        await admin
+          .schema("processamento")
+          .from("etapas_execucao")
+          .update({
+            estado: "falha",
+            duracao_ms: Date.now() - inicioTaxonomia,
+            erro_detalhe: mensagem.slice(0, 4000),
+            concluido_em: new Date().toISOString(),
+          })
+          .eq("id", etapaTaxonomia.id);
+      }
+
+      console.error("Taxonomia automática não destrutiva falhou:", erroTaxonomia);
+    }
+
+    // Conclui execução do pipeline principal.
     await admin
       .schema("processamento")
       .from("execucoes")
@@ -665,6 +746,8 @@ export async function executarPipelineProcessamento({
       totalSecoes: totalSecoesCriadas,
       totalFragmentos: totalFragmentosCriados,
       totalSinteses: totalSintesesCriadas,
+      totalConceitosTaxonomia,
+      avisoTaxonomia,
       totalTokens: totalTokensGlobal,
       custoEstimadoUsd,
     };
