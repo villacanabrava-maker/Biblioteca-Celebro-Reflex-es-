@@ -59,7 +59,7 @@ export async function analisarDimensaoComIA({
   const fragmentosFormatados = fragmentos
     .slice(0, 10)
     .map(
-      (f, idx) => `[FRAGMENTO_ID: ${f.id}] (Obra: ${f.obra_titulo})\n${f.conteudo}\n---`
+      (f) => `[FRAGMENTO_ID: ${f.id}] (Obra: ${f.obra_titulo})\n${f.conteudo}\n---`
     )
     .join("\n");
 
