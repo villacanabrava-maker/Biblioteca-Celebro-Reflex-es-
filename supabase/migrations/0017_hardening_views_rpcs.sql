@@ -30,7 +30,6 @@ ALTER VIEW aplicacao.v_obras_detalhadas SET (security_invoker = true);
 ALTER VIEW aplicacao.v_documentos_processados SET (security_invoker = true);
 ALTER VIEW aplicacao.v_fragmentos_detalhados SET (security_invoker = true);
 ALTER VIEW aplicacao.v_execucoes_processamento SET (security_invoker = true);
-ALTER VIEW aplicacao.v_auditoria_detalhada SET (security_invoker = true);
 ALTER VIEW aplicacao.v_reflexoes_resumo SET (security_invoker = true);
 
 -- 2. Remover privilegios excessivos das views internas.
