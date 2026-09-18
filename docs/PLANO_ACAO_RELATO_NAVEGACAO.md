@@ -48,6 +48,12 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 | Taxonomia automática | Concluído em produção | Documentos e reflexões aprovadas geram conceitos com evidência verificável; nós e relações de IA exigem confirmação humana antes de entrar no mapa canônico. |
 | Segurança Taxonomia/RLS | Concluído em produção | Migration 0025 aplicada: ownership por usuário, RLS coerente e vínculos protegidos. |
 
+## Correção de produção descoberta no QA
+
+- `cerebro_autoral.propostas_atualizacao` estava sem privilégios de tabela para `service_role`, causando `permission denied` ao abrir o Cérebro.
+- Migration `0027_grants_propostas_atualizacao` aplicada e verificada.
+- O acesso direto de `authenticated` permaneceu revogado.
+
 ## Ordem de execução a partir daqui
 
 1. Fechar decisão segura para o catálogo global `cerebro_autoral.dimensoes` (RLS/read-only).
