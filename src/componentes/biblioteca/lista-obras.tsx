@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { Search, Plus, ArrowUpDown, BookOpen, Inbox, CheckCircle2, Clock, Cpu } from "lucide-react";
 import type { ObraDetalhada } from "@/tipos/biblioteca";
+import type { SugestaoTagTaxonomia } from "@/tipos/taxonomia";
 import { CardObra } from "./card-obra";
 import { ModalAdicionarConteudo } from "./modal-adicionar-conteudo";
 import { ModalProcessamento } from "@/componentes/processamento/modal-processamento";
@@ -11,6 +12,7 @@ import { VisualizadorFragmentos } from "@/componentes/processamento/visualizador
 interface Props {
   obrasIniciais: ObraDetalhada[];
   usuarioId: string;
+  sugestoesTagsTaxonomia: SugestaoTagTaxonomia[];
 }
 
 const ABAS_TIPO: { id: string; rotulo: string }[] = [
@@ -22,7 +24,11 @@ const ABAS_TIPO: { id: string; rotulo: string }[] = [
   { id: "outros", rotulo: "Outros" },
 ];
 
-export function ListaObras({ obrasIniciais, usuarioId }: Props) {
+export function ListaObras({
+  obrasIniciais,
+  usuarioId,
+  sugestoesTagsTaxonomia,
+}: Props) {
   const [obras, setObras] = useState<ObraDetalhada[]>(obrasIniciais);
   const [abaAtiva, setAbaAtiva] = useState("todos");
   const [busca, setBusca] = useState("");
@@ -59,8 +65,22 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
           const coincideSubtitulo = obra.subtitulo?.toLowerCase().includes(termo);
           const coincideAutor = obra.autor_nome.toLowerCase().includes(termo);
           const coincideDescricao = obra.descricao?.toLowerCase().includes(termo);
+          const tagsObra = Array.isArray(obra.metadados?.tags)
+            ? obra.metadados.tags.filter(
+                (tag): tag is string => typeof tag === "string"
+              )
+            : [];
+          const coincideTag = tagsObra.some((tag) =>
+            tag.toLowerCase().includes(termo)
+          );
 
-          if (!coincideTitulo && !coincideSubtitulo && !coincideAutor && !coincideDescricao) {
+          if (
+            !coincideTitulo &&
+            !coincideSubtitulo &&
+            !coincideAutor &&
+            !coincideDescricao &&
+            !coincideTag
+          ) {
             return false;
           }
         }
@@ -223,6 +243,7 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
         aoFechar={() => setModalAberto(false)}
         aoSalvar={lidarSalvarObra}
         usuarioId={usuarioId}
+        sugestoesTagsTaxonomia={sugestoesTagsTaxonomia}
       />
 
       {obraProcessamento && (

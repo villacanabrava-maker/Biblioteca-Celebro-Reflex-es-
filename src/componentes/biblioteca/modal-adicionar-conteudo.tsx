@@ -12,12 +12,14 @@ import {
 } from "@/acoes/biblioteca";
 import { GravadorAudio } from "@/componentes/comum/gravador-audio";
 import type { TipoObra, ObraDetalhada } from "@/tipos/biblioteca";
+import type { SugestaoTagTaxonomia } from "@/tipos/taxonomia";
 
 interface Props {
   aberto: boolean;
   aoFechar: () => void;
   aoSalvar: (obra: ObraDetalhada) => void;
   usuarioId: string;
+  sugestoesTagsTaxonomia: SugestaoTagTaxonomia[];
 }
 
 type ModoEntrada =
@@ -51,6 +53,7 @@ export function ModalAdicionarConteudo({
   aoFechar,
   aoSalvar,
   usuarioId,
+  sugestoesTagsTaxonomia,
 }: Props) {
   const [modo, setModo] = useState<ModoEntrada>("arquivo");
   const [arquivo, setArquivo] = useState<File | null>(null);
@@ -70,6 +73,38 @@ export function ModalAdicionarConteudo({
   const [descricao, _setDescricao] = useState("");
   const [conteudoTexto, setConteudoTexto] = useState("");
   const [tagsTexto, setTagsTexto] = useState("");
+  const [tagsTaxonomiaIds, setTagsTaxonomiaIds] = useState<string[]>([]);
+
+  const tagsTaxonomiaSelecionadas = sugestoesTagsTaxonomia.filter((tag) =>
+    tagsTaxonomiaIds.includes(tag.id)
+  );
+
+  const termoAtualTag = tagsTexto
+    .split(",")
+    .at(-1)
+    ?.trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase() || "";
+
+  const sugestoesTagsVisiveis = sugestoesTagsTaxonomia
+    .filter((tag) => {
+      if (!termoAtualTag) return true;
+      const termo = tag.termo
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      return termo.includes(termoAtualTag);
+    })
+    .slice(0, 10);
+
+  function alternarTagTaxonomia(tagId: string) {
+    setTagsTaxonomiaIds((atuais) =>
+      atuais.includes(tagId)
+        ? atuais.filter((id) => id !== tagId)
+        : [...atuais, tagId]
+    );
+  }
 
   // Eixos Canônicos de Classificação de Fonte (Master Document v2.0)
   const [papelFonte, setPapelFonte] = useState<"autoral" | "externa">("autoral");
@@ -380,6 +415,25 @@ export function ModalAdicionarConteudo({
           ? opcaoSelecionada.tipoObra
           : "livro";
 
+      const tagsLivres = tagsTexto
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+
+      const tagsConsolidadas = Array.from(
+        new Map(
+          [...tagsLivres, ...tagsTaxonomiaSelecionadas.map((tag) => tag.termo)]
+            .map((tag) => [
+              tag
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toLowerCase()
+                .trim(),
+              tag,
+            ])
+        ).values()
+      );
+
       const resultado = await cadastrarObra({
         titulo: titulo.trim(),
         subtitulo: subtitulo.trim() || undefined,
@@ -407,10 +461,14 @@ export function ModalAdicionarConteudo({
         arquivo_mime_type: arquivoParaUpload.type || "text/plain",
         hash_sha256: hashSha256,
         metadados: {
-          tags: tagsTexto
-            .split(",")
-            .map((t) => t.trim())
-            .filter(Boolean),
+          tags: tagsConsolidadas,
+          tags_livres: tagsLivres,
+          tags_taxonomia: tagsTaxonomiaSelecionadas.map((tag) => ({
+            conceito_id: tag.id,
+            codigo: tag.codigo,
+            termo: tag.termo,
+            dominio: tag.dominio,
+          })),
           origem_upload: modo,
           ...(modo === "audio"
             ? {
@@ -724,17 +782,70 @@ export function ModalAdicionarConteudo({
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Tags e Temas Relacionados (separados por vírgula)
-            </label>
-            <input
-              type="text"
-              value={tagsTexto}
-              onChange={(e) => setTagsTexto(e.target.value)}
-              placeholder="Ex: Esperança, Família, Propósito, Maturidade"
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
-            />
+          <div className="space-y-2.5">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Tags e temas relacionados
+              </label>
+              <input
+                type="text"
+                value={tagsTexto}
+                onChange={(e) => setTagsTexto(e.target.value)}
+                placeholder="Tags livres opcionais, separadas por vírgula"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3.5">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-bold text-blue-900">
+                    Sugestões da Taxonomia confirmada
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-5 text-blue-700/80">
+                    Somente conceitos já confirmados por você aparecem aqui. Conceitos da IA em revisão não são usados como tags.
+                  </p>
+                </div>
+                {tagsTaxonomiaSelecionadas.length > 0 && (
+                  <span className="rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-bold text-white">
+                    {tagsTaxonomiaSelecionadas.length} selecionada(s)
+                  </span>
+                )}
+              </div>
+
+              {sugestoesTagsTaxonomia.length === 0 ? (
+                <p className="mt-3 rounded-xl border border-blue-100 bg-white/80 px-3 py-2 text-[11px] text-slate-500">
+                  Ainda não há conceitos confirmados na Taxonomia. Você pode usar tags livres agora; as sugestões aparecerão conforme conceitos forem confirmados.
+                </p>
+              ) : sugestoesTagsVisiveis.length === 0 ? (
+                <p className="mt-3 text-[11px] text-slate-500">
+                  Nenhum conceito confirmado corresponde ao termo digitado.
+                </p>
+              ) : (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {sugestoesTagsVisiveis.map((tag) => {
+                    const selecionada = tagsTaxonomiaIds.includes(tag.id);
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => alternarTagTaxonomia(tag.id)}
+                        aria-pressed={selecionada}
+                        disabled={emProcesso}
+                        title={`${tag.dominio} · ${tag.total_ocorrencias} ocorrência(s)`}
+                        className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+                          selecionada
+                            ? "border-blue-600 bg-blue-600 text-white"
+                            : "border-blue-200 bg-white text-blue-800 hover:border-blue-400 hover:bg-blue-50"
+                        }`}
+                      >
+                        {tag.termo}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Classificação Canônica de Fontes (Dois Eixos - Documento Mestre v2.0) */}

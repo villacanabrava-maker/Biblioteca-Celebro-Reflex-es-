@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { obterObras } from "@/acoes/biblioteca";
 import { obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
 import { ListaObras } from "@/componentes/biblioteca/lista-obras";
+import { obterSugestoesTagsTaxonomia } from "@/acoes/taxonomia";
 
 export const metadata: Metadata = {
   title: "Biblioteca | Rflex01",
@@ -16,8 +17,9 @@ export const maxDuration = 800;
 
 export default async function BibliotecaPage() {
   const usuarioId = await obterUsuarioAtualId();
-  const [obras] = await Promise.all([
+  const [obras, sugestoesTags] = await Promise.all([
     obterObras(),
+    obterSugestoesTagsTaxonomia(),
   ]);
 
   return (
@@ -33,7 +35,11 @@ export default async function BibliotecaPage() {
       </div>
 
       {/* Lista Interativa de Obras com Filtros, Busca e Modal de Upload */}
-      <ListaObras obrasIniciais={obras} usuarioId={usuarioId} />
+      <ListaObras
+        obrasIniciais={obras}
+        usuarioId={usuarioId}
+        sugestoesTagsTaxonomia={sugestoesTags}
+      />
     </div>
   );
 }

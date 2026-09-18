@@ -10,7 +10,7 @@ A fonte de verdade operacional é o estado real do repositório, Supabase e prod
 
 ## Estado reconciliado
 
-Base atual de produção: `82486017ffac9aa235cc22fc170b522eb05621ec`.
+Base atual de produção: `13178edcd67ceca76425938962d3f723975b18c9`.
 
 A implementação `89bdf1f3fc859d3039daa060b808e09a3a38867d` consolidou integridade/proveniência de fontes, curadoria em massa de memórias, ordem Auditor → Texto, edição autoral com preservação da versão da IA e remoção de fallbacks reais de configuração do Supabase. A migration `0024_versionamento_edicao_autoral_reflexoes` já está aplicada no Supabase.
 
@@ -23,7 +23,7 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 | Tipografia de leitura | Concluído | Escala global e fontes de leitura revisadas. |
 | Home / slogan | Concluído | Mantém saudação e usa “Transforme memórias em reflexões.” |
 | Biblioteca / áudio | Concluído | Gravação, transcrição revisável e fonte original preservada. |
-| Tags inteligentes | Aberto | Campo ainda é texto livre; precisa consumir Taxonomia real. |
+| Tags inteligentes | Em validação nesta branch | Biblioteca recebe apenas conceitos confirmados da Taxonomia como sugestões, preserva IDs/códigos no metadado e mantém tags livres opcionais. |
 | Card da Biblioteca | Concluído | Superfície principal clicável; ações internas preservadas. |
 | Modal/fragmentos | Concluído parcialmente | Fluxo funcional; manter revisão visual no QA geral. |
 | Download | Concluído | Nome de download passou a respeitar a obra/arquivo. |
@@ -45,15 +45,14 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 | Pós-aprovação | Concluído | Redireciona para Minhas Reflexões. |
 | Card de Reflexão | Concluído em produção | Toda a superfície do card navega para o Estúdio, com foco acessível. |
 | Cérebro / métricas | Concluído | View/resumo corrigidos para refletir dados reais. |
-| Taxonomia automática | Em validação nesta branch | Documentos e reflexões aprovadas geram conceitos com evidência verificável; nós e relações de IA exigem confirmação humana antes de entrar no mapa canônico. |
+| Taxonomia automática | Concluído em produção | Documentos e reflexões aprovadas geram conceitos com evidência verificável; nós e relações de IA exigem confirmação humana antes de entrar no mapa canônico. |
 | Segurança Taxonomia/RLS | Concluído em produção | Migration 0025 aplicada: ownership por usuário, RLS coerente e vínculos protegidos. |
 
 ## Ordem de execução a partir daqui
 
-1. Validar e aplicar o motor taxonômico automático desta branch.
-2. Usar somente conceitos confirmados da Taxonomia como fonte das sugestões de tags na Biblioteca.
-3. Revisar segurança remanescente do Processamento e habilitar proteção de senhas vazadas no Supabase Auth.
-4. QA transversal: responsividade, acessibilidade, regressão visual, performance e E2E dos fluxos críticos.
+1. Validar as tags inteligentes da Biblioteca desta branch.
+2. Revisar segurança remanescente do Processamento e habilitar proteção de senhas vazadas no Supabase Auth.
+3. QA transversal: responsividade, acessibilidade, regressão visual, performance e E2E dos fluxos críticos.
 
 ## Guardrails
 

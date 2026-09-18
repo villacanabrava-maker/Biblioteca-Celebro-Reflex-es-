@@ -98,3 +98,12 @@ export interface AnaliseTaxonomica {
   atualizado_em: string;
   concluido_em?: string | null;
 }
+
+
+export interface SugestaoTagTaxonomia {
+  id: string;
+  codigo: string;
+  termo: string;
+  dominio: DominioTaxonomico;
+  total_ocorrencias: number;
+}
