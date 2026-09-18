@@ -12,8 +12,6 @@ import {
   FileCheck2,
   Settings,
   Compass,
-  Feather,
-  Bell,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { PenaIcone } from "@/componentes/comum/logotipo";
@@ -21,28 +19,41 @@ import { PenaIcone } from "@/componentes/comum/logotipo";
 export const itensNavegacaoMobile = [
   { href: "/", rotulo: "Início", icone: Home },
   { href: "/biblioteca", rotulo: "Biblioteca", icone: BookOpen },
-  { href: "/documentos-processados", rotulo: "Processados", icone: FileCheck2 },
-  { href: "/reflexoes/criar", rotulo: "Refletir", icone: PlusCircle, destaque: true },
+  { href: "/reflexoes/criar", rotulo: "Criar", icone: PlusCircle, destaque: true },
+  { href: "/reflexoes", rotulo: "Reflexões", icone: FileText },
   { href: "/cerebro", rotulo: "Cérebro", icone: Brain },
 ];
 
-export const itensNavegacaoDesktop = [
-  { href: "/", rotulo: "Início", icone: Home },
-  { href: "/biblioteca", rotulo: "Biblioteca", icone: BookOpen },
-  { href: "/documentos-processados", rotulo: "Documentos Processados", icone: FileCheck2 },
-  { href: "/cerebro", rotulo: "Meu Cérebro", icone: Brain },
-  { href: "/reflexoes", rotulo: "Minhas Reflexões", icone: FileText },
-  { href: "/taxonomia", rotulo: "Taxonomia & Teses", icone: Compass },
-  { href: "/configuracoes", rotulo: "Configurações", icone: Settings },
+const gruposNavegacaoDesktop = [
+  {
+    rotulo: "Principal",
+    itens: [
+      { href: "/", rotulo: "Início", icone: Home },
+      { href: "/biblioteca", rotulo: "Biblioteca", icone: BookOpen },
+      { href: "/reflexoes", rotulo: "Reflexões", icone: FileText },
+    ],
+  },
+  {
+    rotulo: "Inteligência",
+    itens: [
+      { href: "/cerebro", rotulo: "Cérebro Autoral", icone: Brain },
+      { href: "/taxonomia", rotulo: "Taxonomia", icone: Compass },
+      { href: "/documentos-processados", rotulo: "Documentos Processados", icone: FileCheck2 },
+    ],
+  },
 ];
+
+function itemAtivo(pathname: string, href: string) {
+  return pathname === href || (href !== "/" && pathname.startsWith(href));
+}
 
 export function BarraInferiorMobile() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-slate-700/50 bg-slate-900/95 backdrop-blur-md md:hidden px-2 shadow-lg">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-slate-800 bg-slate-950/95 px-2 shadow-lg backdrop-blur-md md:hidden">
       {itensNavegacaoMobile.map((item) => {
-        const ativo = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+        const ativo = itemAtivo(pathname, item.href);
         const Icone = item.icone;
 
         if (item.destaque) {
@@ -50,12 +61,12 @@ export function BarraInferiorMobile() {
             <Link
               key={item.href}
               href={item.href}
-              className="flex flex-col items-center justify-center -mt-5 transition-transform active:scale-95"
+              className="flex -mt-5 flex-col items-center justify-center transition-transform active:scale-95"
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/40 ring-4 ring-slate-900">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/30 ring-4 ring-slate-950">
                 <Icone className="h-6 w-6 stroke-[2.2px]" />
               </div>
-              <span className="text-[10px] font-semibold text-blue-400 mt-1">{item.rotulo}</span>
+              <span className="mt-1 text-[11px] font-semibold text-blue-400">{item.rotulo}</span>
             </Link>
           );
         }
@@ -65,12 +76,12 @@ export function BarraInferiorMobile() {
             key={item.href}
             href={item.href}
             className={clsx(
-              "flex flex-col items-center justify-center gap-1 transition-colors px-2 py-1",
-              ativo ? "text-blue-400 font-semibold" : "text-slate-400 hover:text-slate-200"
+              "flex flex-col items-center justify-center gap-1 px-2 py-1 transition-colors",
+              ativo ? "font-semibold text-blue-400" : "text-slate-400 hover:text-slate-200"
             )}
           >
             <Icone className={clsx("h-5 w-5", ativo && "stroke-[2.5px]")} />
-            <span className="text-[10px] tracking-tight">{item.rotulo}</span>
+            <span className="text-[11px] tracking-tight">{item.rotulo}</span>
           </Link>
         );
       })}
@@ -82,65 +93,80 @@ export function BarraLateralDesktop() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden md:flex w-64 flex-col bg-slate-900 shrink-0 shadow-xl">
-      {/* Logotipo */}
-      <Link href="/" className="flex items-center gap-3 px-5 py-5 border-b border-slate-700/60 hover:bg-slate-800/50 transition-colors">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/30">
+    <aside className="hidden w-64 shrink-0 flex-col bg-slate-950 shadow-xl md:flex">
+      <Link
+        href="/"
+        className="flex items-center gap-3 border-b border-slate-800 px-5 py-5 transition-colors hover:bg-slate-900"
+      >
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
           <PenaIcone className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h1 className="font-bold text-white text-sm leading-tight">Cérebro Autoral</h1>
-          <p className="text-[11px] text-slate-400 font-normal">Seu acervo. Seu pensamento.</p>
+          <h1 className="text-sm font-bold leading-tight text-white">Rflex01</h1>
+          <p className="text-xs font-normal text-slate-400">Cérebro Autoral</p>
         </div>
       </Link>
 
-      {/* Botão CTA — Criar Reflexão */}
-      <div className="px-4 pt-5 pb-3">
+      <div className="px-4 pb-3 pt-5">
         <Link
           href="/reflexoes/criar"
-          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold shadow-md shadow-blue-500/30 transition-all active:scale-95"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-500/20 transition-all hover:bg-blue-500 active:scale-95"
         >
           <Sparkles className="h-4 w-4" />
-          <span>+ Nova Reflexão</span>
+          <span>Nova Reflexão</span>
         </Link>
       </div>
 
-      {/* Itens de Navegação */}
-      <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
-        {itensNavegacaoDesktop.map((item) => {
-          const ativo = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
-          const Icone = item.icone;
+      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-2">
+        {gruposNavegacaoDesktop.map((grupo) => (
+          <div key={grupo.rotulo}>
+            <p className="mb-1.5 px-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+              {grupo.rotulo}
+            </p>
+            <div className="space-y-1">
+              {grupo.itens.map((item) => {
+                const ativo = itemAtivo(pathname, item.href);
+                const Icone = item.icone;
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={clsx(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group",
-                ativo
-                  ? "bg-blue-600/15 text-blue-400 font-semibold border border-blue-500/20"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-              )}
-            >
-              <Icone
-                className={clsx(
-                  "h-4.5 w-4.5 shrink-0 transition-transform group-hover:scale-110",
-                  ativo ? "text-blue-400 stroke-[2.5px]" : "text-slate-400 group-hover:text-slate-200"
-                )}
-                style={{ width: "1.125rem", height: "1.125rem" }}
-              />
-              <span className="truncate">{item.rotulo}</span>
-            </Link>
-          );
-        })}
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={clsx(
+                      "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
+                      ativo
+                        ? "bg-blue-600/15 font-semibold text-blue-400"
+                        : "text-slate-400 hover:bg-slate-900 hover:text-slate-100"
+                    )}
+                  >
+                    <Icone
+                      className={clsx(
+                        "h-[18px] w-[18px] shrink-0",
+                        ativo ? "stroke-[2.5px] text-blue-400" : "text-slate-500 group-hover:text-slate-300"
+                      )}
+                    />
+                    <span className="truncate">{item.rotulo}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
-      {/* Rodapé da Sidebar */}
-      <div className="p-4 border-t border-slate-700/60 text-xs text-slate-500">
-        <div className="flex items-center justify-between">
-          <span>Versão Canônica</span>
-          <span className="font-mono text-slate-400">v1.0</span>
-        </div>
+      <div className="border-t border-slate-800 p-3">
+        <Link
+          href="/configuracoes"
+          className={clsx(
+            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+            itemAtivo(pathname, "/configuracoes")
+              ? "bg-blue-600/15 text-blue-400"
+              : "text-slate-400 hover:bg-slate-900 hover:text-slate-100"
+          )}
+        >
+          <Settings className="h-[18px] w-[18px]" />
+          <span>Configurações</span>
+        </Link>
       </div>
     </aside>
   );
