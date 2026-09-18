@@ -126,6 +126,34 @@ describe("motor taxonômico", () => {
     });
   });
 
+  it("descarta pedido de reutilização que aponta para código inexistente", () => {
+    const resultado = validarConceitosTaxonomicos({
+      fontes,
+      conceitosExistentes: existentes,
+      candidatos: [
+        {
+          acao: "reutilizar",
+          codigo_existente: "codigo_inventado",
+          termo_preferencial: "Outro conceito",
+          definicao: "Não deve virar conceito novo por fallback.",
+          dominio: "reflexivo",
+          sinonimos: [],
+          confianca: 0.9,
+          evidencias: [
+            {
+              fonte_id: "frag-1",
+              trecho_contextual:
+                "A memória não funciona como arquivo passivo.",
+              relevancia: 0.9,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(resultado).toEqual([]);
+  });
+
   it("não reativa automaticamente conceito rejeitado", () => {
     const resultado = validarConceitosTaxonomicos({
       fontes,
