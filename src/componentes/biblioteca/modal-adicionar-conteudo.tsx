@@ -46,7 +46,7 @@ export function ModalAdicionarConteudo({
   const [anoPublicacao, setAnoPublicacao] = useState<number | undefined>(
     new Date().getFullYear()
   );
-  const [descricao, setDescricao] = useState("");
+  const [descricao, _setDescricao] = useState("");
   const [conteudoTexto, setConteudoTexto] = useState("");
   const [tagsTexto, setTagsTexto] = useState("");
 
