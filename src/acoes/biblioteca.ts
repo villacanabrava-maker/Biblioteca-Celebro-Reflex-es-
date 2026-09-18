@@ -199,12 +199,39 @@ export async function obterUrlDownloadOriginal(arquivoCaminho: string): Promise<
   return data.signedUrl;
 }
 
+export interface FragmentoVisual {
+  id: string;
+  indice_sequencial: number;
+  conteudo_texto: string;
+  total_tokens: number;
+  total_palavras?: number;
+  secao_id?: string | null;
+  secao_titulo?: string;
+}
+
+export interface SecaoVisual {
+  id: string;
+  ordem: number;
+  nivel: number;
+  titulo: string;
+  tipo_secao: string;
+}
+
 /**
- * Obtém os detalhes completos de uma obra pelo seu ID.
+ * Obtém os detalhes completos de uma obra pelo seu ID, incluindo seções e fragmentos processados.
  */
 export async function obterObraPorId(obraId: string): Promise<{
   obra: ObraDetalhada | null;
-  fragmentos: Array<{ id: string; indice_sequencial: number; conteudo_texto: string; total_tokens: number }>;
+  fragmentos: FragmentoVisual[];
+  secoes: SecaoVisual[];
+  documentoProcessado: {
+    id: string;
+    total_secoes: number;
+    total_fragmentos: number;
+    total_palavras: number;
+    total_tokens_estimado: number;
+    estado_publicacao: string;
+  } | null;
 }> {
   const usuarioId = await obterUsuarioAtualId();
   const admin = criarClienteAdmin();
@@ -217,21 +244,89 @@ export async function obterObraPorId(obraId: string): Promise<{
     .maybeSingle();
 
   if (error || !obra) {
-    return { obra: null, fragmentos: [] };
+    return { obra: null, fragmentos: [], secoes: [], documentoProcessado: null };
   }
 
-  // Buscar fragmentos processados se houver
-  const { data: fragmentos } = await admin
+  // Localizar o documento processado associado à versão da obra
+  let docProc: any = null;
+  if (obra.versao_id) {
+    const { data: dp } = await admin
+      .schema("processamento")
+      .from("documentos_processados")
+      .select("id, total_secoes, total_fragmentos, total_palavras, total_tokens_estimado, estado_publicacao")
+      .eq("versao_obra_id", obra.versao_id)
+      .maybeSingle();
+    docProc = dp;
+  }
+
+  // Se não achou pela versao_id atual, tenta achar pelas unidades de conhecimento vinculadas à obra
+  if (!docProc) {
+    const { data: unidade } = await admin
+      .schema("processamento")
+      .from("unidades_conhecimento")
+      .select("versao_obra_id")
+      .eq("obra_id", obraId)
+      .limit(1)
+      .maybeSingle();
+
+    if (unidade?.versao_obra_id) {
+      const { data: dp } = await admin
+        .schema("processamento")
+        .from("documentos_processados")
+        .select("id, total_secoes, total_fragmentos, total_palavras, total_tokens_estimado, estado_publicacao")
+        .eq("versao_obra_id", unidade.versao_obra_id)
+        .maybeSingle();
+      docProc = dp;
+    }
+  }
+
+  if (!docProc) {
+    return { obra: obra as ObraDetalhada, fragmentos: [], secoes: [], documentoProcessado: null };
+  }
+
+  // 1. Buscar Seções estruturais
+  const { data: secoesDb } = await admin
+    .schema("processamento")
+    .from("secoes")
+    .select("id, ordem, nivel, titulo, tipo_secao")
+    .eq("documento_processado_id", docProc.id)
+    .order("ordem", { ascending: true });
+
+  const mapaSecoes = new Map<string, string>();
+  const secoes: SecaoVisual[] = (secoesDb || []).map((s) => {
+    mapaSecoes.set(s.id, s.titulo);
+    return {
+      id: s.id,
+      ordem: s.ordem,
+      nivel: s.nivel,
+      titulo: s.titulo,
+      tipo_secao: s.tipo_secao,
+    };
+  });
+
+  // 2. Buscar Fragmentos
+  const { data: fragsDb } = await admin
     .schema("processamento")
     .from("fragmentos")
-    .select("id, indice_sequencial, conteudo_texto, total_tokens")
-    .eq("obra_id", obraId)
-    .order("indice_sequencial", { ascending: true })
-    .limit(50);
+    .select("id, ordem, conteudo, total_palavras, total_tokens_estimado, secao_id")
+    .eq("documento_processado_id", docProc.id)
+    .order("ordem", { ascending: true });
+
+  const fragmentos: FragmentoVisual[] = (fragsDb || []).map((f) => ({
+    id: f.id,
+    indice_sequencial: f.ordem,
+    conteudo_texto: f.conteudo,
+    total_tokens: f.total_tokens_estimado || Math.ceil(f.conteudo.length / 3.8),
+    total_palavras: f.total_palavras,
+    secao_id: f.secao_id,
+    secao_titulo: f.secao_id ? mapaSecoes.get(f.secao_id) || "Seção" : "Geral",
+  }));
 
   return {
     obra: obra as ObraDetalhada,
-    fragmentos: fragmentos || [],
+    fragmentos,
+    secoes,
+    documentoProcessado: docProc,
   };
 }
 

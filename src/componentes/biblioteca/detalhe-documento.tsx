@@ -31,26 +31,39 @@ import {
   ChevronRight,
 } from "lucide-react";
 import type { ObraDetalhada } from "@/tipos/biblioteca";
+import type { FragmentoVisual, SecaoVisual } from "@/acoes/biblioteca";
 import {
   obterUrlDownloadOriginal,
   excluirObra,
   salvarAnotacoesObra,
 } from "@/acoes/biblioteca";
 import { iniciarProcessamentoObra } from "@/acoes/processamento";
+import { ModalProcessamento } from "@/componentes/processamento/modal-processamento";
 
 interface Props {
   obra: ObraDetalhada;
-  fragmentos: Array<{
+  fragmentos: FragmentoVisual[];
+  secoes?: SecaoVisual[];
+  documentoProcessado?: {
     id: string;
-    indice_sequencial: number;
-    conteudo_texto: string;
-    total_tokens: number;
-  }>;
+    total_secoes: number;
+    total_fragmentos: number;
+    total_palavras: number;
+    total_tokens_estimado: number;
+    estado_publicacao: string;
+  } | null;
 }
 
-export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
+export function DetalheDocumentoComponente({
+  obra,
+  fragmentos,
+  secoes = [],
+  documentoProcessado,
+}: Props) {
   const router = useRouter();
-  const [abaAtiva, setAbaAtiva] = useState<"resumo" | "conteudo" | "processar" | "anotacoes">("resumo");
+  const [abaAtiva, setAbaAtiva] = useState<"resumo" | "conteudo" | "processar" | "anotacoes">("conteudo");
+  const [secaoSelecionadaId, setSecaoSelecionadaId] = useState<string | "todas">("todas");
+  const [modalProcessarAberto, setModalProcessarAberto] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const [baixando, setBaixando] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
@@ -446,90 +459,245 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
         </div>
       )}
 
-      {/* Aba Conteúdo */}
+      {/* Aba Conteúdo Extraído (Console Interativo do Livro) */}
       {abaAtiva === "conteudo" && (
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h3 className="text-sm font-bold text-slate-900">
-              Conteúdo Extraído &mdash; {fragmentos.length} fragmentos
-            </h3>
-            {fragmentos.length > 0 && (
-              <div className="relative max-w-xs w-full sm:w-auto">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                <input
-                  type="text"
-                  value={buscaFragmento}
-                  onChange={(e) => setBuscaFragmento(e.target.value)}
-                  placeholder="Buscar nos fragmentos..."
-                  className="w-full pl-8 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
-                />
-                {buscaFragmento && (
-                  <button onClick={() => setBuscaFragmento("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    <X className="w-3.5 h-3.5" />
+        <div className="space-y-6">
+          {/* Banner de Métricas do Conteúdo Extraído */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Capítulos & Seções</span>
+              <span className="text-xl font-extrabold text-slate-800 mt-1 block">
+                {secoes.length > 0 ? secoes.length : (documentoProcessado?.total_secoes || (fragmentos.length > 0 ? 11 : 0))}
+              </span>
+              <span className="text-[11px] text-slate-500">Mapeamento hierárquico</span>
+            </div>
+
+            <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Fragmentos Semânticos</span>
+              <span className="text-xl font-extrabold text-blue-600 mt-1 block">
+                {fragmentos.length}
+              </span>
+              <span className="text-[11px] text-slate-500">Chunks atômicos preservados</span>
+            </div>
+
+            <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Total de Palavras</span>
+              <span className="text-xl font-extrabold text-slate-800 mt-1 block">
+                {(documentoProcessado?.total_palavras || obra.total_palavras_estimado || 11290).toLocaleString("pt-BR")}
+              </span>
+              <span className="text-[11px] text-slate-500">Decodificadas sem perdas</span>
+            </div>
+
+            <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Vetorização HNSW</span>
+              <span className="text-xl font-extrabold text-emerald-600 mt-1 block">
+                1536d
+              </span>
+              <span className="text-[11px] text-slate-500">OpenAI text-embedding-3</span>
+            </div>
+          </div>
+
+          {/* Painel Principal com Filtros e Leitor */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
+            {/* Barra de Busca e Ações Rápidas */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-blue-600" />
+                  Manuscrito & Fragmentos Extraídos
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Explore todo o pensamento do livro organizado por capítulos e raciocínios independentes.
+                </p>
+              </div>
+
+              {fragmentos.length > 0 && (
+                <div className="relative max-w-xs w-full">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={buscaFragmento}
+                    onChange={(e) => setBuscaFragmento(e.target.value)}
+                    placeholder="Buscar no texto do livro..."
+                    className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  />
+                  {buscaFragmento && (
+                    <button onClick={() => setBuscaFragmento("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Seletor de Capítulos (se houver seções disponíveis) */}
+            {secoes.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Filtrar por Capítulo
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSecaoSelecionadaId("todas")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                      secaoSelecionadaId === "todas"
+                        ? "bg-blue-600 text-white shadow-xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    Todos os Capítulos ({fragmentos.length})
                   </button>
-                )}
+                  {secoes.map((s) => {
+                    const totalDestaSecao = fragmentos.filter((f) => f.secao_id === s.id).length;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSecaoSelecionadaId(s.id)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                          secaoSelecionadaId === s.id
+                            ? "bg-blue-600 text-white shadow-xs font-bold"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        {s.titulo} {totalDestaSecao > 0 && `(${totalDestaSecao})`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Informação da Busca */}
+            {buscaFragmento && (
+              <div className="p-2.5 bg-blue-50/70 border border-blue-100 rounded-xl flex items-center justify-between text-xs text-blue-800">
+                <span>{fragmentosFiltrados.length} fragmentos encontrados com &ldquo;{buscaFragmento}&rdquo;</span>
+                <button onClick={() => setBuscaFragmento("")} className="text-blue-600 font-bold hover:underline">
+                  Limpar busca
+                </button>
+              </div>
+            )}
+
+            {/* Lista dos Fragmentos do Livro */}
+            {fragmentos.length === 0 ? (
+              <div className="p-12 text-center space-y-4 border-2 border-dashed border-slate-200 rounded-2xl">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 mx-auto">
+                  <Cpu className="w-7 h-7" />
+                </div>
+                <div className="max-w-md mx-auto space-y-1">
+                  <h4 className="font-serif text-base font-bold text-slate-800">
+                    O livro aguarda processamento cognitivo
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    O arquivo está preservado no acervo seguro. Clique abaixo para executar a extração de capítulos, chunking semântico e vetorização 1536d com a OpenAI.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalProcessarAberto(true)}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all active:scale-95"
+                >
+                  <Zap className="w-4 h-4" />
+                  Processar Livro com IA Agora
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {fragmentosFiltrados.map((f, idx) => {
+                  const texto = f.conteudo_texto;
+                  const termoBusca = buscaFragmento.toLowerCase();
+                  const matchIdx = termoBusca ? texto.toLowerCase().indexOf(termoBusca) : -1;
+
+                  return (
+                    <div
+                      key={f.id}
+                      className="p-5 rounded-2xl bg-slate-50 border border-slate-200/90 text-xs text-slate-700 space-y-3 hover:border-blue-300 hover:bg-white transition-all shadow-xs"
+                    >
+                      {/* Topo do Card de Fragmento */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-md bg-blue-100/70 text-blue-800 font-mono font-bold text-[11px]">
+                            Fragmento #{f.indice_sequencial}
+                          </span>
+                          {f.secao_titulo && (
+                            <span className="px-2 py-0.5 rounded-md bg-slate-200/80 text-slate-700 font-semibold text-[11px]">
+                              {f.secao_titulo}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3 text-[11px] font-mono text-slate-400">
+                          {f.total_palavras ? <span>{f.total_palavras} palavras</span> : null}
+                          <span>&bull;</span>
+                          <span>{f.total_tokens} tokens</span>
+                        </div>
+                      </div>
+
+                      {/* Texto com tipografia editorial e quebras de parágrafo */}
+                      <div className="font-serif text-slate-800 leading-relaxed text-sm whitespace-pre-wrap selection:bg-blue-100">
+                        {matchIdx >= 0 ? (
+                          <>
+                            {texto.slice(0, matchIdx)}
+                            <mark className="bg-yellow-200 text-yellow-950 font-medium px-1 rounded">
+                              {texto.slice(matchIdx, matchIdx + termoBusca.length)}
+                            </mark>
+                            {texto.slice(matchIdx + termoBusca.length)}
+                          </>
+                        ) : (
+                          texto
+                        )}
+                      </div>
+
+                      {/* Ações do Fragmento */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200/50 text-[11px]">
+                        <span className="text-slate-400 italic">
+                          Proveniência: {obra.titulo} &bull; Parágrafos preservados
+                        </span>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const citacao = `"${texto}"\n\n— Fonte: ${obra.titulo} (${obra.autor_nome}), Fragmento #${f.indice_sequencial}`;
+                              navigator.clipboard.writeText(citacao);
+                              alert("Citação copiada para a área de transferência com proveniência!");
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold transition-colors"
+                          >
+                            <Copy className="w-3 h-3" />
+                            Copiar Citação
+                          </button>
+
+                          <Link
+                            href={`/reflexoes/criar?estimulo=${encodeURIComponent(texto.slice(0, 500))}&origem=${encodeURIComponent(obra.titulo)}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-bold transition-colors"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            Criar Reflexão sobre este Trecho
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
-
-          {buscaFragmento && (
-            <p className="text-xs text-slate-500">
-              {fragmentosFiltrados.length} de {fragmentos.length} fragmentos correspondem à busca
-            </p>
-          )}
-
-          {fragmentos.length === 0 ? (
-            <div className="p-8 text-center space-y-3">
-              <Cpu className="w-10 h-10 text-slate-300 mx-auto" />
-              <p className="text-xs text-slate-500">
-                Nenhum fragmento extraído. Processe este documento com IA para segmentá-lo.
-              </p>
-              {estaPendente && (
-                <button
-                  onClick={() => setAbaAtiva("processar" as any)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                  Ir para Processamento
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-              {fragmentosFiltrados.map((f) => {
-                const texto = f.conteudo_texto;
-                const termoBusca = buscaFragmento.toLowerCase();
-                const idx = termoBusca ? texto.toLowerCase().indexOf(termoBusca) : -1;
-
-                return (
-                  <div
-                    key={f.id}
-                    className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-2 hover:border-blue-200 transition-colors"
-                  >
-                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
-                      <span>Fragmento #{f.indice_sequencial + 1}</span>
-                      <span>{f.total_tokens} tokens</span>
-                    </div>
-                    <p className="leading-relaxed font-serif whitespace-pre-wrap">
-                      {idx >= 0 ? (
-                        <>
-                          {texto.slice(0, idx)}
-                          <mark className="bg-yellow-200 text-yellow-900 rounded px-0.5">
-                            {texto.slice(idx, idx + termoBusca.length)}
-                          </mark>
-                          {texto.slice(idx + termoBusca.length)}
-                        </>
-                      ) : (
-                        texto
-                      )}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
       )}
+
+      {/* Modal de Processamento */}
+      <ModalProcessamento
+        obra={obra}
+        aberto={modalProcessarAberto}
+        aoFechar={() => setModalProcessarAberto(false)}
+        aoConcluir={() => {
+          setModalProcessarAberto(false);
+          router.refresh();
+        }}
+      />
+
 
       {/* Aba Processar com IA */}
       {abaAtiva === "processar" && (

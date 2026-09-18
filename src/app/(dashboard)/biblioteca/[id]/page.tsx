@@ -26,11 +26,19 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function DetalheDocumentoPage({ params }: Props) {
   const { id } = await params;
-  const { obra, fragmentos } = await obterObraPorId(id);
+  const { obra, fragmentos, secoes, documentoProcessado } = await obterObraPorId(id);
 
   if (!obra) {
     notFound();
   }
 
-  return <DetalheDocumentoComponente obra={obra} fragmentos={fragmentos} />;
+  return (
+    <DetalheDocumentoComponente
+      obra={obra}
+      fragmentos={fragmentos}
+      secoes={secoes}
+      documentoProcessado={documentoProcessado}
+    />
+  );
 }
+
