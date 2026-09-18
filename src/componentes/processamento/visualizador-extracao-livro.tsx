@@ -535,8 +535,8 @@ export function VisualizadorExtracaoLivro({ dados }: Props) {
                 <strong>Tokens Estimados:</strong> {documento.total_tokens_estimado.toLocaleString("pt-BR")}
               </p>
               <p className="text-xs text-slate-600">
-                <strong>Data de Publicação:</strong>{" "}
-                {new Date(documento.publicado_em || documento.criado_em).toLocaleString("pt-BR")}
+                <strong>Data de entrada na Biblioteca:</strong>{" "}
+                {new Date(obra?.criado_em || documento.criado_em).toLocaleString("pt-BR")}
               </p>
             </div>
           </div>
