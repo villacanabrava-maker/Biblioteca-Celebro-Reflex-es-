@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
-import { obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
+
 import type { ConceitoTaxonomico, ArestaGrafoTaxonomia } from "@/tipos/taxonomia";
 
 /**
