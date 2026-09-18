@@ -196,6 +196,63 @@ export async function iniciarEsteiraReflexao({
 }
 
 /**
+ * Persiste a curadoria de memórias feita pelo autor antes da geração do plano.
+ * Mantém conceitos, regras e conflitos do dossiê original e altera somente os
+ * fragmentos selecionados.
+ */
+export async function atualizarDossieReflexao({
+  entradaId,
+  fragmentosIds,
+}: {
+  entradaId: string;
+  fragmentosIds: string[];
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const { data: entrada, error: erroEntrada } = await admin
+    .schema("reflexoes")
+    .from("entradas")
+    .select("dossie_contexto")
+    .eq("id", entradaId)
+    .eq("usuario_id", usuarioId)
+    .single();
+
+  if (erroEntrada || !entrada) {
+    throw new Error("Entrada de reflexão não encontrada para atualizar o dossiê.");
+  }
+
+  const dossieAtual = (entrada.dossie_contexto as DossieContextual | null) || {
+    fragmentos_selecionados: [],
+    conceitos_chave: [],
+    regras_sugeridas: [],
+  };
+
+  const idsSelecionados = new Set(fragmentosIds);
+  const fragmentosSelecionados = (dossieAtual.fragmentos_selecionados || []).filter((fragmento) =>
+    idsSelecionados.has(fragmento.id)
+  );
+
+  const novoDossie: DossieContextual = {
+    ...dossieAtual,
+    fragmentos_selecionados: fragmentosSelecionados,
+  };
+
+  const { error: erroAtualizacao } = await admin
+    .schema("reflexoes")
+    .from("entradas")
+    .update({ dossie_contexto: novoDossie })
+    .eq("id", entradaId)
+    .eq("usuario_id", usuarioId);
+
+  if (erroAtualizacao) {
+    throw new Error(`Falha ao atualizar o dossiê da reflexão: ${erroAtualizacao.message}`);
+  }
+
+  return { sucesso: true, totalFragmentos: fragmentosSelecionados.length };
+}
+
+/**
  * Cria uma nova entrada de reflexão e dispara o planejamento cognitivo com IA.
  */
 export async function criarNovaReflexao({
