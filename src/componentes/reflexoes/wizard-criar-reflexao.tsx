@@ -453,7 +453,7 @@ export function WizardCriarReflexao() {
               3. Documentos e Memórias Processadas Relevantes
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              O Cérebro Autoral buscou em seus livros e textos o conhecimento relacionado. Selecione o que fará parte do dossiê:
+              O Cérebro Autoral comparou este tema com seus fragmentos processados e trouxe as memórias autorais mais próximas. Selecione o que fará parte do dossiê:
             </p>
           </div>
 
