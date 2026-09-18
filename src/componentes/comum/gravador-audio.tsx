@@ -126,10 +126,11 @@ export function GravadorAudio({ onArquivoPronto, desabilitado = false }: Props) 
         }
 
         const extensao = extensaoPorMime(tipoFinal);
+        const tipoUpload = tipoFinal.split(";")[0] || "audio/webm";
         const arquivo = new File(
           [blob],
           `gravacao-reflexao-${new Date().toISOString().replace(/[:.]/g, "-")}.${extensao}`,
-          { type: tipoFinal }
+          { type: tipoUpload }
         );
 
         const url = URL.createObjectURL(blob);
