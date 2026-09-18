@@ -6,13 +6,10 @@ import {
   Plus,
   ArrowUpDown,
   BookOpen,
-  Sparkles,
   Inbox,
   CheckCircle2,
   Clock,
   Cpu,
-  LayoutGrid,
-  List,
 } from "lucide-react";
 import type { ObraDetalhada, TipoObra } from "@/tipos/biblioteca";
 import { CardObra } from "./card-obra";
@@ -100,40 +97,26 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
 
   return (
     <div className="space-y-5">
-      {/* Banner de Estatísticas */}
       {obras.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-center gap-3 shadow-sm">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-              <BookOpen className="w-4.5 h-4.5 text-blue-600" style={{ width: "1.125rem", height: "1.125rem" }} />
-            </div>
-            <div>
-              <p className="text-xl font-extrabold text-slate-900 leading-none">{obras.length}</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">Total no acervo</p>
-            </div>
-          </div>
-
-          <div className="bg-white border border-emerald-100 rounded-2xl p-3.5 flex items-center gap-3 shadow-sm">
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" style={{ width: "1.125rem", height: "1.125rem" }} />
-            </div>
-            <div>
-              <p className="text-xl font-extrabold text-slate-900 leading-none">{totalProcessadas}</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">Processadas</p>
-            </div>
-          </div>
-
-          <div className="bg-white border border-amber-100 rounded-2xl p-3.5 flex items-center gap-3 shadow-sm">
-            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-              <Clock className="w-4.5 h-4.5 text-amber-600" style={{ width: "1.125rem", height: "1.125rem" }} />
-            </div>
-            <div>
-              <p className="text-xl font-extrabold text-slate-900 leading-none">{totalPendentes}</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                {totalPendentes === 1 ? "Pendente" : "Pendentes"}
-              </p>
-            </div>
-          </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500 shadow-sm">
+          <span className="inline-flex items-center gap-1.5">
+            <BookOpen className="h-4 w-4 text-blue-600" />
+            <strong className="text-slate-900">{obras.length}</strong> no acervo
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            <strong className="text-slate-900">{totalProcessadas}</strong> processadas
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Clock className="h-4 w-4 text-amber-600" />
+            <strong className="text-slate-900">{totalPendentes}</strong> {totalPendentes === 1 ? "pendente" : "pendentes"}
+          </span>
+          {totalProcessando > 0 && (
+            <span className="inline-flex items-center gap-1.5 font-semibold text-blue-600">
+              <Cpu className="h-4 w-4 animate-pulse" />
+              {totalProcessando} processando
+            </span>
+          )}
         </div>
       )}
 
@@ -166,7 +149,7 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar por título, autor ou tema..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm transition-colors"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-800 shadow-sm transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/10"
           />
           {busca && (
             <button
@@ -183,7 +166,7 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
           className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all active:scale-95 shrink-0"
         >
           <Plus className="w-4 h-4 stroke-[2.5px]" />
-          <span>Adicionar</span>
+          <span>Adicionar arquivo</span>
         </button>
       </div>
 
@@ -192,12 +175,7 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
         <span>
           <strong className="font-bold text-slate-800">{obrasFiltradas.length}</strong>{" "}
           {obrasFiltradas.length === 1 ? "documento encontrado" : "documentos encontrados"}
-          {totalProcessando > 0 && (
-            <span className="ml-2 inline-flex items-center gap-1 text-blue-600 font-semibold">
-              <Cpu className="w-3 h-3 animate-pulse" />
-              {totalProcessando} processando
-            </span>
-          )}
+
         </span>
 
         <div className="flex items-center gap-2">
@@ -231,7 +209,7 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
             className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Adicionar Primeiro Conteúdo
+            Adicionar arquivo
           </button>
         </div>
       ) : (
