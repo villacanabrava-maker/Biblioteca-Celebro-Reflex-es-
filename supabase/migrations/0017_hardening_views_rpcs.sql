@@ -73,17 +73,17 @@ TO authenticated, service_role;
 -- 3. RPCs SECURITY DEFINER aceitam usuario_id como argumento e, por isso,
 -- devem ser exclusivas do backend administrativo.
 REVOKE EXECUTE ON FUNCTION public.buscar_fragmentos_hibrido(
-  uuid, text, vector, integer, numeric, numeric, boolean
+  uuid, text, extensions.vector, integer, numeric, numeric, boolean
 ) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.buscar_fragmentos_hibrido(
-  uuid, text, vector, integer, numeric, numeric, boolean
+  uuid, text, extensions.vector, integer, numeric, numeric, boolean
 ) TO service_role;
 
 REVOKE EXECUTE ON FUNCTION aplicacao.buscar_fragmentos_hibrido(
-  uuid, text, vector, integer, numeric, numeric, boolean
+  uuid, text, extensions.vector, integer, numeric, numeric, boolean
 ) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION aplicacao.buscar_fragmentos_hibrido(
-  uuid, text, vector, integer, numeric, numeric, boolean
+  uuid, text, extensions.vector, integer, numeric, numeric, boolean
 ) TO service_role;
 
 REVOKE EXECUTE ON FUNCTION public.cadastrar_obra_com_versao(
@@ -106,11 +106,11 @@ GRANT EXECUTE ON FUNCTION aplicacao.cadastrar_obra_com_versao(
 
 -- 4. Fixar search_path das funcoes apontadas pelo advisor.
 ALTER FUNCTION public.buscar_fragmentos_hibrido(
-  uuid, text, vector, integer, numeric, numeric, boolean
+  uuid, text, extensions.vector, integer, numeric, numeric, boolean
 ) SET search_path = pg_catalog, public, aplicacao, biblioteca, processamento, extensions;
 
 ALTER FUNCTION aplicacao.buscar_fragmentos_hibrido(
-  uuid, text, vector, integer, numeric, numeric, boolean
+  uuid, text, extensions.vector, integer, numeric, numeric, boolean
 ) SET search_path = pg_catalog, public, aplicacao, biblioteca, processamento, extensions;
 
 ALTER FUNCTION public.cadastrar_obra_com_versao(
