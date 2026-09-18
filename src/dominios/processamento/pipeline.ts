@@ -52,6 +52,55 @@ export async function executarPipelineProcessamento({
     throw new Error(`Versão da obra não encontrada: ${errVersao?.message || "ID inválido"}`);
   }
 
+  // Uma versão já concluída é tratada de forma idempotente: não recriamos
+  // seções, fragmentos, vetores ou sínteses apenas porque a ação foi chamada novamente.
+  if (versao.estado_processamento === "processado") {
+    const { data: documentoExistente } = await admin
+      .schema("processamento")
+      .from("documentos_processados")
+      .select("*")
+      .eq("versao_obra_id", versaoObraId)
+      .eq("usuario_id", usuarioId)
+      .eq("estado_publicacao", "ativo")
+      .maybeSingle();
+
+    if (documentoExistente) {
+      const [
+        { count: totalSintesesExistentes },
+        { data: execucaoAnterior },
+      ] = await Promise.all([
+        admin
+          .schema("processamento")
+          .from("unidades_conhecimento")
+          .select("id", { count: "exact", head: true })
+          .eq("versao_obra_id", versaoObraId)
+          .eq("usuario_id", usuarioId)
+          .eq("tipo_unidade", "sintese"),
+        admin
+          .schema("processamento")
+          .from("execucoes")
+          .select("id, total_tokens, custo_estimado_usd")
+          .eq("versao_obra_id", versaoObraId)
+          .eq("usuario_id", usuarioId)
+          .eq("estado", "concluido")
+          .order("concluido_em", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      return {
+        sucesso: true,
+        execucaoId: execucaoAnterior?.id || "",
+        documentoProcessadoId: documentoExistente.id,
+        totalSecoes: documentoExistente.total_secoes || 0,
+        totalFragmentos: documentoExistente.total_fragmentos || 0,
+        totalSinteses: totalSintesesExistentes || 0,
+        totalTokens: Number(execucaoAnterior?.total_tokens || 0),
+        custoEstimadoUsd: Number(execucaoAnterior?.custo_estimado_usd || 0),
+      };
+    }
+  }
+
   // 2. Obter perfil de embedding ativo
   const { data: perfilEmbedding } = await admin
     .schema("sistema")
@@ -100,7 +149,7 @@ export async function executarPipelineProcessamento({
     .insert({
       versao_obra_id: versaoObraId,
       usuario_id: usuarioId,
-      pipeline_versao: "v1.0",
+      pipeline_versao: "v1.1",
       estado: "em_execucao",
       correlacao_id: correlacaoId,
     })
