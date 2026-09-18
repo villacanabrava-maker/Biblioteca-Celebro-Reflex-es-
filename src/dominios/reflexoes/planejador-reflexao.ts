@@ -84,15 +84,43 @@ export async function gerarPlanoReflexao({
   const fontesIds = fragmentosDossie.map((f) => f.id);
 
   // 3. Preservar os conceitos capturados no mesmo snapshot do dossiê.
-  const conceitosDossie = dossie?.conceitos_chave || [];
+  // Entradas antigas sem dossiê continuam podendo consultar a taxonomia atual.
+  let conceitosDossie = dossie?.conceitos_chave || [];
+  if (!dossie) {
+    const { data: conceitosAtuais } = await admin
+      .from("v_taxonomia_conceitos")
+      .select("termo_preferencial, definicao, dominio")
+      .limit(20);
+
+    conceitosDossie = (conceitosAtuais || []).map((conceito) => ({
+      termo: conceito.termo_preferencial,
+      definicao: conceito.definicao || "",
+      dominio: conceito.dominio || "Geral",
+    }));
+  }
+
   const conceitosTexto = conceitosDossie
-    .map((c) => `- ${c.termo} (${c.dominio}): ${c.definicao}`)
+    .map((conceito) => `- ${conceito.termo} (${conceito.dominio}): ${conceito.definicao}`)
     .join("\n");
 
   // 4. Preservar as regras sugeridas no mesmo snapshot do dossiê.
-  const regrasDossie = dossie?.regras_sugeridas || [];
+  // Entradas antigas sem dossiê continuam podendo consultar as regras atuais.
+  let regrasDossie = dossie?.regras_sugeridas || [];
+  if (!dossie) {
+    const { data: regrasAtuais } = await admin
+      .from("v_cerebro_regras_ativas")
+      .select("tipo_regra, enunciado")
+      .eq("usuario_id", usuarioId)
+      .limit(15);
+
+    regrasDossie = (regrasAtuais || []).map((regra) => ({
+      tipo: regra.tipo_regra,
+      enunciado: regra.enunciado,
+    }));
+  }
+
   const regrasTexto = regrasDossie
-    .map((r) => `- [${r.tipo_regra.toUpperCase()}] (Peso ${r.peso}/10): ${r.enunciado}`)
+    .map((regra) => `- [${regra.tipo.toUpperCase()}]: ${regra.enunciado}`)
     .join("\n");
 
   const promptSistema = `Você é o Planejador Metodológico do "Cérebro Autoral".
