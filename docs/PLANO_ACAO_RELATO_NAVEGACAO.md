@@ -10,9 +10,11 @@ A fonte de verdade operacional é o estado real do repositório, Supabase e prod
 
 ## Estado reconciliado
 
-Base atual de produção: `b29d5ef6edc252035dc6a6610691c7517df5a261`.
+Base atual de produção: `5a21aea3134507e3aa8460b21b1a3cebbcd05449`.
 
 A implementação `89bdf1f3fc859d3039daa060b808e09a3a38867d` consolidou integridade/proveniência de fontes, curadoria em massa de memórias, ordem Auditor → Texto, edição autoral com preservação da versão da IA e remoção de fallbacks reais de configuração do Supabase. A migration `0024_versionamento_edicao_autoral_reflexoes` já está aplicada no Supabase.
+
+A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria de conflitos sem apagar histórico e tornou os cards de Reflexão integralmente navegáveis. A implementação `5a21aea3134507e3aa8460b21b1a3cebbcd05449` adicionou o diff estruturado IA × autor e está em produção com CI verde.
 
 ## Checklist do relato
 
@@ -35,28 +37,25 @@ A implementação `89bdf1f3fc859d3039daa060b808e09a3a38867d` consolidou integrid
 | Comentário por áudio | Concluído | Áudio e transcrição preservados. |
 | Tema central no formulário | Concluído | Derivado internamente; não é exigido do usuário. |
 | Memórias / “Incluir todas” | Concluído | Curadoria individual + seleção em massa. |
-| Conflitos | Concluído nesta branch | O autor pode considerar/ignorar tensões no plano; o histórico completo permanece salvo. |
+| Conflitos | Concluído em produção | O autor pode considerar/ignorar tensões no plano; o histórico completo permanece salvo. |
 | Ordem Auditoria → Texto | Concluído | Estúdio prioriza auditoria antes da edição final. |
-| Edição da reflexão | Concluído nesta branch | IA e edição humana permanecem versões distintas e a edição autoral ganha diff estruturado, métricas e comparação com a versão-base. |
+| Edição da reflexão | Concluído em produção | IA e edição humana permanecem versões distintas e a edição autoral possui diff estruturado, métricas e comparação com a versão-base. |
 | Aprendizado autoral | Concluído nesta branch | O diff gera apenas propostas sustentadas; o autor confirma/rejeita no Cérebro e somente aprendizados confirmados entram nos dossiês futuros. |
 | Aprovação soberana | Concluído | Bloco de aprovação ganhou destaque e conclui a reflexão. |
 | Pós-aprovação | Concluído | Redireciona para Minhas Reflexões. |
-| Card de Reflexão | Concluído nesta branch | Toda a superfície do card navega para o Estúdio, com foco acessível. |
+| Card de Reflexão | Concluído em produção | Toda a superfície do card navega para o Estúdio, com foco acessível. |
 | Cérebro / métricas | Concluído | View/resumo corrigidos para refletir dados reais. |
 | Taxonomia automática | Aberto | UI ainda depende de cadastro manual; conceitos/relações continuam sem motor automático. |
 | Segurança Taxonomia/RLS | Aberto controlado | Não habilitar RLS cegamente; desenhar políticas coerentes antes da migration. |
 
 ## Ordem de execução a partir daqui
 
-1. Fechar curadoria de conflitos sem apagar o histórico detectado.
-2. Tornar o card de Reflexão integralmente navegável.
-3. Criar diff estruturado entre versão IA e versão editada pelo autor.
-4. Definir sinais de aprendizado autoral derivados do diff, sem promover regras automaticamente.
-5. Criar etapa real de sínteses cognitivas no pipeline.
-6. Construir motor taxonômico automático integrado a documentos e reflexões.
-7. Usar a Taxonomia como fonte das sugestões de tags na Biblioteca.
-8. Revisar RLS da Taxonomia com políticas explícitas e testes negativos.
-9. QA transversal: responsividade, acessibilidade, regressão visual, performance e E2E dos fluxos críticos.
+1. Concluir e validar o aprendizado autoral revisável desta branch.
+2. Criar etapa real de sínteses cognitivas no pipeline.
+3. Construir motor taxonômico automático integrado a documentos e reflexões.
+4. Usar a Taxonomia como fonte das sugestões de tags na Biblioteca.
+5. Revisar RLS da Taxonomia com políticas explícitas e testes negativos.
+6. QA transversal: responsividade, acessibilidade, regressão visual, performance e E2E dos fluxos críticos.
 
 ## Guardrails
 
