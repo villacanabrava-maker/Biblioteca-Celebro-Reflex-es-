@@ -13,9 +13,8 @@
 - Supabase: `reflex-01`
 - Supabase project ref: `cqavdefyelarhyjqmahi`
 - Stack: Next.js 15, React 19, TypeScript, Tailwind, Supabase/PostgreSQL 17, OpenAI, Vercel e GitHub Actions.
-- Baseline de produção reconciliada: `85b331c9f80194c508cbb8a33936bd29482f7a9a`.
-- CI da baseline: concluído com sucesso.
-- Deploy Vercel da mesma baseline: READY.
+- Regra de reconciliação: o SHA publicado em produção deve corresponder ao HEAD de `main`, com GitHub Actions verde e deploy Vercel `READY`.
+- A documentação não fixa um SHA como “baseline eterna”: o estado operacional é conferido nas integrações a cada frente para evitar documentação falsa após novos merges.
 
 Projetos, repositórios e branches antigos são históricos e não prevalecem sobre este estado.
 
@@ -47,7 +46,7 @@ Concluído:
 - transcrição revisável;
 - áudio original preservado com hash, MIME, tamanho e proveniência;
 - classificação autoral/externa e participação no Cérebro;
-- cards navegáveis;
+- cards navegáveis; a superfície do card usa navegação nativa e ações internas independentes;
 - download com nome da obra/arquivo;
 - “Refletir com esta obra” integrado às Reflexões;
 - tags livres opcionais;
@@ -135,6 +134,19 @@ Concluído:
 - citações/evidências preservadas;
 - origem das fontes verificável.
 
+### Qualidade, acessibilidade e autenticação
+
+Concluído:
+- cadastro validado também no servidor, com e-mail válido, nome obrigatório e senha mínima de 8 caracteres;
+- login de usuários existentes preservado;
+- middleware usa lista explícita de rotas públicas e protege inclusive caminhos contendo ponto;
+- testes automatizados cobrem sessão/não sessão e redirecionamentos do middleware;
+- diálogos principais usam semântica ARIA, foco inicial, contenção de Tab/Shift+Tab, Escape quando permitido e retorno de foco;
+- navegação anuncia página atual e menu de usuário anuncia estado aberto/fechado;
+- formulários principais receberam associação programática entre rótulos e campos;
+- modais principais possuem reflow/scroll próprio em telas pequenas;
+- foco por teclado ficou visível nos controles revisados.
+
 ## 4. Estado do banco em 18/09/2026
 
 Dados reais observados:
@@ -155,6 +167,9 @@ Dados reais observados:
 
 ### Resolvido
 
+- middleware de autenticação: rotas públicas explícitas; removido bypass genérico por pathname contendo ponto ou prefixo amplo `/auth`;
+- cadastro: validação compartilhada cliente/servidor e mínimo de 8 caracteres para novas contas;
+- configuração Supabase no runtime: sem URL/chave real materializada no middleware; guardrails de CI impedem regressão;
 - `cerebro_autoral.dimensoes`: migration `0028_dimensoes_canonicas_readonly` aplicada; RLS ativo, leitura permitida a `authenticated`, escrita revogada de clientes e preservada para `service_role`.
 - `cerebro_autoral.propostas_atualizacao`: migration `0027_grants_propostas_atualizacao` aplicada; `service_role` recuperou SELECT/INSERT/UPDATE/DELETE e `authenticated` permanece sem acesso direto.
 - Taxonomia deixou de ter RLS desabilitado.
@@ -184,18 +199,23 @@ Dados reais observados:
 
 ## 6. Frente atual: qualidade transversal
 
-Próxima sequência:
+Já fechados nesta fase:
+- RLS/read-only das dimensões canônicas;
+- grants da fila de aprendizado autoral;
+- guardrails contra segredos/configuração real no código;
+- endurecimento do cadastro;
+- proteção de rotas do middleware;
+- primeira passada de acessibilidade, teclado e reflow dos modais principais.
 
-1. reconciliar documentação canônica;
-2. fechar decisão de RLS/read-only para `cerebro_autoral.dimensoes`;
-3. habilitar proteção contra senhas vazadas no Supabase Auth por configuração apropriada;
-4. E2E autenticado dos fluxos críticos;
-5. acessibilidade e navegação por teclado;
-6. responsividade;
-7. regressão visual;
-8. performance baseada em medições;
-9. observabilidade;
-10. proteção formal da `main`.
+Frente em validação:
+- semântica e responsividade do card da Biblioteca, preservando “card inteiro clicável” sem controles interativos aninhados.
+
+Próxima sequência:
+1. concluir responsividade e regressão visual dos principais cards/páginas;
+2. preparar E2E autenticado sem armazenar credenciais no repositório;
+3. medir performance antes de alterar índices;
+4. ampliar observabilidade de runtime;
+5. tratar proteção formal da `main` quando a integração administrativa permitir.
 
 ## 7. Regras de execução
 
