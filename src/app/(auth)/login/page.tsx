@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   Mail,
   Lock,
@@ -104,7 +103,7 @@ export default function PaginaLogin() {
           </div>
           <div>
             <span className="font-serif font-bold text-lg text-white leading-tight block">
-              Cérebro Autoral
+              Rflex01
             </span>
             <span className="text-[11px] text-slate-400 font-sans block">
               Seu acervo. Seu pensamento. Novas reflexões.
@@ -125,7 +124,7 @@ export default function PaginaLogin() {
 
         {/* Rodapé da Arte */}
         <div className="text-xs text-slate-400 font-sans z-10">
-          Memória Reflexiva &bull; Inteligência Epistemológica Privada
+          Rflex01 &bull; Memória e inteligência autoral
         </div>
 
         {/* Efeito Glow Abstrato de Fundo */}
@@ -144,7 +143,7 @@ export default function PaginaLogin() {
             </div>
             <div>
               <span className="font-serif font-bold text-lg text-slate-900 leading-tight block">
-                Cérebro Autoral
+                Rflex01
               </span>
               <span className="text-[11px] text-slate-500 font-sans block">
                 Seu acervo. Seu pensamento. Novas reflexões.
@@ -153,11 +152,8 @@ export default function PaginaLogin() {
           </div>
 
           <div>
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/60 mb-3">
-              Supabase Auth
-            </span>
             <h1 className="font-serif text-2xl sm:text-3xl font-bold text-slate-900 leading-tight">
-              Acesse seu Cérebro Autoral
+              Acesse o Rflex01
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
               Entre com sua conta ou crie uma nova conta com e-mail e senha.
@@ -237,7 +233,7 @@ export default function PaginaLogin() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="roberth.naninne@gmail.com"
+                  placeholder="seuemail@exemplo.com"
                   autoComplete="email"
                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-xs"
                 />
@@ -300,16 +296,15 @@ export default function PaginaLogin() {
                 </>
               ) : (
                 <>
-                  <span>{modo === "login" ? "Entrar no Cérebro Autoral" : "Finalizar Cadastro"}</span>
+                  <span>{modo === "login" ? "Entrar" : "Finalizar Cadastro"}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Rodapé de Segurança */}
           <div className="p-3 bg-slate-100/80 rounded-xl text-[11px] text-slate-500 leading-relaxed border border-slate-200/60">
-            Sessão protegida por cookies do Supabase Auth. Credenciais são transmitidas com criptografia de ponta a ponta.
+            Sua sessão é mantida de forma segura pelo sistema de autenticação do Rflex01.
           </div>
         </div>
       </section>
