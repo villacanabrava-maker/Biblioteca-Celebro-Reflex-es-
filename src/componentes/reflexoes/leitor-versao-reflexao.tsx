@@ -1,7 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, FileText, Loader2, Pencil, Quote, Save, X } from "lucide-react";
+import {
+  ChevronDown,
+  FileText,
+  GitCompareArrows,
+  Loader2,
+  Minus,
+  Pencil,
+  Plus,
+  Quote,
+  Save,
+  X,
+} from "lucide-react";
 import { salvarEdicaoAutorReflexao } from "@/acoes/reflexoes";
 import type { VersaoReflexao, CitacaoEvidencia } from "@/tipos/reflexoes";
 
@@ -42,6 +53,10 @@ export function LeitorVersaoReflexao({
 
   const versaoAtual =
     versoes.find((v) => v.id === versaoSelecionadaId) || versoes[0];
+  const versaoBaseAtual = versaoAtual.versao_base_id
+    ? versoes.find((versao) => versao.id === versaoAtual.versao_base_id) || null
+    : null;
+  const diffEdicao = versaoAtual.diff_edicao || null;
 
   return (
     <div className="space-y-6">
@@ -184,6 +199,111 @@ export function LeitorVersaoReflexao({
           </div>
         )}
       </div>
+
+      {diffEdicao && versaoBaseAtual && (
+        <div className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 shadow-sm space-y-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-blue-50 p-2.5 text-blue-700">
+                <GitCompareArrows className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-serif text-lg font-bold text-slate-900">
+                  Comparação entre versão-base e edição do autor
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  A versão {versaoBaseAtual.numero_versao} permanece intacta. A versão {versaoAtual.numero_versao}
+                  registra somente a edição posterior do autor.
+                </p>
+              </div>
+            </div>
+
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+              {diffEdicao.percentual_alteracao}% do conteúdo alterado
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <span className="block text-xs text-slate-500">Blocos alterados</span>
+              <strong className="mt-1 block text-lg text-slate-900">{diffEdicao.blocos_alterados}</strong>
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3">
+              <span className="block text-xs text-emerald-700">Palavras adicionadas</span>
+              <strong className="mt-1 flex items-center gap-1 text-lg text-emerald-800">
+                <Plus className="h-4 w-4" />
+                {diffEdicao.palavras_adicionadas}
+              </strong>
+            </div>
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-3">
+              <span className="block text-xs text-rose-700">Palavras removidas</span>
+              <strong className="mt-1 flex items-center gap-1 text-lg text-rose-800">
+                <Minus className="h-4 w-4" />
+                {diffEdicao.palavras_removidas}
+              </strong>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <span className="block text-xs text-slate-500">Método de comparação</span>
+              <strong className="mt-1 block text-sm text-slate-900">
+                {diffEdicao.estrategia === "palavra" ? "Palavra a palavra" : "Por blocos"}
+              </strong>
+            </div>
+          </div>
+
+          {diffEdicao.alteracoes.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              Nenhuma alteração textual relevante foi detectada entre as duas versões.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <h4 className="text-sm font-bold text-slate-900">Alterações registradas</h4>
+              {diffEdicao.alteracoes.map((alteracao, indice) => (
+                <div
+                  key={`${versaoAtual.id}-alteracao-${indice}`}
+                  className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-3"
+                >
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    {alteracao.tipo === "substituicao"
+                      ? "Substituição"
+                      : alteracao.tipo === "adicao"
+                      ? "Adição"
+                      : "Remoção"}
+                  </span>
+
+                  {alteracao.antes && (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+                      <span className="mb-1 block text-xs font-semibold text-rose-700">Antes</span>
+                      <p className="whitespace-pre-wrap font-serif text-sm leading-6 text-slate-700">
+                        {alteracao.antes}
+                      </p>
+                    </div>
+                  )}
+
+                  {alteracao.depois && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                      <span className="mb-1 block text-xs font-semibold text-emerald-700">Depois</span>
+                      <p className="whitespace-pre-wrap font-serif text-sm leading-6 text-slate-800">
+                        {alteracao.depois}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <details className="rounded-2xl border border-slate-200 bg-white">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700">
+              Ver texto completo da versão-base {versaoBaseAtual.numero_versao}
+            </summary>
+            <div className="border-t border-slate-100 px-4 py-4">
+              <div className="leitura-confortavel whitespace-pre-wrap font-serif text-slate-700">
+                {versaoBaseAtual.conteudo_markdown}
+              </div>
+            </div>
+          </details>
+        </div>
+      )}
 
       {/* Seção de Citações & Evidências de Proveniência */}
       <div className="bg-white border border-slate-200/80 rounded-3xl overflow-hidden shadow-sm">
