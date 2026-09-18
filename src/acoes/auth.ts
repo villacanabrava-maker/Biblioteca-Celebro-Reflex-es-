@@ -15,7 +15,7 @@ export async function fazerLogin(dados: { email: string; senha: string }) {
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email: dados.email.trim(),
-      password: senhaValidada,
+      password: dados.senha,
     });
 
     if (error) {
@@ -38,7 +38,7 @@ export async function fazerLogin(dados: { email: string; senha: string }) {
             await admin.auth.admin.updateUserById(usuarioEncontrado.id, { email_confirm: true });
             const retry = await supabase.auth.signInWithPassword({
               email: dados.email.trim(),
-              password: senhaValidada,
+              password: dados.senha,
             });
             if (!retry.error) {
               revalidatePath("/", "layout");
