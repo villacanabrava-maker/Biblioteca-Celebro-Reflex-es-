@@ -127,6 +127,14 @@ export function WizardCriarReflexao() {
     );
   }
 
+  function selecionarTodasMemorias() {
+    setMemorias((prev) => prev.map((memoria) => ({ ...memoria, selecionada: true })));
+  }
+
+  function limparSelecaoMemorias() {
+    setMemorias((prev) => prev.map((memoria) => ({ ...memoria, selecionada: false })));
+  }
+
   async function descartarFonteTemporaria(fonte: FonteReflexaoPreparada | null) {
     if (entradaId || !fonte?.storageCaminho) return;
 
@@ -1202,6 +1210,30 @@ export function WizardCriarReflexao() {
           </div>
 
           <div className="space-y-3">
+            {memorias.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <span className="text-xs text-slate-600">
+                  {memorias.filter((memoria) => memoria.selecionada).length} de {memorias.length} memórias incluídas
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={selecionarTodasMemorias}
+                    className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-blue-700"
+                  >
+                    Incluir todas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={limparSelecaoMemorias}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                  >
+                    Limpar seleção
+                  </button>
+                </div>
+              </div>
+            )}
+
             {memorias.length === 0 && (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-5 text-center">
                 <p className="text-sm font-semibold text-slate-800">Nenhuma memória relacionada foi encontrada.</p>
