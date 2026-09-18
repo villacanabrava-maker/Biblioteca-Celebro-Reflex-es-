@@ -1,15 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Sparkles, ArrowRight, ArrowLeft, FileText, UploadCloud, Globe, Brain, Loader2, AlertCircle, Check } from "lucide-react";
-import { iniciarEsteiraReflexao, atualizarDossieReflexao, gerarPlanoParaEntrada, acionarRedacaoReflexao } from "@/acoes/reflexoes";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Sparkles, ArrowRight, ArrowLeft, FileText, UploadCloud, Globe, Brain, Loader2, AlertCircle, Check, BookOpen } from "lucide-react";
+import {
+  iniciarEsteiraReflexao,
+  atualizarDossieReflexao,
+  gerarPlanoParaEntrada,
+  acionarRedacaoReflexao,
+  extrairFonteDocumentoTemporaria,
+  extrairFonteLinkTemporaria,
+  prepararFonteBibliotecaTemporaria,
+} from "@/acoes/reflexoes";
+import {
+  calcularHashSha256,
+  iniciarUploadTus,
+  obterTokenAutenticadoBrowser,
+} from "@/infraestrutura/storage/cliente-tus";
 import type {
   FormatoReflexao,
   TipoOrigemExterna,
   ConflitoDetectado,
   PlanoReflexao,
+  FonteReflexaoPreparada,
 } from "@/tipos/reflexoes";
 
 interface MemoriaItem {
@@ -22,6 +36,9 @@ interface MemoriaItem {
 
 export function WizardCriarReflexao() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fonteIdInicial = searchParams.get("fonteId");
+  const fonteBibliotecaCarregadaRef = useRef<string | null>(null);
   const [etapaAtual, setEtapaAtual] = useState<number>(1);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -31,14 +48,49 @@ export function WizardCriarReflexao() {
   const [planoId, setPlanoId] = useState<string | null>(null);
 
   // Etapa 1: Reflexão Externa
-  const [modoExterno, setModoExterno] = useState<"colar" | "arquivo" | "link">("colar");
+  const [modoExterno, setModoExterno] = useState<"colar" | "arquivo" | "link" | "biblioteca">("colar");
   const [textoExterno, setTextoExterno] = useState("");
   const [tipoOrigem, setTipoOrigem] = useState<TipoOrigemExterna>("texto");
+  const inputDocumentoRef = useRef<HTMLInputElement>(null);
+  const [arquivoFonte, setArquivoFonte] = useState<File | null>(null);
+  const [fontePreparada, setFontePreparada] = useState<FonteReflexaoPreparada | null>(null);
+  const [tituloFonte, setTituloFonte] = useState("");
+  const [autorFonte, setAutorFonte] = useState("");
+  const [urlFonte, setUrlFonte] = useState("");
+  const [processandoFonte, setProcessandoFonte] = useState(false);
+  const [progressoFonte, setProgressoFonte] = useState(0);
+
+  useEffect(() => {
+    if (!fonteIdInicial || fonteBibliotecaCarregadaRef.current === fonteIdInicial) return;
+
+    fonteBibliotecaCarregadaRef.current = fonteIdInicial;
+
+    void (async () => {
+      try {
+        setProcessandoFonte(true);
+        setErro(null);
+
+        const fonte = await prepararFonteBibliotecaTemporaria(fonteIdInicial);
+        setModoExterno("biblioteca");
+        setTipoOrigem("biblioteca");
+        setFontePreparada(fonte);
+        setTituloFonte(fonte.titulo || "");
+        setAutorFonte(fonte.autorNome || "");
+        setTextoExterno(fonte.conteudoConfirmado || fonte.conteudoExtraido);
+      } catch (err: unknown) {
+        const mensagem =
+          err instanceof Error ? err.message : "Não foi possível carregar a obra selecionada.";
+        setErro(mensagem);
+        fonteBibliotecaCarregadaRef.current = null;
+      } finally {
+        setProcessandoFonte(false);
+      }
+    })();
+  }, [fonteIdInicial]);
 
   // Etapa 2: Comentário Pessoal
   const [comentarioPessoal, setComentarioPessoal] = useState("");
   const [titulo, setTitulo] = useState("");
-  const [temaCentral, setTemaCentral] = useState("");
 
   // Etapa 3: Memórias Relacionadas
   const [memorias, setMemorias] = useState<MemoriaItem[]>([]);
@@ -68,6 +120,136 @@ export function WizardCriarReflexao() {
     );
   }
 
+  async function prepararDocumentoComoFonte(file: File) {
+    const limiteBytes = 50 * 1024 * 1024;
+    const extensao = file.name.split(".").pop()?.toLowerCase();
+    const extensoesPermitidas = new Set(["pdf", "docx", "txt", "md"]);
+
+    if (!extensao || !extensoesPermitidas.has(extensao)) {
+      setErro("Documento não suportado. Use PDF, DOCX, TXT ou Markdown.");
+      return;
+    }
+
+    if (file.size > limiteBytes) {
+      setErro("A fonte da reflexão pode ter no máximo 50 MB.");
+      return;
+    }
+
+    try {
+      setProcessandoFonte(true);
+      setErro(null);
+      setProgressoFonte(0);
+      setArquivoFonte(file);
+
+      const auth = await obterTokenAutenticadoBrowser();
+      const hashSha256 = await calcularHashSha256(file);
+      const timestamp = Date.now();
+      const nomeSanitizado = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const caminho = `${auth.usuarioId}/${timestamp}/documento/${nomeSanitizado}`;
+
+      await new Promise<void>((resolve, reject) => {
+        iniciarUploadTus({
+          arquivo: file,
+          caminhoDestino: caminho,
+          bucket: "fontes-reflexoes",
+          tokenAutenticacao: auth.token,
+          aoProgredir: (porcentagem) => setProgressoFonte(porcentagem),
+          aoSucesso: () => resolve(),
+          aoErro: (erroUpload) => reject(erroUpload),
+        }).catch(reject);
+      });
+
+      const extracao = await extrairFonteDocumentoTemporaria({
+        storageCaminho: caminho,
+        arquivoNomeOriginal: file.name,
+        arquivoMimeType: file.type || "application/octet-stream",
+      });
+
+      const tituloSugerido = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]+/g, " ").trim();
+      if (!tituloFonte.trim()) setTituloFonte(tituloSugerido);
+
+      setTextoExterno(extracao.texto);
+      setTipoOrigem("documento");
+      setFontePreparada({
+        tipo: "documento",
+        titulo: tituloFonte.trim() || tituloSugerido,
+        autorNome: autorFonte.trim() || undefined,
+        storageBucket: "fontes-reflexoes",
+        storageCaminho: caminho,
+        arquivoNomeOriginal: file.name,
+        arquivoMimeType: file.type || "application/octet-stream",
+        arquivoTamanhoBytes: file.size,
+        hashSha256,
+        conteudoExtraido: extracao.texto,
+        conteudoConfirmado: extracao.texto,
+        metadados: {
+          totalPaginas: extracao.totalPaginas,
+          totalPalavras: extracao.totalPalavras,
+          totalCaracteres: extracao.totalCaracteres,
+          ...extracao.metadados,
+        },
+      });
+    } catch (err: unknown) {
+      const mensagem = err instanceof Error ? err.message : "Falha ao preparar o documento.";
+      console.error("Erro ao preparar fonte documental:", err);
+      setErro(mensagem);
+      setArquivoFonte(null);
+      setFontePreparada(null);
+      setTextoExterno("");
+    } finally {
+      setProcessandoFonte(false);
+    }
+  }
+
+  function lidarSelecaoDocumento(evento: ChangeEvent<HTMLInputElement>) {
+    const file = evento.target.files?.[0];
+    if (file) void prepararDocumentoComoFonte(file);
+  }
+
+  async function prepararLinkComoFonte() {
+    if (!urlFonte.trim()) {
+      setErro("Informe o endereço do artigo ou página que deseja usar como fonte.");
+      return;
+    }
+
+    try {
+      setProcessandoFonte(true);
+      setErro(null);
+
+      const extracao = await extrairFonteLinkTemporaria(urlFonte.trim());
+
+      const tituloResolvido = tituloFonte.trim() || extracao.titulo || "";
+      const autorResolvido = autorFonte.trim() || extracao.autor || "";
+
+      setTituloFonte(tituloResolvido);
+      setAutorFonte(autorResolvido);
+      setTextoExterno(extracao.texto);
+      setTipoOrigem("artigo");
+      setFontePreparada({
+        tipo: "link",
+        titulo: tituloResolvido || undefined,
+        autorNome: autorResolvido || undefined,
+        urlOrigem: extracao.urlFinal,
+        conteudoExtraido: extracao.texto,
+        conteudoConfirmado: extracao.texto,
+        metadados: {
+          siteName: extracao.siteName || null,
+          resumo: extracao.resumo || null,
+          totalCaracteres: extracao.totalCaracteres,
+          totalPalavras: extracao.totalPalavras,
+        },
+      });
+    } catch (err: unknown) {
+      const mensagem = err instanceof Error ? err.message : "Falha ao extrair o conteúdo do link.";
+      console.error("Erro ao preparar fonte por link:", err);
+      setErro(mensagem);
+      setFontePreparada(null);
+      setTextoExterno("");
+    } finally {
+      setProcessandoFonte(false);
+    }
+  }
+
   // Avança da Etapa 2 para a 3 disparando a análise e detecção de conflitos no backend
   async function avancarParaMemorias() {
     if (!textoExterno.trim()) {
@@ -83,13 +265,28 @@ export function WizardCriarReflexao() {
       setCarregando(true);
       setErro(null);
 
+      const fonteAtual: FonteReflexaoPreparada = fontePreparada
+        ? {
+            ...fontePreparada,
+            titulo: tituloFonte.trim() || fontePreparada.titulo,
+            autorNome: autorFonte.trim() || fontePreparada.autorNome,
+            conteudoConfirmado: textoExterno,
+          }
+        : {
+            tipo: "texto",
+            titulo: tituloFonte.trim() || undefined,
+            autorNome: autorFonte.trim() || undefined,
+            conteudoExtraido: textoExterno,
+            conteudoConfirmado: textoExterno,
+          };
+
       const res = await iniciarEsteiraReflexao({
         reflexaoExterna: textoExterno,
         tipoOrigemExterna: tipoOrigem,
         comentarioAutor: comentarioPessoal,
         titulo: titulo.trim() || undefined,
-        temaCentral: temaCentral.trim() || undefined,
         formatoDesejado: formato,
+        fonte: fonteAtual,
       });
 
       setEntradaId(res.entradaId);
@@ -285,6 +482,13 @@ export function WizardCriarReflexao() {
               onClick={() => {
                 setModoExterno("colar");
                 setTipoOrigem("texto");
+                setArquivoFonte(null);
+                setFontePreparada(null);
+                setTextoExterno("");
+                setUrlFonte("");
+                setTituloFonte("");
+                setAutorFonte("");
+                setProgressoFonte(0);
               }}
               className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
                 modoExterno === "colar"
@@ -301,6 +505,10 @@ export function WizardCriarReflexao() {
               onClick={() => {
                 setModoExterno("arquivo");
                 setTipoOrigem("documento");
+                setUrlFonte("");
+                setArquivoFonte(null);
+                setFontePreparada(null);
+                setTextoExterno("");
               }}
               className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
                 modoExterno === "arquivo"
@@ -317,6 +525,10 @@ export function WizardCriarReflexao() {
               onClick={() => {
                 setModoExterno("link");
                 setTipoOrigem("artigo");
+                setArquivoFonte(null);
+                setFontePreparada(null);
+                setTextoExterno("");
+                setUrlFonte("");
               }}
               className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
                 modoExterno === "link"
@@ -329,29 +541,233 @@ export function WizardCriarReflexao() {
             </button>
           </div>
 
-          <div>
-            <textarea
-              value={textoExterno}
-              onChange={(e) => setTextoExterno(e.target.value)}
-              placeholder="Cole aqui o texto, artigo, mensagem ou trecho recebido que você deseja examinar à luz do seu método autoral..."
-              rows={6}
-              className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 text-sm leading-6 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none font-sans"
-            />
-            <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1">
-              <span>Tratado com isolamento de dados para análise dialética</span>
-              <span>{textoExterno.length} caracteres</span>
+          {modoExterno === "biblioteca" ? (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                      Fonte da Biblioteca selecionada
+                    </span>
+                    <h3 className="mt-1 text-base font-bold text-slate-900">
+                      {tituloFonte || "Obra selecionada"}
+                    </h3>
+                    {autorFonte && (
+                      <p className="mt-1 text-sm text-slate-600">Por {autorFonte}</p>
+                    )}
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      A obra permanece referenciada pela Biblioteca. Para a análise inicial,
+                      o sistema usa uma amostra distribuída dos fragmentos processados.
+                    </p>
+                  </div>
+                  <BookOpen className="h-6 w-6 shrink-0 text-blue-600" />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-700">
+                  Contexto representativo da obra
+                </label>
+                <textarea
+                  value={textoExterno}
+                  readOnly
+                  rows={8}
+                  className="w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 font-serif text-sm leading-7 text-slate-700"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setModoExterno("colar");
+                  setTipoOrigem("texto");
+                  setFontePreparada(null);
+                  setTextoExterno("");
+                  setTituloFonte("");
+                  setAutorFonte("");
+                  setUrlFonte("");
+                }}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+              >
+                Escolher outra fonte
+              </button>
             </div>
-          </div>
+          ) : modoExterno === "arquivo" ? (
+            <div className="space-y-4">
+              <input
+                ref={inputDocumentoRef}
+                type="file"
+                accept=".pdf,.docx,.txt,.md"
+                onChange={lidarSelecaoDocumento}
+                className="hidden"
+              />
+
+              {!arquivoFonte ? (
+                <button
+                  type="button"
+                  onClick={() => inputDocumentoRef.current?.click()}
+                  className="w-full rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/70 p-7 text-center hover:border-blue-400 hover:bg-blue-50/40 transition-colors"
+                >
+                  <UploadCloud className="mx-auto h-7 w-7 text-blue-600" />
+                  <span className="mt-2 block text-sm font-bold text-slate-900">
+                    Selecionar documento
+                  </span>
+                  <span className="mt-1 block text-xs text-slate-500">
+                    PDF, DOCX, TXT ou Markdown · até 50 MB
+                  </span>
+                </button>
+              ) : (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-900">{arquivoFonte.name}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {(arquivoFonte.size / 1024 / 1024).toFixed(2)} MB
+                        {processandoFonte ? ` · Enviando/extraindo ${progressoFonte}%` : " · Texto extraído e pronto para revisão"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setArquivoFonte(null);
+                        setFontePreparada(null);
+                        setTextoExterno("");
+                        setProgressoFonte(0);
+                        inputDocumentoRef.current?.click();
+                      }}
+                      className="shrink-0 text-xs font-semibold text-blue-600 hover:text-blue-700"
+                    >
+                      Trocar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {arquivoFonte && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <input
+                    type="text"
+                    value={tituloFonte}
+                    onChange={(e) => setTituloFonte(e.target.value)}
+                    placeholder="Título da fonte (opcional)"
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={autorFonte}
+                    onChange={(e) => setAutorFonte(e.target.value)}
+                    placeholder="Autor / origem (opcional)"
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              )}
+
+              {textoExterno && (
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-700">
+                    Texto extraído — revise antes de continuar
+                  </label>
+                  <textarea
+                    value={textoExterno}
+                    onChange={(e) => setTextoExterno(e.target.value)}
+                    rows={8}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3.5 text-sm leading-6 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y font-sans"
+                  />
+                  <p className="mt-1 text-xs text-slate-400">
+                    O original permanece preservado; suas correções ficam registradas como conteúdo confirmado.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {modoExterno === "link" && (
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="url"
+                    value={urlFonte}
+                    onChange={(e) => {
+                      setUrlFonte(e.target.value);
+                      setFontePreparada(null);
+                      setTextoExterno("");
+                    }}
+                    placeholder="https://exemplo.com/artigo"
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void prepararLinkComoFonte()}
+                    disabled={processandoFonte || !urlFonte.trim()}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-black disabled:opacity-50"
+                  >
+                    {processandoFonte ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Globe className="h-4 w-4" />
+                    )}
+                    {processandoFonte ? "Extraindo..." : "Extrair artigo"}
+                  </button>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <input
+                  type="text"
+                  value={tituloFonte}
+                  onChange={(e) => setTituloFonte(e.target.value)}
+                  placeholder="Título da fonte (opcional)"
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                />
+                <input
+                  type="text"
+                  value={autorFonte}
+                  onChange={(e) => setAutorFonte(e.target.value)}
+                  placeholder="Autor / origem (opcional)"
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <textarea
+                value={textoExterno}
+                onChange={(e) => setTextoExterno(e.target.value)}
+                placeholder={
+                  modoExterno === "link"
+                    ? "O conteúdo principal do artigo aparecerá aqui para revisão."
+                    : "Cole aqui o texto, artigo, mensagem ou trecho recebido que deseja examinar..."
+                }
+                rows={modoExterno === "link" ? 8 : 6}
+                disabled={modoExterno === "link" && !fontePreparada}
+                className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 text-sm leading-6 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-y font-sans disabled:bg-slate-50 disabled:text-slate-400"
+              />
+              <div className="flex justify-between items-center text-xs text-slate-400 mt-1">
+                <span>Fonte preservada com proveniência na entrada da reflexão</span>
+                <span>{textoExterno.length} caracteres</span>
+              </div>
+            </div>
+          )}
 
           <div className="pt-2 flex justify-end">
             <button
               type="button"
               onClick={() => {
-                if (!textoExterno.trim()) {
-                  setTextoExterno(
-                    "A aceleração desenfreada e a busca por resultados instantâneos substituem a reflexão profunda pela resposta automática."
-                  );
+                if (processandoFonte) {
+                  setErro("Aguarde a preparação da fonte terminar.");
+                  return;
                 }
+                if (modoExterno === "link" && fontePreparada?.tipo !== "link") {
+                  setErro("Extraia o artigo pelo link antes de continuar.");
+                  return;
+                }
+                if (!textoExterno.trim()) {
+                  setErro(
+                    modoExterno === "arquivo"
+                      ? "Selecione um documento e aguarde a extração do texto."
+                      : modoExterno === "biblioteca"
+                      ? "Não foi possível preparar a obra selecionada."
+                      : "Insira uma fonte real antes de continuar."
+                  );
+                  return;
+                }
+                setErro(null);
                 setEtapaAtual(2);
               }}
               className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all"
@@ -390,19 +806,6 @@ export function WizardCriarReflexao() {
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Tema Central
-            </label>
-            <input
-              type="text"
-              value={temaCentral}
-              onChange={(e) => setTemaCentral(e.target.value)}
-              placeholder="Ex: Paciência, Tempo, Maturidade, Pensamento Crítico"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
               Seu Pensamento e Posicionamento Pessoal
             </label>
             <textarea
@@ -410,7 +813,7 @@ export function WizardCriarReflexao() {
               onChange={(e) => setComentarioPessoal(e.target.value)}
               placeholder="Escreva sua visão autêntica: onde você discorda, o que falta ser dito, qual tensão merece ser aprofundada..."
               rows={5}
-              className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none font-sans"
+              className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 text-sm leading-6 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none font-sans"
             />
           </div>
 

@@ -29,7 +29,9 @@
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
     "tus-js-client": "^4.3.1",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "@mozilla/readability": "0.6.0",
+    "jsdom": "30.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.13.4",
@@ -42,7 +44,8 @@
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "@types/jsdom": "30.0.0"
   },
   "overrides": {
     "postcss": "$postcss"

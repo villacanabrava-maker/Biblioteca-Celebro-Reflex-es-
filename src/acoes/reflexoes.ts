@@ -1,12 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import dns from "node:dns/promises";
+import net from "node:net";
+import { Readability } from "@mozilla/readability";
+import { JSDOM } from "jsdom";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
 import { detectarConflitosEMontarDossie } from "@/dominios/reflexoes/detector-conflitos";
 import { gerarPlanoReflexao } from "@/dominios/reflexoes/planejador-reflexao";
 import { redigirReflexao } from "@/dominios/reflexoes/redator-reflexao";
 import { auditarVersaoReflexao } from "@/dominios/auditoria/auditor-independente";
+import { extrairTextoDeBuffer } from "@/dominios/processamento/extrator-texto";
 import type {
   ResumoReflexao,
   EntradaReflexao,
@@ -17,6 +22,7 @@ import type {
   TipoOrigemExterna,
   ConflitoDetectado,
   DossieContextual,
+  FonteReflexaoPreparada,
 } from "@/tipos/reflexoes";
 import type { RelatorioAuditoria } from "@/tipos/auditoria";
 
@@ -121,6 +127,352 @@ export async function obterReflexaoCompleta(entradaId: string): Promise<{
 }
 
 /**
+ * Extrai uma fonte documental já enviada ao bucket privado de Reflexões.
+ * O caminho precisa pertencer ao próprio usuário autenticado.
+ */
+export async function extrairFonteDocumentoTemporaria({
+  storageCaminho,
+  arquivoNomeOriginal,
+  arquivoMimeType,
+}: {
+  storageCaminho: string;
+  arquivoNomeOriginal: string;
+  arquivoMimeType: string;
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  if (!storageCaminho.startsWith(`${usuarioId}/`)) {
+    throw new Error("Fonte documental inválida para o usuário autenticado.");
+  }
+
+  const { data, error } = await admin.storage
+    .from("fontes-reflexoes")
+    .download(storageCaminho);
+
+  if (error || !data) {
+    throw new Error(`Não foi possível ler o documento enviado: ${error?.message || "arquivo indisponível"}`);
+  }
+
+  const buffer = Buffer.from(await data.arrayBuffer());
+  const resultado = await extrairTextoDeBuffer(buffer, arquivoMimeType, arquivoNomeOriginal);
+
+  if (!resultado.textoCompleto.trim()) {
+    throw new Error("O documento foi enviado, mas nenhum texto legível pôde ser extraído.");
+  }
+
+  return {
+    texto: resultado.textoCompleto,
+    totalPaginas: resultado.totalPaginas,
+    totalPalavras: resultado.totalPalavras,
+    totalCaracteres: resultado.totalCaracteres,
+    metadados: resultado.metadadosArquivo,
+  };
+}
+
+/**
+ * Prepara uma obra da Biblioteca como fonte principal de uma nova reflexão.
+ * A obra é preservada por referência canônica (obraId); para a análise inicial,
+ * montamos uma amostra representativa e distribuída dos fragmentos já processados.
+ */
+export async function prepararFonteBibliotecaTemporaria(obraId: string): Promise<FonteReflexaoPreparada> {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const { data: obra, error: erroObra } = await admin
+    .from("v_obras_detalhadas")
+    .select("id, titulo, autor_nome, estado_processamento, total_paginas")
+    .eq("id", obraId)
+    .eq("usuario_id", usuarioId)
+    .maybeSingle();
+
+  if (erroObra || !obra) {
+    throw new Error("A obra selecionada não foi encontrada na sua Biblioteca.");
+  }
+
+  if (obra.estado_processamento !== "processado") {
+    throw new Error("Esta obra precisa estar processada antes de ser usada como fonte de reflexão.");
+  }
+
+  const { data: fragmentos, error: erroFragmentos } = await admin
+    .from("v_fragmentos_detalhados")
+    .select("id, ordem, conteudo, secao_titulo")
+    .eq("obra_id", obraId)
+    .eq("usuario_id", usuarioId)
+    .order("ordem", { ascending: true });
+
+  if (erroFragmentos) {
+    throw new Error(`Não foi possível preparar os fragmentos da obra: ${erroFragmentos.message}`);
+  }
+
+  if (!fragmentos?.length) {
+    throw new Error("A obra está processada, mas ainda não possui fragmentos disponíveis.");
+  }
+
+  const limiteAmostra = Math.min(12, fragmentos.length);
+  const indices =
+    limiteAmostra === 1
+      ? [0]
+      : Array.from({ length: limiteAmostra }, (_, indice) =>
+          Math.round((indice * (fragmentos.length - 1)) / (limiteAmostra - 1))
+        );
+
+  const selecionados = Array.from(new Set(indices))
+    .map((indice) => fragmentos[indice])
+    .filter(Boolean);
+
+  const cabecalho = [
+    `Obra selecionada da Biblioteca: ${obra.titulo}`,
+    obra.autor_nome ? `Autor: ${obra.autor_nome}` : null,
+    `Fragmentos processados na obra: ${fragmentos.length}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const corpo = selecionados
+    .map((fragmento, indice) => {
+      const secao = fragmento.secao_titulo ? ` · ${fragmento.secao_titulo}` : "";
+      return `[Trecho representativo ${indice + 1}${secao}]\n${fragmento.conteudo}`;
+    })
+    .join("\n\n---\n\n");
+
+  const conteudoRepresentativo = `${cabecalho}\n\n${corpo}`.slice(0, 24_000);
+
+  return {
+    tipo: "biblioteca",
+    titulo: obra.titulo,
+    autorNome: obra.autor_nome || undefined,
+    obraId: obra.id,
+    conteudoExtraido: conteudoRepresentativo,
+    conteudoConfirmado: conteudoRepresentativo,
+    metadados: {
+      totalPaginas: obra.total_paginas || null,
+      totalFragmentos: fragmentos.length,
+      fragmentosAmostrados: selecionados.length,
+      estrategiaContexto: "amostragem_uniforme_de_fragmentos_processados",
+    },
+  };
+}
+
+function enderecoEhPrivadoOuReservado(endereco: string): boolean {
+  const versao = net.isIP(endereco);
+
+  if (versao === 4) {
+    const partes = endereco.split(".").map(Number);
+    const [a, b] = partes;
+
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      a >= 224
+    );
+  }
+
+  if (versao === 6) {
+    const normalizado = endereco.toLowerCase();
+    return (
+      normalizado === "::" ||
+      normalizado === "::1" ||
+      normalizado.startsWith("fc") ||
+      normalizado.startsWith("fd") ||
+      /^fe[89ab]/.test(normalizado) ||
+      normalizado.startsWith("::ffff:127.") ||
+      normalizado.startsWith("::ffff:10.") ||
+      normalizado.startsWith("::ffff:192.168.") ||
+      /^::ffff:172\.(1[6-9]|2\d|3[01])\./.test(normalizado)
+    );
+  }
+
+  return false;
+}
+
+async function validarUrlExternaSegura(valor: string): Promise<URL> {
+  let url: URL;
+
+  try {
+    url = new URL(valor);
+  } catch {
+    throw new Error("Informe uma URL válida, incluindo https://");
+  }
+
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw new Error("A fonte por link precisa usar HTTP ou HTTPS.");
+  }
+
+  if (url.username || url.password) {
+    throw new Error("URLs com credenciais embutidas não são permitidas.");
+  }
+
+  if (url.port && !["80", "443"].includes(url.port)) {
+    throw new Error("A URL usa uma porta não permitida para leitura de artigos.");
+  }
+
+  const host = url.hostname.toLowerCase();
+  if (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal")
+  ) {
+    throw new Error("Endereços locais ou internos não podem ser usados como fonte.");
+  }
+
+  if (net.isIP(host)) {
+    if (enderecoEhPrivadoOuReservado(host)) {
+      throw new Error("Endereços IP privados ou reservados não podem ser usados como fonte.");
+    }
+    return url;
+  }
+
+  const resolvidos = await dns.lookup(host, { all: true, verbatim: true });
+  if (!resolvidos.length) {
+    throw new Error("Não foi possível resolver o endereço informado.");
+  }
+
+  if (resolvidos.some((registro) => enderecoEhPrivadoOuReservado(registro.address))) {
+    throw new Error("O endereço informado resolve para uma rede privada ou reservada.");
+  }
+
+  return url;
+}
+
+/**
+ * Extrai o conteúdo principal de um artigo/link público.
+ * Redirecionamentos são validados individualmente para impedir acesso a redes internas.
+ */
+export async function extrairFonteLinkTemporaria(urlInformada: string) {
+  const LIMITE_HTML_BYTES = 5 * 1024 * 1024;
+  const MAX_REDIRECIONAMENTOS = 4;
+  let atual = await validarUrlExternaSegura(urlInformada.trim());
+
+  for (let tentativa = 0; tentativa <= MAX_REDIRECIONAMENTOS; tentativa++) {
+    const resposta = await fetch(atual, {
+      method: "GET",
+      redirect: "manual",
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        Accept: "text/html,application/xhtml+xml,text/plain;q=0.8,*/*;q=0.2",
+        "User-Agent": "Rflex01-Reader/1.0 (+https://reflex-01.vercel.app)",
+      },
+    });
+
+    if (resposta.status >= 300 && resposta.status < 400) {
+      const destino = resposta.headers.get("location");
+      if (!destino) {
+        throw new Error("O link redirecionou sem informar um destino válido.");
+      }
+      if (tentativa === MAX_REDIRECIONAMENTOS) {
+        throw new Error("O link excedeu o limite seguro de redirecionamentos.");
+      }
+
+      atual = await validarUrlExternaSegura(new URL(destino, atual).toString());
+      continue;
+    }
+
+    if (!resposta.ok) {
+      throw new Error(`Não foi possível acessar o link (HTTP ${resposta.status}).`);
+    }
+
+    const tipoConteudo = (resposta.headers.get("content-type") || "").toLowerCase();
+    if (
+      tipoConteudo &&
+      !tipoConteudo.includes("text/html") &&
+      !tipoConteudo.includes("application/xhtml+xml") &&
+      !tipoConteudo.includes("text/plain")
+    ) {
+      throw new Error("O link não aponta para uma página textual compatível.");
+    }
+
+    const tamanhoDeclarado = Number(resposta.headers.get("content-length") || "0");
+    if (tamanhoDeclarado > LIMITE_HTML_BYTES) {
+      throw new Error("A página é grande demais para ser usada diretamente como fonte.");
+    }
+
+    const bytes = await resposta.arrayBuffer();
+    if (bytes.byteLength > LIMITE_HTML_BYTES) {
+      throw new Error("A página excedeu o limite de 5 MB para extração.");
+    }
+
+    const html = Buffer.from(bytes).toString("utf-8");
+    const dom = new JSDOM(html, { url: atual.toString() });
+    const artigo = new Readability(dom.window.document).parse();
+
+    const texto =
+      artigo?.textContent
+        ?.replace(/\u00a0/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim() || "";
+
+    if (!texto || texto.length < 80) {
+      throw new Error("Não foi possível identificar conteúdo textual suficiente nessa página.");
+    }
+
+    return {
+      urlFinal: atual.toString(),
+      titulo: artigo?.title?.trim() || dom.window.document.title?.trim() || undefined,
+      autor: artigo?.byline?.trim() || undefined,
+      siteName: artigo?.siteName?.trim() || undefined,
+      resumo: artigo?.excerpt?.trim() || undefined,
+      texto,
+      totalCaracteres: texto.length,
+      totalPalavras: texto.split(/\s+/).filter(Boolean).length,
+    };
+  }
+
+  throw new Error("Não foi possível concluir a leitura do link.");
+}
+
+async function registrarFonteCanonica({
+  entradaId,
+  usuarioId,
+  fonte,
+}: {
+  entradaId: string;
+  usuarioId: string;
+  fonte: FonteReflexaoPreparada;
+}) {
+  const admin = criarClienteAdmin();
+
+  const { data, error } = await admin
+    .schema("reflexoes")
+    .from("fontes_entrada")
+    .insert({
+      entrada_id: entradaId,
+      usuario_id: usuarioId,
+      tipo_fonte: fonte.tipo,
+      titulo: fonte.titulo?.trim() || null,
+      autor_nome: fonte.autorNome?.trim() || null,
+      url_origem: fonte.urlOrigem?.trim() || null,
+      obra_id: fonte.obraId || null,
+      storage_bucket: fonte.storageBucket || null,
+      storage_caminho: fonte.storageCaminho || null,
+      arquivo_nome_original: fonte.arquivoNomeOriginal || null,
+      arquivo_mime_type: fonte.arquivoMimeType || null,
+      arquivo_tamanho_bytes: fonte.arquivoTamanhoBytes ?? null,
+      hash_sha256: fonte.hashSha256 || null,
+      conteudo_extraido: fonte.conteudoExtraido,
+      conteudo_confirmado: fonte.conteudoConfirmado?.trim() || null,
+      metadados: fonte.metadados || {},
+      estado: "pronta",
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Falha ao registrar a fonte da reflexão: ${error?.message || "erro desconhecido"}`);
+  }
+
+  return data.id as string;
+}
+
+/**
  * Inicia a esteira metodológica de reflexão:
  * 1. Salva estímulo externo e comentário do autor.
  * 2. Consulta memórias, regras e detecta tensões dialéticas e oportunidades conceituais.
@@ -132,6 +484,7 @@ export async function iniciarEsteiraReflexao({
   temaCentral,
   titulo,
   formatoDesejado = "ensaio",
+  fonte,
 }: {
   reflexaoExterna: string;
   tipoOrigemExterna?: TipoOrigemExterna;
@@ -139,6 +492,7 @@ export async function iniciarEsteiraReflexao({
   temaCentral?: string;
   titulo?: string;
   formatoDesejado?: FormatoReflexao;
+  fonte?: FonteReflexaoPreparada;
 }): Promise<{
   sucesso: boolean;
   entradaId: string;
@@ -181,6 +535,40 @@ export async function iniciarEsteiraReflexao({
 
   if (error || !entrada) {
     throw new Error(`Falha ao iniciar esteira de reflexão: ${error?.message}`);
+  }
+
+  const fonteCanonica: FonteReflexaoPreparada = fonte || {
+    tipo:
+      tipoOrigemExterna === "documento"
+        ? "documento"
+        : tipoOrigemExterna === "audio_transcricao"
+        ? "audio"
+        : tipoOrigemExterna === "artigo"
+        ? "link"
+        : "texto",
+    conteudoExtraido: reflexaoExterna,
+    conteudoConfirmado: reflexaoExterna,
+  };
+
+  try {
+    await registrarFonteCanonica({
+      entradaId: entrada.id,
+      usuarioId,
+      fonte: {
+        ...fonteCanonica,
+        conteudoConfirmado:
+          fonteCanonica.conteudoConfirmado?.trim() || reflexaoExterna.trim(),
+      },
+    });
+  } catch (erroFonte) {
+    await admin
+      .schema("reflexoes")
+      .from("entradas")
+      .delete()
+      .eq("id", entrada.id)
+      .eq("usuario_id", usuarioId);
+
+    throw erroFonte;
   }
 
   try {
