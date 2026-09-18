@@ -8,9 +8,9 @@ import {
 import { PainelCerebroModerno } from "@/componentes/cerebro/painel-cerebro-moderno";
 
 export const metadata: Metadata = {
-  title: "Meu Cérebro | Memória Reflexiva",
+  title: "Cérebro Autoral | Rflex01",
   description:
-    "O que a IA aprendeu sobre você: estilo de escrita, temas recorrentes, forma de pensar e evidências.",
+    "Características, regras e dimensões autorais identificadas a partir do acervo processado.",
 };
 
 export const dynamic = "force-dynamic";

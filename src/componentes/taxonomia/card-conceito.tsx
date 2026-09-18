@@ -1,4 +1,3 @@
-import { Compass, Hash, Sparkles } from "lucide-react";
 import type { ConceitoTaxonomico } from "@/tipos/taxonomia";
 
 interface Props {
@@ -6,52 +5,56 @@ interface Props {
 }
 
 const CORES_DOMINIO: Record<string, string> = {
-  intelectual: "border-blue-500/30 bg-blue-500/10 text-blue-300",
-  axiologico: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  reflexivo: "border-purple-500/30 bg-purple-500/10 text-purple-300",
-  narrativo: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-  temporal: "border-orange-500/30 bg-orange-500/10 text-orange-300",
-  retorico: "border-rose-500/30 bg-rose-500/10 text-rose-300",
-  linguistico: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
-  estrutural: "border-neutral-500/30 bg-neutral-500/10 text-neutral-300",
-  autoral: "border-amber-500/50 bg-amber-500/20 text-amber-200",
+  intelectual: "border-blue-200 bg-blue-50 text-blue-700",
+  axiologico: "border-amber-200 bg-amber-50 text-amber-700",
+  reflexivo: "border-violet-200 bg-violet-50 text-violet-700",
+  narrativo: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  temporal: "border-orange-200 bg-orange-50 text-orange-700",
+  retorico: "border-rose-200 bg-rose-50 text-rose-700",
+  linguistico: "border-cyan-200 bg-cyan-50 text-cyan-700",
+  estrutural: "border-slate-200 bg-slate-100 text-slate-700",
+  autoral: "border-indigo-200 bg-indigo-50 text-indigo-700",
 };
 
 export function CardConceito({ conceito }: Props) {
-  const estiloBadge = CORES_DOMINIO[conceito.dominio] || "border-neutral-700 bg-neutral-800 text-neutral-300";
+  const estiloBadge =
+    CORES_DOMINIO[conceito.dominio] || "border-slate-200 bg-slate-100 text-slate-700";
 
   return (
-    <div className="bg-neutral-900/70 border border-neutral-800 hover:border-amber-500/40 rounded-2xl p-5 flex flex-col justify-between transition-all hover:bg-neutral-900/90 hover:shadow-xl hover:shadow-black/40 space-y-4">
+    <article className="flex flex-col justify-between space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-blue-200 hover:shadow-md">
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium border capitalize ${estiloBadge}`}>
+          <span
+            className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${estiloBadge}`}
+          >
             {conceito.dominio}
           </span>
-          <span className="text-[11px] text-neutral-500 font-mono">
-            {conceito.total_fragmentos > 0 ? `${conceito.total_fragmentos} ocorrências` : "Novo"}
+          <span className="text-xs text-slate-500">
+            {conceito.total_fragmentos > 0
+              ? `${conceito.total_fragmentos} ocorrências`
+              : "Sem ocorrências"}
           </span>
         </div>
 
-        <h3 className="font-serif text-lg font-medium text-neutral-100 line-clamp-1">
+        <h3 className="line-clamp-1 font-serif text-lg font-bold text-slate-900">
           {conceito.termo_preferencial}
         </h3>
 
-        <p className="text-xs text-neutral-400 leading-relaxed line-clamp-3">
+        <p className="line-clamp-3 text-sm leading-relaxed text-slate-600">
           {conceito.definicao}
         </p>
       </div>
 
-      {/* Sinônimos / Termos associados */}
       {conceito.termos_sinonimos && conceito.termos_sinonimos.length > 0 && (
-        <div className="pt-3 border-t border-neutral-800/60">
-          <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-mono block mb-1.5">
-            Sinônimos & Variações:
+        <div className="border-t border-slate-100 pt-3">
+          <span className="mb-1.5 block text-xs font-semibold text-slate-500">
+            Sinônimos e variações
           </span>
           <div className="flex flex-wrap gap-1.5">
             {conceito.termos_sinonimos.map((termo) => (
               <span
                 key={termo.id}
-                className="text-[11px] px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 text-neutral-400"
+                className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600"
               >
                 {termo.termo}
               </span>
@@ -59,6 +62,6 @@ export function CardConceito({ conceito }: Props) {
           </div>
         </div>
       )}
-    </div>
+    </article>
   );
 }
