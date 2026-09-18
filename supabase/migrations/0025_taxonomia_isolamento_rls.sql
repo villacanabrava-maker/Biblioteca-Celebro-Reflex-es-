@@ -51,6 +51,18 @@ CREATE INDEX IF NOT EXISTS idx_taxonomia_conceitos_usuario_estado
 CREATE INDEX IF NOT EXISTS idx_taxonomia_conceitos_usuario_dominio
   ON taxonomia.conceitos(usuario_id, dominio);
 
+CREATE UNIQUE INDEX IF NOT EXISTS uq_taxonomia_termos_conceito_normalizado
+  ON taxonomia.termos(conceito_id, termo_normalizado);
+
+CREATE INDEX IF NOT EXISTS idx_taxonomia_termos_conceito
+  ON taxonomia.termos(conceito_id);
+
+CREATE INDEX IF NOT EXISTS idx_taxonomia_relacoes_origem
+  ON taxonomia.relacoes(conceito_origem_id);
+
+CREATE INDEX IF NOT EXISTS idx_taxonomia_relacoes_destino
+  ON taxonomia.relacoes(conceito_destino_id);
+
 -- 2. RLS nas tabelas fundacionais.
 ALTER TABLE taxonomia.versoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE taxonomia.conceitos ENABLE ROW LEVEL SECURITY;
