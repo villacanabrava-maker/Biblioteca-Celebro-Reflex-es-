@@ -41,9 +41,9 @@
 ## 🚀 Tecnologias
 
 - **Frontend & Backend**: Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, Lucide Icons.
-- **Banco de Dados & Storage**: Supabase PostgreSQL 17, pgvector, Full Text Search, Supabase Storage privado, RLS estrito.
+- **Banco de Dados & Storage**: Supabase PostgreSQL 17, pgvector, Full Text Search, Supabase Storage privado, RLS.
 - **Inteligência Artificial**: OpenAI API (`gpt-4o`, `gpt-4o-mini`, `text-embedding-3-small`) com validação via Zod.
-- **Hospedagem & Workflows**: Vercel (Node.js Runtime e Vercel Workflows).
+- **Hospedagem**: Vercel com Node.js Runtime.
 - **Controle de Versão & CI**: Git, GitHub e GitHub Actions.
 
 ---
@@ -61,11 +61,11 @@ Crie o arquivo `.env.local` baseado no `.env.example`:
 cp .env.example .env.local
 ```
 
-### 3. Aplicar as migrations no Supabase:
-```bash
-npm run db:migrate
-npm run db:test
-```
+### 3. Banco de dados e migrations
+
+As migrations canônicas estão versionadas em `supabase/migrations/`.
+
+> **Atenção:** a `main` atual não contém o diretório `scripts/`, embora `package.json` ainda registre os comandos `db:migrate` e `db:test` apontando para arquivos nesse diretório. Portanto, esses dois comandos não devem ser tratados como instruções operacionais válidas até que essa divergência seja resolvida em uma etapa funcional própria.
 
 ### 4. Executar os testes automatizados:
 ```bash
@@ -78,6 +78,16 @@ npm run dev
 ```
 Acesse [http://localhost:3000](http://localhost:3000).
 
+---
+
+## 📚 Documentação técnica
+
+O índice da documentação e o mapa estrutural do repositório ficam em:
+
+- `docs/INDICE_DOCUMENTACAO.md`
+- `docs/MAPA_REPOSITORIO.md`
+
+A fonte de verdade operacional continua sendo o estado real de `main`, Supabase e Vercel; documentos históricos não prevalecem sobre as integrações atuais.
 
 ---
 
