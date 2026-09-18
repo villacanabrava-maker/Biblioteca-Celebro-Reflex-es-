@@ -135,9 +135,28 @@ export function PainelCerebroModerno({
         <div className="space-y-5 animate-in fade-in duration-150">
           {/* Card Central de Análise da Memória */}
           <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
+            {/* Círculo SVG de Progresso */}
             <div className="relative flex items-center justify-center shrink-0">
-              <div className="w-20 h-20 rounded-full bg-blue-50 border-4 border-blue-600/20 flex items-center justify-center text-blue-600">
-                <Brain className="w-10 h-10" />
+              <svg width="96" height="96" viewBox="0 0 96 96" className="-rotate-90">
+                <circle
+                  cx="48" cy="48" r="40"
+                  fill="none"
+                  stroke="#e2e8f0"
+                  strokeWidth="8"
+                />
+                <circle
+                  cx="48" cy="48" r="40"
+                  fill="none"
+                  stroke="#2563eb"
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 40}`}
+                  strokeDashoffset={`${2 * Math.PI * 40 * (1 - 0.78)}`}
+                  className="transition-all duration-1000"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Brain className="w-8 h-8 text-blue-600" />
               </div>
             </div>
 
@@ -149,9 +168,17 @@ export function PainelCerebroModerno({
                 78%
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                A partir de 154 memórias identificadas • Última calibração:{" "}
+                154 memórias identificadas • Última calibração:{" "}
                 {new Date().toLocaleDateString("pt-BR")}
               </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors">
+                  <CheckCircle2 className="w-3 h-3" /> Concordo
+                </button>
+                <button className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
+                  ✕ Discordo
+                </button>
+              </div>
             </div>
           </div>
 

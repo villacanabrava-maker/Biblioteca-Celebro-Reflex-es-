@@ -237,7 +237,7 @@ export function WizardCriarReflexao() {
       </div>
 
       {/* Esteira Visual das Etapas */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
         <div className="flex items-center justify-between relative">
           <div className="absolute left-4 right-4 top-4 h-0.5 bg-slate-100 -z-0" />
           {etapas.map((et) => {
@@ -277,6 +277,22 @@ export function WizardCriarReflexao() {
               </button>
             );
           })}
+        </div>
+
+        {/* Barra de progresso linear */}
+        <div>
+          <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+            <span className="font-medium">Progresso da reflexão</span>
+            <span className="font-bold text-blue-600">
+              {Math.round(((etapaAtual - 1) / (etapas.length - 1)) * 100)}%
+            </span>
+          </div>
+          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-600 rounded-full transition-all duration-500"
+              style={{ width: `${Math.round(((etapaAtual - 1) / (etapas.length - 1)) * 100)}%` }}
+            />
+          </div>
         </div>
       </div>
 

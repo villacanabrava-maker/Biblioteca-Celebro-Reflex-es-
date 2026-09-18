@@ -39,3 +39,5 @@ Thumbs.db
 
 .vercel
 .env*.local
+scripts/
+tsconfig.tsbuildinfo

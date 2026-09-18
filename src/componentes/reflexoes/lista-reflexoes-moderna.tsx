@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { ResumoReflexao } from "@/tipos/reflexoes";
 
+
 interface Props {
   reflexoesIniciais: ResumoReflexao[];
 }
@@ -198,16 +199,22 @@ export function ListaReflexoesModerna({ reflexoesIniciais }: Props) {
           {reflexoesFiltradas.map((item, index) => {
             const gradiente = gradientes[index % gradientes.length];
             const tituloExibido = item.ultimo_titulo_gerado || item.titulo;
+            const pontuacao = item.ultima_pontuacao_auditoria;
+            const isAprovada = item.estado_entrada === "concluida";
+            const isRascunho = item.estado_entrada === "criada" || item.estado_entrada === "planejada";
 
             return (
               <div
                 key={item.entrada_id}
-                className="group bg-white border border-slate-200/80 hover:border-blue-300 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex items-center justify-between gap-4"
+                className="group bg-white border border-slate-200 hover:border-blue-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all"
               >
-                {/* Capa e Dados */}
-                <div className="flex items-center gap-4 min-w-0">
+                {/* Linha de status colorida */}
+                <div className={`h-0.5 w-full ${isAprovada ? "bg-emerald-500" : isRascunho ? "bg-slate-300" : "bg-amber-400"}`} />
+
+                <div className="p-4 flex items-start gap-4">
+                  {/* Capa */}
                   <div
-                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br ${gradiente} p-2 flex flex-col justify-end text-white shadow-xs shrink-0 relative overflow-hidden`}
+                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br ${gradiente} p-2 flex flex-col justify-end text-white shadow-sm shrink-0 relative overflow-hidden`}
                   >
                     <Sparkles className="w-3.5 h-3.5 opacity-80 mb-auto" />
                     <span className="text-[8px] font-semibold uppercase tracking-wider opacity-80 truncate">
@@ -215,7 +222,8 @@ export function ListaReflexoesModerna({ reflexoesIniciais }: Props) {
                     </span>
                   </div>
 
-                  <div className="min-w-0">
+                  {/* Dados */}
+                  <div className="flex-1 min-w-0">
                     <Link
                       href={`/reflexoes/${item.entrada_id}`}
                       className="block font-bold text-slate-900 text-sm sm:text-base hover:text-blue-600 transition-colors truncate"
@@ -229,37 +237,92 @@ export function ListaReflexoesModerna({ reflexoesIniciais }: Props) {
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
                         {item.tema_central}
                       </span>
+                      {item.total_versoes > 0 && (
+                        <>
+                          <span>•</span>
+                          <span>{item.total_versoes}v</span>
+                        </>
+                      )}
                     </div>
+
+                    {/* Status + Pontuação */}
+                    <div className="flex items-center gap-2 mt-2">
+                      {isAprovada ? (
+                        <>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            Aprovada
+                          </span>
+                          {pontuacao && (
+                            <span className="text-[11px] font-bold text-slate-600">
+                              {Math.round(pontuacao * 100)}% fidelidade
+                            </span>
+                          )}
+                        </>
+                      ) : isRascunho ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                          <Calendar className="w-3 h-3" />
+                          Rascunho
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                          <Clock className="w-3 h-3 text-amber-600" />
+                          Em revisão
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Ações */}
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    <Link
+                      href={`/reflexoes/${item.entrada_id}`}
+                      className="p-1.5 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      title="Ver reflexão"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
                   </div>
                 </div>
 
-                {/* Status e Ações */}
-                <div className="flex items-center gap-3 shrink-0">
-                  {item.estado_entrada === "concluida" ? (
-                    item.ultima_pontuacao_auditoria && item.ultima_pontuacao_auditoria >= 0.98 ? (
-                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-                        <BookmarkCheck className="w-3 h-3 text-purple-600" />
-                        Incorporada
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        Aprovada
-                      </span>
-                    )
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                      <Clock className="w-3 h-3 text-amber-600" />
-                      Em revisão
-                    </span>
+                {/* Rodapé com botões de ação contextuais */}
+                <div className="border-t border-slate-100 px-4 py-2 flex items-center gap-3 bg-slate-50/60">
+                  {isRascunho && (
+                    <Link
+                      href={`/reflexoes/${item.entrada_id}`}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Continuar redigindo
+                    </Link>
                   )}
+                  {!isRascunho && !isAprovada && (
+                    <Link
+                      href={`/reflexoes/${item.entrada_id}`}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Ver revisão
+                    </Link>
+                  )}
+                  {isAprovada && (
+                    <button
+                      onClick={() => alert("Incorporação ao Cérebro — funcionalidade em breve.")}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
+                    >
+                      <BookmarkCheck className="w-3.5 h-3.5" />
+                      Incorporar ao Cérebro
+                    </button>
+                  )}
+
+                  <span className="text-slate-300">|</span>
 
                   <Link
                     href={`/reflexoes/${item.entrada_id}`}
-                    className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-slate-50 transition-colors"
-                    title="Ver reflexão"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors"
                   >
-                    <ArrowRight className="w-4 h-4" />
+                    Abrir
+                    <ArrowRight className="w-3 h-3" />
                   </Link>
                 </div>
               </div>

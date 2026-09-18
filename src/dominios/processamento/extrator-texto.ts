@@ -1,3 +1,5 @@
+import zlib from "zlib";
+
 // Importação resiliente de módulo CJS no ecossistema Next.js
 const pdfParse = require("pdf-parse");
 
@@ -7,6 +9,54 @@ export interface ResultadoExtracaoTexto {
   totalPalavras: number;
   totalCaracteres: number;
   metadadosArquivo: Record<string, unknown>;
+}
+
+/**
+ * Extrai texto limpo de arquivo Word .docx (ZIP contendo word/document.xml).
+ */
+function extrairTextoDeDocx(buffer: Buffer): string {
+  let offset = 0;
+  while (offset < buffer.length - 4) {
+    if (buffer.readUInt32LE(offset) === 0x04034b50) {
+      const compressionMethod = buffer.readUInt16LE(offset + 8);
+      const compressedSize = buffer.readUInt32LE(offset + 18);
+      const fileNameLength = buffer.readUInt16LE(offset + 26);
+      const extraFieldLength = buffer.readUInt16LE(offset + 28);
+      
+      const fileNameStart = offset + 30;
+      const fileName = buffer.subarray(fileNameStart, fileNameStart + fileNameLength).toString("utf-8");
+      const fileDataStart = fileNameStart + fileNameLength + extraFieldLength;
+      
+      if (fileName === "word/document.xml") {
+        const compressedData = buffer.subarray(fileDataStart, fileDataStart + compressedSize);
+        let xml = "";
+        if (compressionMethod === 8) {
+          xml = zlib.inflateRawSync(compressedData).toString("utf-8");
+        } else if (compressionMethod === 0) {
+          xml = compressedData.toString("utf-8");
+        }
+        
+        const paragrafos = xml.split(/<\/w:p>/);
+        const linhas: string[] = [];
+        for (const p of paragrafos) {
+          const textos = p.match(/<w:t[^>]*>(.*?)<\/w:t>/g);
+          if (textos) {
+            const linha = textos
+              .map((t) => t.replace(/<w:t[^>]*>/, "").replace(/<\/w:t>/, ""))
+              .join("");
+            if (linha.trim()) {
+              linhas.push(linha.trim());
+            }
+          }
+        }
+        return linhas.join("\n\n");
+      }
+      offset = fileDataStart + compressedSize;
+    } else {
+      offset++;
+    }
+  }
+  return "";
 }
 
 /**
@@ -39,6 +89,8 @@ export async function extrairTextoDeBuffer(
 
   // Verifica magic bytes para confirmar se é PDF binário real (%PDF-)
   const ehPdfReal = buffer.subarray(0, 5).toString().startsWith("%PDF");
+  const ehZipReal = buffer.subarray(0, 4).toString("hex") === "504b0304";
+  const ehDocx = nome.endsWith(".docx") || mime.includes("wordprocessingml") || (ehZipReal && !ehPdfReal);
 
   if (ehPdfReal) {
     try {
@@ -51,6 +103,19 @@ export async function extrairTextoDeBuffer(
       };
     } catch (err: any) {
       console.warn("Falha ao analisar PDF binário, tentando extração textual:", err.message);
+      textoBruto = buffer.toString("utf-8");
+    }
+  } else if (ehDocx) {
+    try {
+      textoBruto = extrairTextoDeDocx(buffer);
+      const palavras = textoBruto.split(/\s+/).filter(Boolean).length;
+      totalPaginas = Math.max(1, Math.ceil(palavras / 250)); // Média de 250 palavras por página de livro
+      metadados = {
+        formato: "docx",
+        tamanhoBytes: buffer.length,
+      };
+    } catch (err: any) {
+      console.warn("Falha ao extrair docx:", err.message);
       textoBruto = buffer.toString("utf-8");
     }
   } else {

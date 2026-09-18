@@ -8,7 +8,11 @@ import {
   BookOpen,
   Sparkles,
   Inbox,
-  Filter,
+  CheckCircle2,
+  Clock,
+  Cpu,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import type { ObraDetalhada, TipoObra } from "@/tipos/biblioteca";
 import { CardObra } from "./card-obra";
@@ -39,11 +43,19 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
   const [obraProcessamento, setObraProcessamento] = useState<ObraDetalhada | null>(null);
   const [obraFragmentos, setObraFragmentos] = useState<ObraDetalhada | null>(null);
 
+  // Estatísticas
+  const totalProcessadas = obras.filter((o) => o.estado_processamento === "processado").length;
+  const totalPendentes = obras.filter(
+    (o) => o.estado_processamento !== "processado" && o.estado_processamento !== "em_processamento"
+  ).length;
+  const totalProcessando = obras.filter(
+    (o) => o.estado_processamento === "em_processamento" || o.estado_processamento === "reprocessando"
+  ).length;
+
   // Filtragem e ordenação
   const obrasFiltradas = useMemo(() => {
     return obras
       .filter((obra) => {
-        // Filtro por tipo de aba
         if (abaAtiva !== "todos") {
           if (abaAtiva === "outros") {
             const principais = ["livro", "reflexao", "carta", "relato"];
@@ -53,7 +65,6 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
           }
         }
 
-        // Filtro de busca textual
         if (busca.trim().length > 0) {
           const termo = busca.toLowerCase().trim();
           const coincideTitulo = obra.titulo.toLowerCase().includes(termo);
@@ -88,8 +99,45 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* 1. Abas de Pílulas Claras (Todos, Livros, Reflexões, Cartas, Relatos, Outros) */}
+    <div className="space-y-5">
+      {/* Banner de Estatísticas */}
+      {obras.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-center gap-3 shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+              <BookOpen className="w-4.5 h-4.5 text-blue-600" style={{ width: "1.125rem", height: "1.125rem" }} />
+            </div>
+            <div>
+              <p className="text-xl font-extrabold text-slate-900 leading-none">{obras.length}</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Total no acervo</p>
+            </div>
+          </div>
+
+          <div className="bg-white border border-emerald-100 rounded-2xl p-3.5 flex items-center gap-3 shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" style={{ width: "1.125rem", height: "1.125rem" }} />
+            </div>
+            <div>
+              <p className="text-xl font-extrabold text-slate-900 leading-none">{totalProcessadas}</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Processadas</p>
+            </div>
+          </div>
+
+          <div className="bg-white border border-amber-100 rounded-2xl p-3.5 flex items-center gap-3 shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+              <Clock className="w-4.5 h-4.5 text-amber-600" style={{ width: "1.125rem", height: "1.125rem" }} />
+            </div>
+            <div>
+              <p className="text-xl font-extrabold text-slate-900 leading-none">{totalPendentes}</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {totalPendentes === 1 ? "Pendente" : "Pendentes"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Abas de Pílulas */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
         {ABAS_TIPO.map((aba) => {
           const ativa = abaAtiva === aba.id;
@@ -109,7 +157,7 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
         })}
       </div>
 
-      {/* 2. Barra de Busca e Botão Azul "+ Adicionar" */}
+      {/* Barra de Busca e Botão Adicionar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-xl">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -117,7 +165,7 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
             type="text"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar na biblioteca..."
+            placeholder="Buscar por título, autor ou tema..."
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm transition-colors"
           />
           {busca && (
@@ -125,7 +173,7 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
               onClick={() => setBusca("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
             >
-              Limpar
+              ✕
             </button>
           )}
         </div>
@@ -135,15 +183,21 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
           className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all active:scale-95 shrink-0"
         >
           <Plus className="w-4 h-4 stroke-[2.5px]" />
-          <span>+ Adicionar</span>
+          <span>Adicionar</span>
         </button>
       </div>
 
-      {/* 3. Contador de Documentos e Ordenação */}
+      {/* Contador e Ordenação */}
       <div className="flex items-center justify-between text-xs text-slate-500 px-1">
         <span>
           <strong className="font-bold text-slate-800">{obrasFiltradas.length}</strong>{" "}
           {obrasFiltradas.length === 1 ? "documento encontrado" : "documentos encontrados"}
+          {totalProcessando > 0 && (
+            <span className="ml-2 inline-flex items-center gap-1 text-blue-600 font-semibold">
+              <Cpu className="w-3 h-3 animate-pulse" />
+              {totalProcessando} processando
+            </span>
+          )}
         </span>
 
         <div className="flex items-center gap-2">
@@ -160,7 +214,7 @@ export function ListaObras({ obrasIniciais, usuarioId }: Props) {
         </div>
       </div>
 
-      {/* 4. Lista de Documentos em Cards */}
+      {/* Grid de Documentos */}
       {obrasFiltradas.length === 0 ? (
         <div className="p-12 text-center bg-white border border-slate-200 rounded-3xl space-y-3 shadow-sm">
           <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 mx-auto flex items-center justify-center">

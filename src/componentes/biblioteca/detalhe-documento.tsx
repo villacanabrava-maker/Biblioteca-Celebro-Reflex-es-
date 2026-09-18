@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Search,
-  MoreVertical,
   BookOpen,
   Sparkles,
   FileText,
@@ -24,10 +23,12 @@ import {
   Hash,
   Tag,
   User,
-  Share2,
-  FolderPlus,
   Loader2,
   Send,
+  Cpu,
+  Zap,
+  X,
+  ChevronRight,
 } from "lucide-react";
 import type { ObraDetalhada } from "@/tipos/biblioteca";
 import {
@@ -35,6 +36,7 @@ import {
   excluirObra,
   salvarAnotacoesObra,
 } from "@/acoes/biblioteca";
+import { iniciarProcessamentoObra } from "@/acoes/processamento";
 
 interface Props {
   obra: ObraDetalhada;
@@ -48,17 +50,23 @@ interface Props {
 
 export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
   const router = useRouter();
-  const [abaAtiva, setAbaAtiva] = useState<"resumo" | "conteudo" | "memorias" | "anotacoes">("resumo");
+  const [abaAtiva, setAbaAtiva] = useState<"resumo" | "conteudo" | "processar" | "anotacoes">("resumo");
   const [copiado, setCopiado] = useState(false);
   const [baixando, setBaixando] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
-  const [menuAberto, setMenuAberto] = useState(false);
+  const [processando, setProcessando] = useState(false);
+  const [erroProcessamento, setErroProcessamento] = useState<string | null>(null);
+  const [processamentoConcluido, setProcessamentoConcluido] = useState(false);
+  const [buscaFragmento, setBuscaFragmento] = useState("");
 
   // Anotações do autor
   const metadados = (obra.metadados as Record<string, any>) || {};
   const [anotacoes, setAnotacoes] = useState<string>(metadados.anotacoes_autor || "");
   const [salvandoAnotacoes, setSalvandoAnotacoes] = useState(false);
   const [anotacoesSalvas, setAnotacoesSalvas] = useState(false);
+
+  const estaProcessado = obra.estado_processamento === "processado" || processamentoConcluido;
+  const estaPendente = !estaProcessado && obra.estado_processamento !== "em_processamento";
 
   // Download do arquivo
   async function lidarDownload() {
@@ -71,6 +79,30 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
       alert("Erro ao gerar link para download.");
     } finally {
       setBaixando(false);
+    }
+  }
+
+  // Iniciar processamento com IA
+  async function lidarProcessar() {
+    const versaoId = obra.versao_id || obra.id;
+    if (!versaoId) {
+      setErroProcessamento("ID da versão não encontrado. Tente novamente.");
+      return;
+    }
+    try {
+      setProcessando(true);
+      setErroProcessamento(null);
+      const resultado = await iniciarProcessamentoObra(versaoId);
+      if (resultado && !resultado.sucesso) {
+        setErroProcessamento((resultado as any).erro || "Erro ao processar. Tente novamente.");
+        return;
+      }
+      setProcessamentoConcluido(true);
+      setAbaAtiva("conteudo");
+    } catch (err: any) {
+      setErroProcessamento(err.message || "Erro ao processar. Tente novamente.");
+    } finally {
+      setProcessando(false);
     }
   }
 
@@ -111,6 +143,13 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
     }
   }
 
+  // Busca de fragmentos
+  const fragmentosFiltrados = useMemo(() => {
+    if (!buscaFragmento.trim()) return fragmentos;
+    const termo = buscaFragmento.toLowerCase();
+    return fragmentos.filter((f) => f.conteudo_texto.toLowerCase().includes(termo));
+  }, [fragmentos, buscaFragmento]);
+
   // Capa estilizada com gradiente
   const coresCapa = [
     "from-amber-700 to-amber-900",
@@ -126,8 +165,8 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
   const paginasEstimadas =
     obra.total_paginas || Math.max(1, Math.round((obra.arquivo_tamanho_bytes || 50000) / 2500));
   const tamanhoMB = obra.arquivo_tamanho_bytes
-    ? `${(obra.arquivo_tamanho_bytes / (1024 * 1024)).toFixed(1)} MB`
-    : "1.2 MB";
+    ? `${(obra.arquivo_tamanho_bytes / (1024 * 1024)).toFixed(2)} MB`
+    : "—";
 
   const tagsPadrao = [
     { nome: "Esperança", cor: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -138,9 +177,17 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
     { nome: "Autoconhecimento", cor: "bg-sky-50 text-sky-700 border-sky-200" },
   ];
 
+  // Abas — se pendente, mostra "Processar" em destaque
+  const abas = [
+    { id: "resumo", rotulo: "Resumo" },
+    { id: "conteudo", rotulo: `Conteúdo${fragmentos.length > 0 ? ` (${fragmentos.length})` : ""}` },
+    ...(!estaProcessado ? [{ id: "processar", rotulo: "⚡ Processar com IA", destaque: true }] : []),
+    { id: "anotacoes", rotulo: "Anotações" },
+  ] as { id: string; rotulo: string; destaque?: boolean }[];
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-200">
-      {/* Topo / Voltar e Ações */}
+    <div className="max-w-4xl mx-auto space-y-5 animate-in fade-in duration-200 pb-24">
+      {/* Topo / Voltar */}
       <div className="flex items-center justify-between">
         <Link
           href="/biblioteca"
@@ -150,41 +197,18 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
           <span>Voltar para Biblioteca</span>
         </Link>
 
-        <div className="flex items-center gap-2 relative">
-          <button
-            onClick={() => setMenuAberto(!menuAberto)}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-            title="Mais ações"
-          >
-            <MoreVertical className="w-4 h-4" />
-          </button>
-
-          {menuAberto && (
-            <div className="absolute right-0 top-9 z-20 w-48 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 text-xs animate-in fade-in zoom-in-95 duration-150">
-              <button
-                onClick={lidarDownload}
-                disabled={baixando}
-                className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-              >
-                <Download className="w-3.5 h-3.5 text-slate-400" />
-                Baixar arquivo
-              </button>
-              <div className="h-px bg-slate-100 my-1" />
-              <button
-                onClick={lidarExcluir}
-                disabled={excluindo}
-                className="w-full px-3.5 py-2 text-left text-rose-600 hover:bg-rose-50 flex items-center gap-2 font-medium"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                Excluir documento
-              </button>
-            </div>
-          )}
-        </div>
+        <button
+          onClick={lidarExcluir}
+          disabled={excluindo}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-xl transition-colors disabled:opacity-50"
+        >
+          {excluindo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+          Excluir
+        </button>
       </div>
 
-      {/* Cartão Superior com Capa e Detalhes da Obra */}
-      <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row items-start gap-6">
+      {/* Cartão Superior com Capa e Detalhes */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row items-start gap-6">
         {/* Capa */}
         <div
           className={`w-28 h-40 sm:w-36 sm:h-52 rounded-2xl bg-gradient-to-br ${gradienteCapa} p-4 flex flex-col justify-between text-white shadow-md shrink-0 relative overflow-hidden`}
@@ -194,7 +218,7 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
             {obra.tipo}
           </span>
           <div>
-            <h2 className="text-sm sm:text-base font-serif font-bold leading-tight line-clamp-3">
+            <h2 className="text-sm sm:text-base font-serif font-bold leading-tight line-clamp-4">
               {obra.titulo}
             </h2>
             <p className="text-[11px] opacity-80 mt-1 truncate">{obra.autor_nome}</p>
@@ -207,13 +231,24 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
 
         {/* Informações Centrais */}
         <div className="flex-1 min-w-0 space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100 capitalize">
               {obra.tipo}
             </span>
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
               {obra.natureza === "autoral" ? "Núcleo Autoral" : "Influência Externa"}
             </span>
+            {estaProcessado ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                Processado
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                Pendente de análise
+              </span>
+            )}
           </div>
 
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
@@ -221,12 +256,15 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
           </h1>
 
           {obra.subtitulo && (
-            <p className="text-xs sm:text-sm text-slate-500 italic">
-              {obra.subtitulo}
-            </p>
+            <p className="text-xs sm:text-sm text-slate-500 italic">{obra.subtitulo}</p>
           )}
 
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+            <span className="flex items-center gap-1">
+              <User className="w-3.5 h-3.5 text-slate-400" />
+              {obra.autor_nome}
+            </span>
+            <span>•</span>
             <span className="flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
               {obra.ano_publicacao || "2026"}
@@ -243,12 +281,31 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
             </span>
           </div>
 
-          <div className="pt-1">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              Processado
-            </span>
-          </div>
+          {/* Atalho de Processamento no topo (se pendente) */}
+          {estaPendente && !processamentoConcluido && (
+            <div className="pt-1">
+              <button
+                onClick={lidarProcessar}
+                disabled={processando}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all active:scale-95 disabled:opacity-60"
+              >
+                {processando ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" />Processando...</>
+                ) : (
+                  <><Zap className="w-4 h-4" />Processar com IA agora</>
+                )}
+              </button>
+            </div>
+          )}
+
+          {processamentoConcluido && (
+            <div className="pt-1">
+              <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-semibold bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Processamento concluído com sucesso!
+              </span>
+            </div>
+          )}
 
           {obra.descricao && (
             <p className="text-xs text-slate-600 leading-relaxed pt-2 border-t border-slate-100 italic">
@@ -258,37 +315,33 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
         </div>
       </div>
 
-      {/* 4 Abas de Navegação */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-        {(["resumo", "conteudo", "memorias", "anotacoes"] as const).map((aba) => {
-          const rotulos = {
-            resumo: "Resumo",
-            conteudo: "Conteúdo",
-            memorias: "Memórias",
-            anotacoes: "Anotações",
-          };
-          const ativo = abaAtiva === aba;
+      {/* Abas de Navegação */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto scrollbar-none">
+        {abas.map((aba) => {
+          const ativo = abaAtiva === aba.id;
           return (
             <button
-              key={aba}
-              onClick={() => setAbaAtiva(aba)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              key={aba.id}
+              onClick={() => setAbaAtiva(aba.id as any)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 ativo
                   ? "bg-blue-600 text-white shadow-sm shadow-blue-500/20"
+                  : aba.destaque
+                  ? "text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100"
                   : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
             >
-              {rotulos[aba]}
+              {aba.rotulo}
             </button>
           );
         })}
       </div>
 
-      {/* Conteúdo da Aba Resumo */}
+      {/* Aba Resumo */}
       {abaAtiva === "resumo" && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Resumo da IA */}
-          <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-3">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -302,17 +355,17 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
                 className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-semibold px-2.5 py-1 rounded-lg hover:bg-blue-50 transition-colors"
               >
                 <RefreshCw className="w-3 h-3" />
-                Gerar novamente
+                Regenerar
               </button>
             </div>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
               {obra.descricao ||
-                `Este livro aborda temas como esperança, família, propósito e amadurecimento, a partir da jornada de quem enfrenta desafios e descobre o valor das pequenas coisas. A obra convida o leitor a refletir sobre suas próprias escolhas e o que realmente importa na vida.`}
+                "Este livro aborda temas como esperança, família, propósito e amadurecimento, a partir da jornada de quem enfrenta desafios e descobre o valor das pequenas coisas. A obra convida o leitor a refletir sobre suas próprias escolhas e o que realmente importa na vida."}
             </p>
           </div>
 
-          {/* Metadados Detalhados */}
-          <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-4">
+          {/* Metadados */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Layers className="w-4 h-4 text-blue-600" />
               Metadados do documento
@@ -336,14 +389,6 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
               </div>
 
               <div className="flex items-start gap-2.5">
-                <Sparkles className="w-4 h-4 text-slate-400 mt-0.5" />
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Tema principal</span>
-                  <span className="font-semibold text-slate-800">Esperança & Filosofia</span>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2.5">
                 <Calendar className="w-4 h-4 text-slate-400 mt-0.5" />
                 <div>
                   <span className="text-slate-400 block text-[11px]">Data de upload</span>
@@ -356,20 +401,18 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
               <div className="flex items-start gap-2.5">
                 <HardDrive className="w-4 h-4 text-slate-400 mt-0.5" />
                 <div>
-                  <span className="text-slate-400 block text-[11px]">Local de Origem</span>
-                  <span className="font-semibold text-slate-800 truncate block max-w-xs">
-                    {obra.arquivo_caminho || "Arquivo do acervo"}
-                  </span>
+                  <span className="text-slate-400 block text-[11px]">Tamanho</span>
+                  <span className="font-semibold text-slate-800">{tamanhoMB}</span>
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5">
+              <div className="flex items-start gap-2.5 col-span-full">
                 <Hash className="w-4 h-4 text-slate-400 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <span className="text-slate-400 block text-[11px]">Hash SHA-256 (Verificação)</span>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="font-mono text-[11px] text-slate-600 truncate block">
-                      {obra.hash_sha256 ? `${obra.hash_sha256.substring(0, 16)}...` : "Não calculado"}
+                      {obra.hash_sha256 ? `${obra.hash_sha256.substring(0, 24)}...` : "Não calculado"}
                     </span>
                     {obra.hash_sha256 && (
                       <button
@@ -387,7 +430,7 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
           </div>
 
           {/* Temas Relacionados */}
-          <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-3">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
             <h3 className="text-sm font-bold text-slate-900">Temas relacionados</h3>
             <div className="flex flex-wrap gap-2">
               {tagsPadrao.map((tag) => (
@@ -400,99 +443,178 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
               ))}
             </div>
           </div>
-
-          {/* Barra de Ações Inferior */}
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            <button
-              onClick={lidarDownload}
-              disabled={baixando}
-              className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all active:scale-95"
-            >
-              {baixando ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <BookOpen className="w-4 h-4" />
-              )}
-              <span>Abrir documento original</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => alert("Edição rápida de metadados disponível")}
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors"
-            >
-              <Edit3 className="w-4 h-4 text-slate-500" />
-              <span>Editar informações</span>
-            </button>
-          </div>
         </div>
       )}
 
-      {/* Conteúdo da Aba Conteúdo */}
+      {/* Aba Conteúdo */}
       {abaAtiva === "conteudo" && (
-        <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 className="text-sm font-bold text-slate-900">
-              Conteúdo Extraído ({fragmentos.length} fragmentos catalogados)
+              Conteúdo Extraído &mdash; {fragmentos.length} fragmentos
             </h3>
-            <span className="text-xs text-slate-400 font-mono">Processamento Canônico</span>
+            {fragmentos.length > 0 && (
+              <div className="relative max-w-xs w-full sm:w-auto">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={buscaFragmento}
+                  onChange={(e) => setBuscaFragmento(e.target.value)}
+                  placeholder="Buscar nos fragmentos..."
+                  className="w-full pl-8 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                />
+                {buscaFragmento && (
+                  <button onClick={() => setBuscaFragmento("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
+          {buscaFragmento && (
+            <p className="text-xs text-slate-500">
+              {fragmentosFiltrados.length} de {fragmentos.length} fragmentos correspondem à busca
+            </p>
+          )}
+
           {fragmentos.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-400">
-              Nenhum fragmento de texto extraído ainda. Use o botão de processamento com IA para segmentar esta obra.
+            <div className="p-8 text-center space-y-3">
+              <Cpu className="w-10 h-10 text-slate-300 mx-auto" />
+              <p className="text-xs text-slate-500">
+                Nenhum fragmento extraído. Processe este documento com IA para segmentá-lo.
+              </p>
+              {estaPendente && (
+                <button
+                  onClick={() => setAbaAtiva("processar" as any)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  Ir para Processamento
+                </button>
+              )}
             </div>
           ) : (
-            <div className="space-y-3">
-              {fragmentos.map((f) => (
-                <div
-                  key={f.id}
-                  className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-2"
-                >
-                  <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
-                    <span>Fragmento #{f.indice_sequencial + 1}</span>
-                    <span>{f.total_tokens} tokens</span>
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+              {fragmentosFiltrados.map((f) => {
+                const texto = f.conteudo_texto;
+                const termoBusca = buscaFragmento.toLowerCase();
+                const idx = termoBusca ? texto.toLowerCase().indexOf(termoBusca) : -1;
+
+                return (
+                  <div
+                    key={f.id}
+                    className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-2 hover:border-blue-200 transition-colors"
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                      <span>Fragmento #{f.indice_sequencial + 1}</span>
+                      <span>{f.total_tokens} tokens</span>
+                    </div>
+                    <p className="leading-relaxed font-serif whitespace-pre-wrap">
+                      {idx >= 0 ? (
+                        <>
+                          {texto.slice(0, idx)}
+                          <mark className="bg-yellow-200 text-yellow-900 rounded px-0.5">
+                            {texto.slice(idx, idx + termoBusca.length)}
+                          </mark>
+                          {texto.slice(idx + termoBusca.length)}
+                        </>
+                      ) : (
+                        texto
+                      )}
+                    </p>
                   </div>
-                  <p className="leading-relaxed font-serif whitespace-pre-wrap">
-                    {f.conteudo_texto}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       )}
 
-      {/* Conteúdo da Aba Memórias */}
-      {abaAtiva === "memorias" && (
-        <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-4">
-          <h3 className="text-sm font-bold text-slate-900">
-            Memórias & Conexões Ativadas no Cérebro
-          </h3>
-          <p className="text-xs text-slate-500">
-            Trechos e insights que o cérebro autoral utilizou para calibrar seu estilo, teses e conceitos.
-          </p>
+      {/* Aba Processar com IA */}
+      {abaAtiva === "processar" && (
+        <div className="bg-white border border-amber-200 rounded-3xl p-8 shadow-sm space-y-6 text-center">
+          <div className="w-16 h-16 rounded-full bg-blue-50 border-4 border-blue-100 flex items-center justify-center mx-auto">
+            <Cpu className="w-8 h-8 text-blue-600" />
+          </div>
 
-          <div className="space-y-3">
-            <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100 text-xs space-y-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
-                Insight Autoral Recorrente
-              </span>
-              <p className="font-serif italic text-slate-800 leading-relaxed">
-                &ldquo;A persistência reflexiva não decorre da pressa, mas do silêncio que precede a compreensão profunda.&rdquo;
-              </p>
-              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
-                <span>Vinculado a: Esperança & Propósito</span>
-                <span className="font-semibold text-blue-600">Relevância 98%</span>
+          <div className="space-y-2">
+            <h3 className="text-lg font-bold text-slate-900">Processar com Inteligência Artificial</h3>
+            <p className="text-sm text-slate-500 max-w-md mx-auto">
+              O sistema irá extrair o texto, segmentar em fragmentos semânticos, gerar embeddings vetoriais e indexar o conteúdo no seu Cérebro Autoral.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto text-xs text-center">
+            <div className="space-y-1">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mx-auto">
+                <FileText className="w-5 h-5 text-blue-600" />
               </div>
+              <p className="font-semibold text-slate-700">Extração</p>
+              <p className="text-slate-400">Texto puro</p>
+            </div>
+            <div className="space-y-1">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center mx-auto">
+                <Layers className="w-5 h-5 text-indigo-600" />
+              </div>
+              <p className="font-semibold text-slate-700">Chunking</p>
+              <p className="text-slate-400">Semântico</p>
+            </div>
+            <div className="space-y-1">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mx-auto">
+                <Sparkles className="w-5 h-5 text-emerald-600" />
+              </div>
+              <p className="font-semibold text-slate-700">Vetores</p>
+              <p className="text-slate-400">1536 dim</p>
             </div>
           </div>
+
+          {erroProcessamento && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-700 text-left">
+              {erroProcessamento}
+            </div>
+          )}
+
+          {processamentoConcluido ? (
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-xl">
+                <CheckCircle2 className="w-4 h-4" />
+                Processamento concluído com sucesso!
+              </div>
+              <div>
+                <button
+                  onClick={() => setAbaAtiva("conteudo")}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1"
+                >
+                  Ver fragmentos gerados <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={lidarProcessar}
+              disabled={processando}
+              className="inline-flex items-center gap-3 px-8 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-lg shadow-blue-600/25 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {processando ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Processando... isso pode levar alguns segundos
+                </>
+              ) : (
+                <>
+                  <Zap className="w-5 h-5" />
+                  Iniciar processamento com IA
+                </>
+              )}
+            </button>
+          )}
         </div>
       )}
 
-      {/* Conteúdo da Aba Anotações */}
+      {/* Aba Anotações */}
       {abaAtiva === "anotacoes" && (
-        <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-4">
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-slate-900">Anotações do Autor</h3>
@@ -502,7 +624,7 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
             </div>
             {anotacoesSalvas && (
               <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-semibold">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Salvo com sucesso!
+                <CheckCircle2 className="w-3.5 h-3.5" /> Salvo!
               </span>
             )}
           </div>
@@ -531,6 +653,39 @@ export function DetalheDocumentoComponente({ obra, fragmentos }: Props) {
           </div>
         </div>
       )}
+
+      {/* Barra Flutuante de Ações na Base */}
+      <div className="fixed bottom-20 md:bottom-6 left-0 right-0 z-30 flex justify-center px-4 pointer-events-none">
+        <div className="pointer-events-auto bg-white border border-slate-200 rounded-2xl shadow-xl p-3 flex items-center gap-3 max-w-lg w-full backdrop-blur-md">
+          <button
+            onClick={lidarDownload}
+            disabled={baixando || !obra.arquivo_caminho}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all active:scale-95 disabled:opacity-50"
+          >
+            {baixando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Baixar Original
+          </button>
+
+          {estaPendente && (
+            <button
+              onClick={lidarProcessar}
+              disabled={processando}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all active:scale-95 disabled:opacity-60"
+            >
+              {processando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+              Processar IA
+            </button>
+          )}
+
+          <button
+            onClick={() => setAbaAtiva("anotacoes")}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all"
+          >
+            <Edit3 className="w-4 h-4" />
+            Anotar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
