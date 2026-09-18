@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import dns from "node:dns/promises";
 import net from "node:net";
 import { Readability } from "@mozilla/readability";
-import { JSDOM } from "jsdom";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
 import { detectarConflitosEMontarDossie } from "@/dominios/reflexoes/detector-conflitos";
@@ -470,15 +469,48 @@ export async function extrairFonteLinkTemporaria(urlInformada: string) {
     }
 
     const html = Buffer.from(bytes).toString("utf-8");
-    const dom = new JSDOM(html, { url: atual.toString() });
-    const artigo = new Readability(dom.window.document).parse();
+
+    let artigo:
+      | {
+          textContent?: string | null;
+          title?: string | null;
+          byline?: string | null;
+          siteName?: string | null;
+          excerpt?: string | null;
+        }
+      | null = null;
+    let tituloDocumento: string | undefined;
+
+    try {
+      const { JSDOM } = await import("jsdom");
+      const dom = new JSDOM(html, { url: atual.toString() });
+      artigo = new Readability(dom.window.document).parse();
+      tituloDocumento = dom.window.document.title?.trim() || undefined;
+    } catch (erroDom) {
+      console.warn(
+        "Parser DOM indisponível; usando fallback textual seguro para a fonte externa.",
+        erroDom
+      );
+    }
+
+    const textoFallback = html
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/\s+/g, " ")
+      .trim();
 
     const texto =
       artigo?.textContent
         ?.replace(/\u00a0/g, " ")
         .replace(/[ \t]+/g, " ")
         .replace(/\n{3,}/g, "\n\n")
-        .trim() || "";
+        .trim() || textoFallback;
 
     if (!texto || texto.length < 80) {
       throw new Error("Não foi possível identificar conteúdo textual suficiente nessa página.");
@@ -486,7 +518,7 @@ export async function extrairFonteLinkTemporaria(urlInformada: string) {
 
     return {
       urlFinal: atual.toString(),
-      titulo: artigo?.title?.trim() || dom.window.document.title?.trim() || undefined,
+      titulo: artigo?.title?.trim() || tituloDocumento,
       autor: artigo?.byline?.trim() || undefined,
       siteName: artigo?.siteName?.trim() || undefined,
       resumo: artigo?.excerpt?.trim() || undefined,
