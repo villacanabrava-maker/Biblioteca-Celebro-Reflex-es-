@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Pencil, Save, X } from "lucide-react";
+import { ChevronDown, FileText, Loader2, Pencil, Quote, Save, X } from "lucide-react";
 import { salvarEdicaoAutorReflexao } from "@/acoes/reflexoes";
 import type { VersaoReflexao, CitacaoEvidencia } from "@/tipos/reflexoes";
 
