@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
+import { obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
 
 import type { ConceitoTaxonomico, ArestaGrafoTaxonomia } from "@/tipos/taxonomia";
 
@@ -9,11 +10,13 @@ import type { ConceitoTaxonomico, ArestaGrafoTaxonomia } from "@/tipos/taxonomia
  * Obtém todos os conceitos canônicos com sinônimos e total de ocorrências.
  */
 export async function obterConceitos(filtroDominio?: string): Promise<ConceitoTaxonomico[]> {
+  const usuarioId = await obterUsuarioAtualId();
   const admin = criarClienteAdmin();
 
   let query = admin
     .from("v_taxonomia_conceitos")
     .select("*")
+    .eq("usuario_id", usuarioId)
     .order("total_fragmentos", { ascending: false });
 
   if (filtroDominio && filtroDominio !== "todos") {
@@ -34,11 +37,13 @@ export async function obterConceitos(filtroDominio?: string): Promise<ConceitoTa
  * Obtém o grafo semântico completo de nós e arestas da taxonomia.
  */
 export async function obterGrafoTaxonomia(): Promise<ArestaGrafoTaxonomia[]> {
+  const usuarioId = await obterUsuarioAtualId();
   const admin = criarClienteAdmin();
 
   const { data, error } = await admin
     .from("v_taxonomia_grafo")
-    .select("*");
+    .select("*")
+    .eq("usuario_id", usuarioId);
 
   if (error) {
     console.error("Erro ao listar grafo da taxonomia:", error);
@@ -51,6 +56,22 @@ export async function obterGrafoTaxonomia(): Promise<ArestaGrafoTaxonomia[]> {
 /**
  * Cadastra um novo conceito ontológico com termo preferencial e domínio.
  */
+function normalizarTermoTaxonomico(valor: string): string {
+  return valor
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function gerarCodigoConceito(valor: string): string {
+  return normalizarTermoTaxonomico(valor)
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
+}
+
 export async function cadastrarConceito({
   termoPreferencial,
   definicao,
@@ -62,7 +83,15 @@ export async function cadastrarConceito({
   dominio: string;
   sinonimos?: string[];
 }) {
+  const usuarioId = await obterUsuarioAtualId();
   const admin = criarClienteAdmin();
+
+  const termoLimpo = termoPreferencial.trim();
+  const definicaoLimpa = definicao.trim();
+
+  if (!termoLimpo || !definicaoLimpa) {
+    throw new Error("Termo preferencial e definição são obrigatórios.");
+  }
 
   // 1. Obter versão ativa da taxonomia
   const { data: versao } = await admin
@@ -77,13 +106,23 @@ export async function cadastrarConceito({
     throw new Error("Nenhuma versão ativa da taxonomia encontrada.");
   }
 
-  const codigo = termoPreferencial
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_|_$/g, "");
+  const codigo = gerarCodigoConceito(termoLimpo);
+
+  if (!codigo) {
+    throw new Error("Não foi possível gerar um código válido para o conceito.");
+  }
+
+  const { data: existente } = await admin
+    .schema("taxonomia")
+    .from("conceitos")
+    .select("id")
+    .eq("usuario_id", usuarioId)
+    .eq("codigo", codigo)
+    .maybeSingle();
+
+  if (existente) {
+    throw new Error("Já existe um conceito com este termo na sua Taxonomia.");
+  }
 
   // 2. Inserir conceito
   const { data: conceito, error: errConceito } = await admin
@@ -91,11 +130,14 @@ export async function cadastrarConceito({
     .from("conceitos")
     .insert({
       versao_taxonomia_id: versao.id,
+      usuario_id: usuarioId,
       codigo,
-      termo_preferencial: termoPreferencial.trim(),
-      definicao: definicao.trim(),
+      termo_preferencial: termoLimpo,
+      definicao: definicaoLimpa,
       dominio,
       estado: "ativo",
+      origem: "curadoria",
+      confianca: 1,
     })
     .select()
     .single();
@@ -104,30 +146,49 @@ export async function cadastrarConceito({
     throw new Error(`Falha ao cadastrar conceito: ${errConceito?.message}`);
   }
 
-  // 3. Inserir termo preferencial
-  await admin
+  // 3. Persistir termo preferencial e sinônimos de forma validada.
+  const sinonimosLimpos = Array.from(
+    new Set(
+      sinonimos
+        .map((sinonimo) => sinonimo.trim())
+        .filter(Boolean)
+        .filter(
+          (sinonimo) =>
+            normalizarTermoTaxonomico(sinonimo) !==
+            normalizarTermoTaxonomico(termoLimpo)
+        )
+    )
+  );
+
+  const termosParaInserir = [
+    {
+      conceito_id: conceito.id,
+      termo: termoLimpo,
+      termo_normalizado: normalizarTermoTaxonomico(termoLimpo),
+      tipo: "preferencial",
+    },
+    ...sinonimosLimpos.map((sinonimo) => ({
+      conceito_id: conceito.id,
+      termo: sinonimo,
+      termo_normalizado: normalizarTermoTaxonomico(sinonimo),
+      tipo: "sinonimo",
+    })),
+  ];
+
+  const { error: errTermos } = await admin
     .schema("taxonomia")
     .from("termos")
-    .insert({
-      conceito_id: conceito.id,
-      termo: termoPreferencial.trim(),
-      termo_normalizado: termoPreferencial.toLowerCase().trim(),
-      tipo: "preferencial",
-    });
+    .insert(termosParaInserir);
 
-  // 4. Inserir sinônimos adicionais
-  for (const sin of sinonimos) {
-    if (sin.trim()) {
-      await admin
-        .schema("taxonomia")
-        .from("termos")
-        .insert({
-          conceito_id: conceito.id,
-          termo: sin.trim(),
-          termo_normalizado: sin.toLowerCase().trim(),
-          tipo: "sinonimo",
-        });
-    }
+  if (errTermos) {
+    await admin
+      .schema("taxonomia")
+      .from("conceitos")
+      .delete()
+      .eq("id", conceito.id)
+      .eq("usuario_id", usuarioId);
+
+    throw new Error(`Falha ao cadastrar termos do conceito: ${errTermos.message}`);
   }
 
   try {
