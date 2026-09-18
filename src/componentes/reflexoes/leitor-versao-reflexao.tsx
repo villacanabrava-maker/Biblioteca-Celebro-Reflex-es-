@@ -1,21 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Quote, ChevronDown } from "lucide-react";
+import { ChevronDown, FileText, Loader2, Pencil, Quote, Save, X } from "lucide-react";
+import { salvarEdicaoAutorReflexao } from "@/acoes/reflexoes";
 import type { VersaoReflexao, CitacaoEvidencia } from "@/tipos/reflexoes";
 
 interface Props {
   versoes: (VersaoReflexao & { citacoes: CitacaoEvidencia[] })[];
   versaoSelecionadaId?: string;
   aoMudarVersao?: (versaoId: string) => void;
+  entradaId: string;
+  aoSalvarEdicao?: (versaoId: string) => void;
 }
 
 export function LeitorVersaoReflexao({
   versoes,
   versaoSelecionadaId,
   aoMudarVersao,
+  entradaId,
+  aoSalvarEdicao,
 }: Props) {
   const [mostrarEvidencias, setMostrarEvidencias] = useState(true);
+  const [editando, setEditando] = useState(false);
+  const [textoEditado, setTextoEditado] = useState("");
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+  const [erroEdicao, setErroEdicao] = useState<string | null>(null);
 
   if (versoes.length === 0) {
     return (
@@ -91,10 +100,89 @@ export function LeitorVersaoReflexao({
       </div>
 
       {/* Corpo do Texto Redigido em Markdown */}
-      <div className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-10 shadow-sm">
-        <div className="leitura-confortavel mx-auto font-serif text-slate-800 whitespace-pre-wrap">
-          {versaoAtual.conteudo_markdown}
+      <div className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-10 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              {versaoAtual.origem_versao === "edicao_autor" ? "Versão editada pelo autor" : "Versão gerada pela IA"}
+            </span>
+            {versaoAtual.versao_base_id && (
+              <p className="mt-1 text-xs text-slate-500">
+                Esta versão preserva a versão-base anterior para comparação histórica.
+              </p>
+            )}
+          </div>
+          {!editando && (
+            <button
+              type="button"
+              onClick={() => {
+                setTextoEditado(versaoAtual.conteudo_markdown);
+                setErroEdicao(null);
+                setEditando(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+            >
+              <Pencil className="h-4 w-4" />
+              Editar reflexão
+            </button>
+          )}
         </div>
+
+        {editando ? (
+          <div className="space-y-3">
+            <textarea
+              value={textoEditado}
+              onChange={(e) => setTextoEditado(e.target.value)}
+              rows={22}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-4 font-serif text-base leading-8 text-slate-800 focus:border-blue-500 focus:outline-none"
+            />
+            {erroEdicao && <p className="text-xs font-medium text-rose-600">{erroEdicao}</p>}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={salvandoEdicao}
+                onClick={() => {
+                  setEditando(false);
+                  setTextoEditado("");
+                  setErroEdicao(null);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600"
+              >
+                <X className="h-4 w-4" />
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={salvandoEdicao || !textoEditado.trim()}
+                onClick={async () => {
+                  try {
+                    setSalvandoEdicao(true);
+                    setErroEdicao(null);
+                    const resultado = await salvarEdicaoAutorReflexao({
+                      entradaId,
+                      versaoBaseId: versaoAtual.id,
+                      conteudoMarkdown: textoEditado,
+                    });
+                    setEditando(false);
+                    aoSalvarEdicao?.(resultado.versaoId);
+                  } catch (erro: unknown) {
+                    setErroEdicao(erro instanceof Error ? erro.message : "Falha ao salvar a edição.");
+                  } finally {
+                    setSalvandoEdicao(false);
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+              >
+                {salvandoEdicao ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Salvar como nova versão
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="leitura-confortavel mx-auto font-serif text-slate-800 whitespace-pre-wrap">
+            {versaoAtual.conteudo_markdown}
+          </div>
+        )}
       </div>
 
       {/* Seção de Citações & Evidências de Proveniência */}

@@ -13,6 +13,7 @@ import {
   extrairFonteLinkTemporaria,
   prepararFonteBibliotecaTemporaria,
   transcreverFonteAudioTemporaria,
+  removerFontesTemporariasReflexao,
 } from "@/acoes/reflexoes";
 import { GravadorAudio } from "@/componentes/comum/gravador-audio";
 import {
@@ -126,7 +127,27 @@ export function WizardCriarReflexao() {
     );
   }
 
+  function selecionarTodasMemorias() {
+    setMemorias((prev) => prev.map((memoria) => ({ ...memoria, selecionada: true })));
+  }
+
+  function limparSelecaoMemorias() {
+    setMemorias((prev) => prev.map((memoria) => ({ ...memoria, selecionada: false })));
+  }
+
+  async function descartarFonteTemporaria(fonte: FonteReflexaoPreparada | null) {
+    if (entradaId || !fonte?.storageCaminho) return;
+
+    try {
+      await removerFontesTemporariasReflexao([fonte.storageCaminho]);
+    } catch (erroLimpeza) {
+      console.error("Falha ao remover fonte temporária de Reflexões:", erroLimpeza);
+    }
+  }
+
   async function prepararDocumentoComoFonte(file: File) {
+    await descartarFonteTemporaria(fontePreparada);
+
     const limiteBytes = 50 * 1024 * 1024;
     const extensao = file.name.split(".").pop()?.toLowerCase();
     const extensoesPermitidas = new Set(["pdf", "docx", "txt", "md"]);
@@ -141,6 +162,8 @@ export function WizardCriarReflexao() {
       return;
     }
 
+    let caminhoUpload: string | null = null;
+
     try {
       setProcessandoFonte(true);
       setErro(null);
@@ -152,6 +175,7 @@ export function WizardCriarReflexao() {
       const timestamp = Date.now();
       const nomeSanitizado = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const caminho = `${auth.usuarioId}/${timestamp}/documento/${nomeSanitizado}`;
+      caminhoUpload = caminho;
 
       await new Promise<void>((resolve, reject) => {
         iniciarUploadTus({
@@ -196,6 +220,14 @@ export function WizardCriarReflexao() {
         },
       });
     } catch (err: unknown) {
+      if (caminhoUpload) {
+        try {
+          await removerFontesTemporariasReflexao([caminhoUpload]);
+        } catch (erroLimpeza) {
+          console.error("Falha ao compensar upload documental temporário:", erroLimpeza);
+        }
+      }
+
       const mensagem = err instanceof Error ? err.message : "Falha ao preparar o documento.";
       console.error("Erro ao preparar fonte documental:", err);
       setErro(mensagem);
@@ -213,6 +245,8 @@ export function WizardCriarReflexao() {
   }
 
   async function prepararAudioComoFonte(file: File | null) {
+    await descartarFonteTemporaria(fontePreparada);
+
     setArquivoAudioFonte(file);
     setFontePreparada(null);
     setTextoExterno("");
@@ -226,6 +260,8 @@ export function WizardCriarReflexao() {
       return;
     }
 
+    let caminhoUpload: string | null = null;
+
     try {
       setProcessandoFonte(true);
       setErro(null);
@@ -236,6 +272,7 @@ export function WizardCriarReflexao() {
       const timestamp = Date.now();
       const nomeSanitizado = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const caminho = `${auth.usuarioId}/${timestamp}/audio/${nomeSanitizado}`;
+      caminhoUpload = caminho;
 
       await new Promise<void>((resolve, reject) => {
         iniciarUploadTus({
@@ -255,7 +292,8 @@ export function WizardCriarReflexao() {
         arquivoMimeType: file.type || "audio/webm",
       });
 
-      const tituloSugerido = tituloFonte.trim() || `Gravação de ${new Date().toLocaleDateString("pt-BR")}`;
+      const tituloSugerido =
+        tituloFonte.trim() || `Gravação de ${new Date().toLocaleDateString("pt-BR")}`;
 
       setTituloFonte(tituloSugerido);
       setTipoOrigem("audio_transcricao");
@@ -280,17 +318,29 @@ export function WizardCriarReflexao() {
         },
       });
     } catch (err: unknown) {
+      if (caminhoUpload) {
+        try {
+          await removerFontesTemporariasReflexao([caminhoUpload]);
+        } catch (erroLimpeza) {
+          console.error("Falha ao compensar upload de áudio temporário:", erroLimpeza);
+        }
+      }
+
       const mensagem = err instanceof Error ? err.message : "Falha ao preparar a gravação.";
       console.error("Erro ao preparar fonte de áudio:", err);
       setErro(mensagem);
+      setArquivoAudioFonte(null);
       setFontePreparada(null);
       setTextoExterno("");
+      setProgressoFonte(0);
     } finally {
       setProcessandoFonte(false);
     }
   }
 
   async function prepararAudioComentario(file: File | null) {
+    await descartarFonteTemporaria(fonteComentarioAudio);
+
     setFonteComentarioAudio(null);
     if (!file) return;
 
@@ -299,6 +349,8 @@ export function WizardCriarReflexao() {
       setErro("O comentário gravado excedeu 24 MB. Grave um trecho menor.");
       return;
     }
+
+    let caminhoUpload: string | null = null;
 
     try {
       setProcessandoComentarioAudio(true);
@@ -310,6 +362,7 @@ export function WizardCriarReflexao() {
       const timestamp = Date.now();
       const nomeSanitizado = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const caminho = `${auth.usuarioId}/${timestamp}/comentario/${nomeSanitizado}`;
+      caminhoUpload = caminho;
 
       await new Promise<void>((resolve, reject) => {
         iniciarUploadTus({
@@ -350,10 +403,19 @@ export function WizardCriarReflexao() {
         },
       });
     } catch (err: unknown) {
+      if (caminhoUpload) {
+        try {
+          await removerFontesTemporariasReflexao([caminhoUpload]);
+        } catch (erroLimpeza) {
+          console.error("Falha ao compensar áudio temporário do comentário:", erroLimpeza);
+        }
+      }
+
       const mensagem = err instanceof Error ? err.message : "Falha ao transcrever o comentário.";
       console.error("Erro ao preparar comentário em áudio:", err);
       setErro(mensagem);
       setFonteComentarioAudio(null);
+      setProgressoComentarioAudio(0);
     } finally {
       setProcessandoComentarioAudio(false);
     }
@@ -471,6 +533,27 @@ export function WizardCriarReflexao() {
       setEtapaAtual(3);
     } catch (err: any) {
       console.error("Erro ao iniciar esteira:", err);
+
+      const caminhosTemporarios = [
+        fontePreparada?.storageCaminho,
+        fonteComentarioAudio?.storageCaminho,
+      ].filter((caminho): caminho is string => Boolean(caminho));
+
+      if (caminhosTemporarios.length > 0) {
+        try {
+          await removerFontesTemporariasReflexao(caminhosTemporarios);
+        } catch (erroLimpeza) {
+          console.error("Falha ao limpar fontes após erro na esteira:", erroLimpeza);
+        }
+
+        setFontePreparada(null);
+        setFonteComentarioAudio(null);
+        setArquivoFonte(null);
+        setArquivoAudioFonte(null);
+        setProgressoFonte(0);
+        setProgressoComentarioAudio(0);
+      }
+
       setErro(err.message || "Falha ao analisar estímulo e memórias.");
     } finally {
       setCarregando(false);
@@ -1127,6 +1210,30 @@ export function WizardCriarReflexao() {
           </div>
 
           <div className="space-y-3">
+            {memorias.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <span className="text-xs text-slate-600">
+                  {memorias.filter((memoria) => memoria.selecionada).length} de {memorias.length} memórias incluídas
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={selecionarTodasMemorias}
+                    className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-blue-700"
+                  >
+                    Incluir todas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={limparSelecaoMemorias}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                  >
+                    Limpar seleção
+                  </button>
+                </div>
+              </div>
+            )}
+
             {memorias.length === 0 && (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-5 text-center">
                 <p className="text-sm font-semibold text-slate-800">Nenhuma memória relacionada foi encontrada.</p>

@@ -293,6 +293,37 @@ export async function transcreverFonteAudioTemporaria({
   });
 }
 
+/**
+ * Remove arquivos temporários do bucket privado de fontes de Reflexões.
+ * Aceita somente caminhos pertencentes ao usuário autenticado.
+ */
+export async function removerFontesTemporariasReflexao(caminhos: string[]) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const normalizados = Array.from(
+    new Set(caminhos.map((caminho) => caminho.trim()).filter(Boolean))
+  );
+
+  if (normalizados.some((caminho) => !caminho.startsWith(`${usuarioId}/`))) {
+    throw new Error("Caminho temporário inválido para o usuário autenticado.");
+  }
+
+  if (normalizados.length === 0) {
+    return { sucesso: true, totalRemovidos: 0 };
+  }
+
+  const { error } = await admin.storage
+    .from("fontes-reflexoes")
+    .remove(normalizados);
+
+  if (error) {
+    throw new Error(`Falha ao remover fonte temporária: ${error.message}`);
+  }
+
+  return { sucesso: true, totalRemovidos: normalizados.length };
+}
+
 function enderecoEhPrivadoOuReservado(endereco: string): boolean {
   const versao = net.isIP(endereco);
 
@@ -591,16 +622,16 @@ export async function iniciarEsteiraReflexao({
     conteudoConfirmado: reflexaoExterna,
   };
 
-  try {
-    const fontesParaRegistrar: FonteReflexaoPreparada[] = [
-      {
-        ...fonteCanonica,
-        conteudoConfirmado:
-          fonteCanonica.conteudoConfirmado?.trim() || reflexaoExterna.trim(),
-      },
-      ...fontesAdicionais,
-    ];
+  const fontesParaRegistrar: FonteReflexaoPreparada[] = [
+    {
+      ...fonteCanonica,
+      conteudoConfirmado:
+        fonteCanonica.conteudoConfirmado?.trim() || reflexaoExterna.trim(),
+    },
+    ...fontesAdicionais,
+  ];
 
+  try {
     for (const fonteParaRegistrar of fontesParaRegistrar) {
       await registrarFonteCanonica({
         entradaId: entrada.id,
@@ -609,6 +640,18 @@ export async function iniciarEsteiraReflexao({
       });
     }
   } catch (erroFonte) {
+    const caminhosTemporarios = fontesParaRegistrar
+      .map((fonteParaRegistrar) => fonteParaRegistrar.storageCaminho)
+      .filter((caminho): caminho is string => Boolean(caminho));
+
+    if (caminhosTemporarios.length > 0) {
+      try {
+        await removerFontesTemporariasReflexao(caminhosTemporarios);
+      } catch (erroLimpeza) {
+        console.error("Falha ao compensar arquivos temporários de Reflexões:", erroLimpeza);
+      }
+    }
+
     await admin
       .schema("reflexoes")
       .from("entradas")
@@ -851,6 +894,126 @@ export async function incorporarReflexaoMemoria({
   versaoId: string;
 }) {
   return incorporarReflexaoComoObra({ entradaId, versaoId });
+}
+
+/**
+ * Preserva a versão-base e registra a edição do autor como uma nova versão.
+ * A nova versão não herda automaticamente citações ou auditoria, pois o texto
+ * pode ter sido alterado e essas evidências precisam ser revalidadas.
+ */
+export async function salvarEdicaoAutorReflexao({
+  entradaId,
+  versaoBaseId,
+  conteudoMarkdown,
+}: {
+  entradaId: string;
+  versaoBaseId: string;
+  conteudoMarkdown: string;
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+  const conteudo = conteudoMarkdown.trim();
+
+  if (!conteudo) {
+    throw new Error("O texto editado não pode ficar vazio.");
+  }
+
+  const { data: versaoBase, error: erroBase } = await admin
+    .schema("reflexoes")
+    .from("versoes_reflexao")
+    .select("*")
+    .eq("id", versaoBaseId)
+    .eq("entrada_id", entradaId)
+    .eq("usuario_id", usuarioId)
+    .single();
+
+  if (erroBase || !versaoBase) {
+    throw new Error("Versão-base não encontrada para edição.");
+  }
+
+  if (conteudo === versaoBase.conteudo_markdown.trim()) {
+    return {
+      sucesso: true,
+      alterado: false,
+      versaoId: versaoBase.id as string,
+    };
+  }
+
+  const { data: ultimaVersao, error: erroUltima } = await admin
+    .schema("reflexoes")
+    .from("versoes_reflexao")
+    .select("numero_versao")
+    .eq("entrada_id", entradaId)
+    .eq("usuario_id", usuarioId)
+    .order("numero_versao", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (erroUltima) {
+    throw new Error(`Falha ao calcular a nova versão: ${erroUltima.message}`);
+  }
+
+  const numeroNovaVersao = (ultimaVersao?.numero_versao || 0) + 1;
+  const totalPalavras = conteudo.split(/\s+/).filter(Boolean).length;
+
+  const { data: novaVersao, error: erroNovaVersao } = await admin
+    .schema("reflexoes")
+    .from("versoes_reflexao")
+    .insert({
+      entrada_id: entradaId,
+      plano_id: versaoBase.plano_id,
+      usuario_id: usuarioId,
+      numero_versao: numeroNovaVersao,
+      titulo_gerado: versaoBase.titulo_gerado,
+      conteudo_markdown: conteudo,
+      sumario_executivo: versaoBase.sumario_executivo,
+      total_palavras: totalPalavras,
+      origem_versao: "edicao_autor",
+      versao_base_id: versaoBase.id,
+      estado: "rascunho",
+    })
+    .select("*")
+    .single();
+
+  if (erroNovaVersao || !novaVersao) {
+    throw new Error(
+      `Falha ao salvar a edição do autor: ${erroNovaVersao?.message || "erro desconhecido"}`
+    );
+  }
+
+  const { error: erroRevisao } = await admin
+    .schema("reflexoes")
+    .from("revisoes_autor")
+    .insert({
+      versao_reflexao_id: novaVersao.id,
+      usuario_id: usuarioId,
+      comentario_geral: "Versão criada por edição manual do autor.",
+      ajustes_solicitados: [],
+      aprovado: false,
+    });
+
+  if (erroRevisao) {
+    await admin
+      .schema("reflexoes")
+      .from("versoes_reflexao")
+      .delete()
+      .eq("id", novaVersao.id)
+      .eq("usuario_id", usuarioId);
+
+    throw new Error(`Falha ao registrar a revisão autoral: ${erroRevisao.message}`);
+  }
+
+  try {
+    revalidatePath(`/reflexoes/${entradaId}`);
+    revalidatePath("/reflexoes");
+  } catch {}
+
+  return {
+    sucesso: true,
+    alterado: true,
+    versaoId: novaVersao.id as string,
+    numeroVersao: novaVersao.numero_versao as number,
+  };
 }
 
 /**
