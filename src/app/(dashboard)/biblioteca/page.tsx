@@ -10,6 +10,10 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+// O processamento documental é uma Server Action iniciada nesta página.
+// 800s permanece dentro do limite documentado para Vercel Pro com Fluid Compute.
+export const maxDuration = 800;
+
 export default async function BibliotecaPage() {
   const usuarioId = await obterUsuarioAtualId();
   const [obras] = await Promise.all([
