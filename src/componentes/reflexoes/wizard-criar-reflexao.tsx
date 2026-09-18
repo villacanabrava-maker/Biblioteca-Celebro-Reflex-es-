@@ -485,6 +485,9 @@ export function WizardCriarReflexao() {
                 setArquivoFonte(null);
                 setFontePreparada(null);
                 setTextoExterno("");
+                setUrlFonte("");
+                setTituloFonte("");
+                setAutorFonte("");
                 setProgressoFonte(0);
               }}
               className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
@@ -502,6 +505,10 @@ export function WizardCriarReflexao() {
               onClick={() => {
                 setModoExterno("arquivo");
                 setTipoOrigem("documento");
+                setUrlFonte("");
+                setArquivoFonte(null);
+                setFontePreparada(null);
+                setTextoExterno("");
               }}
               className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
                 modoExterno === "arquivo"
@@ -518,6 +525,10 @@ export function WizardCriarReflexao() {
               onClick={() => {
                 setModoExterno("link");
                 setTipoOrigem("artigo");
+                setArquivoFonte(null);
+                setFontePreparada(null);
+                setTextoExterno("");
+                setUrlFonte("");
               }}
               className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
                 modoExterno === "link"
@@ -530,7 +541,58 @@ export function WizardCriarReflexao() {
             </button>
           </div>
 
-          {modoExterno === "arquivo" ? (
+          {modoExterno === "biblioteca" ? (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                      Fonte da Biblioteca selecionada
+                    </span>
+                    <h3 className="mt-1 text-base font-bold text-slate-900">
+                      {tituloFonte || "Obra selecionada"}
+                    </h3>
+                    {autorFonte && (
+                      <p className="mt-1 text-sm text-slate-600">Por {autorFonte}</p>
+                    )}
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      A obra permanece referenciada pela Biblioteca. Para a análise inicial,
+                      o sistema usa uma amostra distribuída dos fragmentos processados.
+                    </p>
+                  </div>
+                  <BookOpen className="h-6 w-6 shrink-0 text-blue-600" />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-700">
+                  Contexto representativo da obra
+                </label>
+                <textarea
+                  value={textoExterno}
+                  readOnly
+                  rows={8}
+                  className="w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 font-serif text-sm leading-7 text-slate-700"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setModoExterno("colar");
+                  setTipoOrigem("texto");
+                  setFontePreparada(null);
+                  setTextoExterno("");
+                  setTituloFonte("");
+                  setAutorFonte("");
+                  setUrlFonte("");
+                }}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+              >
+                Escolher outra fonte
+              </button>
+            </div>
+          ) : modoExterno === "arquivo" ? (
             <div className="space-y-4">
               <input
                 ref={inputDocumentoRef}
@@ -581,6 +643,25 @@ export function WizardCriarReflexao() {
                 </div>
               )}
 
+              {arquivoFonte && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <input
+                    type="text"
+                    value={tituloFonte}
+                    onChange={(e) => setTituloFonte(e.target.value)}
+                    placeholder="Título da fonte (opcional)"
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={autorFonte}
+                    onChange={(e) => setAutorFonte(e.target.value)}
+                    placeholder="Autor / origem (opcional)"
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              )}
+
               {textoExterno && (
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-700">
@@ -599,8 +680,37 @@ export function WizardCriarReflexao() {
               )}
             </div>
           ) : (
-            <div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-3">
+            <div className="space-y-3">
+              {modoExterno === "link" && (
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="url"
+                    value={urlFonte}
+                    onChange={(e) => {
+                      setUrlFonte(e.target.value);
+                      setFontePreparada(null);
+                      setTextoExterno("");
+                    }}
+                    placeholder="https://exemplo.com/artigo"
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void prepararLinkComoFonte()}
+                    disabled={processandoFonte || !urlFonte.trim()}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-black disabled:opacity-50"
+                  >
+                    {processandoFonte ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Globe className="h-4 w-4" />
+                    )}
+                    {processandoFonte ? "Extraindo..." : "Extrair artigo"}
+                  </button>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <input
                   type="text"
                   value={tituloFonte}
@@ -621,11 +731,12 @@ export function WizardCriarReflexao() {
                 onChange={(e) => setTextoExterno(e.target.value)}
                 placeholder={
                   modoExterno === "link"
-                    ? "Cole o link aqui. A extração automática será ativada na próxima etapa desta implementação."
+                    ? "O conteúdo principal do artigo aparecerá aqui para revisão."
                     : "Cole aqui o texto, artigo, mensagem ou trecho recebido que deseja examinar..."
                 }
-                rows={6}
-                className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 text-sm leading-6 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none font-sans"
+                rows={modoExterno === "link" ? 8 : 6}
+                disabled={modoExterno === "link" && !fontePreparada}
+                className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 text-sm leading-6 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-y font-sans disabled:bg-slate-50 disabled:text-slate-400"
               />
               <div className="flex justify-between items-center text-xs text-slate-400 mt-1">
                 <span>Fonte preservada com proveniência na entrada da reflexão</span>
@@ -639,13 +750,19 @@ export function WizardCriarReflexao() {
               type="button"
               onClick={() => {
                 if (processandoFonte) {
-                  setErro("Aguarde a preparação do documento terminar.");
+                  setErro("Aguarde a preparação da fonte terminar.");
+                  return;
+                }
+                if (modoExterno === "link" && fontePreparada?.tipo !== "link") {
+                  setErro("Extraia o artigo pelo link antes de continuar.");
                   return;
                 }
                 if (!textoExterno.trim()) {
                   setErro(
                     modoExterno === "arquivo"
                       ? "Selecione um documento e aguarde a extração do texto."
+                      : modoExterno === "biblioteca"
+                      ? "Não foi possível preparar a obra selecionada."
                       : "Insira uma fonte real antes de continuar."
                   );
                   return;
