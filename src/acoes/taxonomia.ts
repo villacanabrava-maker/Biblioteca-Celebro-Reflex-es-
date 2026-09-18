@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
 
-import type { ConceitoTaxonomico, ArestaGrafoTaxonomia } from "@/tipos/taxonomia";
+import type {
+  ConceitoTaxonomico,
+  ArestaGrafoTaxonomia,
+  SugestaoTagTaxonomia,
+} from "@/tipos/taxonomia";
 import {
   taxonomizarDocumentoProcessado,
   taxonomizarReflexaoAprovada,
@@ -37,6 +41,39 @@ export async function obterConceitos(filtroDominio?: string): Promise<ConceitoTa
   }
 
   return (data as ConceitoTaxonomico[]) || [];
+}
+
+/**
+ * Sugestões canônicas para o formulário da Biblioteca.
+ * Somente conceitos ativos/confirmados podem virar tags sugeridas.
+ */
+export async function obterSugestoesTagsTaxonomia(): Promise<SugestaoTagTaxonomia[]> {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const { data, error } = await admin
+    .from("v_taxonomia_conceitos")
+    .select("id, codigo, termo_preferencial, dominio, total_fragmentos, total_reflexoes")
+    .eq("usuario_id", usuarioId)
+    .eq("estado", "ativo")
+    .order("total_fragmentos", { ascending: false })
+    .order("total_reflexoes", { ascending: false })
+    .limit(40);
+
+  if (error) {
+    console.error("Erro ao obter sugestões de tags da Taxonomia:", error);
+    return [];
+  }
+
+  return (data || []).map((conceito: any) => ({
+    id: conceito.id,
+    codigo: conceito.codigo,
+    termo: conceito.termo_preferencial,
+    dominio: conceito.dominio,
+    total_ocorrencias:
+      Number(conceito.total_fragmentos || 0) +
+      Number(conceito.total_reflexoes || 0),
+  })) as SugestaoTagTaxonomia[];
 }
 
 /**
