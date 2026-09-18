@@ -63,9 +63,16 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 - `service_role` mantém escrita administrativa para backend/migrations.
 - Views do Cérebro permanecem com `security_invoker=true`.
 
+## Auth no plano atual
+
+- A documentação atual do Supabase informa que Leaked Password Protection exige Pro+.
+- Enquanto o projeto permanecer no Supabase Free, esse alerta do advisor é uma limitação conhecida.
+- O cadastro do Rflex01 passa a impor validação também no servidor, com e-mail válido, nome não vazio e senha mínima de 8 caracteres.
+- Usuários existentes não têm o login afetado pela nova regra de cadastro.
+
 ## Ordem de execução a partir daqui
 
-1. Habilitar proteção contra senhas vazadas no Supabase Auth.
+1. Endurecer cadastro/autenticação dentro das capacidades do Supabase Free.
 2. QA transversal: E2E autenticado, acessibilidade, responsividade e regressão visual.
 3. Performance e observabilidade baseadas em medições reais.
 4. Proteção formal da branch `main`.
