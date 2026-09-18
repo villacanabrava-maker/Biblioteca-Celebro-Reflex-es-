@@ -1,8 +1,8 @@
 "use client";
 
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Sparkles, ArrowRight, ArrowLeft, FileText, UploadCloud, Globe, Brain, Loader2, AlertCircle, Check } from "lucide-react";
 import {
   iniciarEsteiraReflexao,
@@ -10,6 +10,8 @@ import {
   gerarPlanoParaEntrada,
   acionarRedacaoReflexao,
   extrairFonteDocumentoTemporaria,
+  extrairFonteLinkTemporaria,
+  prepararFonteBibliotecaTemporaria,
 } from "@/acoes/reflexoes";
 import {
   calcularHashSha256,
@@ -34,6 +36,9 @@ interface MemoriaItem {
 
 export function WizardCriarReflexao() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fonteIdInicial = searchParams.get("fonteId");
+  const fonteBibliotecaCarregadaRef = useRef<string | null>(null);
   const [etapaAtual, setEtapaAtual] = useState<number>(1);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -43,7 +48,7 @@ export function WizardCriarReflexao() {
   const [planoId, setPlanoId] = useState<string | null>(null);
 
   // Etapa 1: Reflexão Externa
-  const [modoExterno, setModoExterno] = useState<"colar" | "arquivo" | "link">("colar");
+  const [modoExterno, setModoExterno] = useState<"colar" | "arquivo" | "link" | "biblioteca">("colar");
   const [textoExterno, setTextoExterno] = useState("");
   const [tipoOrigem, setTipoOrigem] = useState<TipoOrigemExterna>("texto");
   const inputDocumentoRef = useRef<HTMLInputElement>(null);
@@ -51,8 +56,37 @@ export function WizardCriarReflexao() {
   const [fontePreparada, setFontePreparada] = useState<FonteReflexaoPreparada | null>(null);
   const [tituloFonte, setTituloFonte] = useState("");
   const [autorFonte, setAutorFonte] = useState("");
+  const [urlFonte, setUrlFonte] = useState("");
   const [processandoFonte, setProcessandoFonte] = useState(false);
   const [progressoFonte, setProgressoFonte] = useState(0);
+
+  useEffect(() => {
+    if (!fonteIdInicial || fonteBibliotecaCarregadaRef.current === fonteIdInicial) return;
+
+    fonteBibliotecaCarregadaRef.current = fonteIdInicial;
+
+    void (async () => {
+      try {
+        setProcessandoFonte(true);
+        setErro(null);
+
+        const fonte = await prepararFonteBibliotecaTemporaria(fonteIdInicial);
+        setModoExterno("biblioteca");
+        setTipoOrigem("biblioteca");
+        setFontePreparada(fonte);
+        setTituloFonte(fonte.titulo || "");
+        setAutorFonte(fonte.autorNome || "");
+        setTextoExterno(fonte.conteudoConfirmado || fonte.conteudoExtraido);
+      } catch (err: unknown) {
+        const mensagem =
+          err instanceof Error ? err.message : "Não foi possível carregar a obra selecionada.";
+        setErro(mensagem);
+        fonteBibliotecaCarregadaRef.current = null;
+      } finally {
+        setProcessandoFonte(false);
+      }
+    })();
+  }, [fonteIdInicial]);
 
   // Etapa 2: Comentário Pessoal
   const [comentarioPessoal, setComentarioPessoal] = useState("");
@@ -172,6 +206,50 @@ export function WizardCriarReflexao() {
     if (file) void prepararDocumentoComoFonte(file);
   }
 
+  async function prepararLinkComoFonte() {
+    if (!urlFonte.trim()) {
+      setErro("Informe o endereço do artigo ou página que deseja usar como fonte.");
+      return;
+    }
+
+    try {
+      setProcessandoFonte(true);
+      setErro(null);
+
+      const extracao = await extrairFonteLinkTemporaria(urlFonte.trim());
+
+      const tituloResolvido = tituloFonte.trim() || extracao.titulo || "";
+      const autorResolvido = autorFonte.trim() || extracao.autor || "";
+
+      setTituloFonte(tituloResolvido);
+      setAutorFonte(autorResolvido);
+      setTextoExterno(extracao.texto);
+      setTipoOrigem("artigo");
+      setFontePreparada({
+        tipo: "link",
+        titulo: tituloResolvido || undefined,
+        autorNome: autorResolvido || undefined,
+        urlOrigem: extracao.urlFinal,
+        conteudoExtraido: extracao.texto,
+        conteudoConfirmado: extracao.texto,
+        metadados: {
+          siteName: extracao.siteName || null,
+          resumo: extracao.resumo || null,
+          totalCaracteres: extracao.totalCaracteres,
+          totalPalavras: extracao.totalPalavras,
+        },
+      });
+    } catch (err: unknown) {
+      const mensagem = err instanceof Error ? err.message : "Falha ao extrair o conteúdo do link.";
+      console.error("Erro ao preparar fonte por link:", err);
+      setErro(mensagem);
+      setFontePreparada(null);
+      setTextoExterno("");
+    } finally {
+      setProcessandoFonte(false);
+    }
+  }
+
   // Avança da Etapa 2 para a 3 disparando a análise e detecção de conflitos no backend
   async function avancarParaMemorias() {
     if (!textoExterno.trim()) {
@@ -187,21 +265,20 @@ export function WizardCriarReflexao() {
       setCarregando(true);
       setErro(null);
 
-      const fonteAtual: FonteReflexaoPreparada =
-        fontePreparada?.tipo === "documento"
-          ? {
-              ...fontePreparada,
-              titulo: tituloFonte.trim() || fontePreparada.titulo,
-              autorNome: autorFonte.trim() || fontePreparada.autorNome,
-              conteudoConfirmado: textoExterno,
-            }
-          : {
-              tipo: "texto",
-              titulo: tituloFonte.trim() || undefined,
-              autorNome: autorFonte.trim() || undefined,
-              conteudoExtraido: textoExterno,
-              conteudoConfirmado: textoExterno,
-            };
+      const fonteAtual: FonteReflexaoPreparada = fontePreparada
+        ? {
+            ...fontePreparada,
+            titulo: tituloFonte.trim() || fontePreparada.titulo,
+            autorNome: autorFonte.trim() || fontePreparada.autorNome,
+            conteudoConfirmado: textoExterno,
+          }
+        : {
+            tipo: "texto",
+            titulo: tituloFonte.trim() || undefined,
+            autorNome: autorFonte.trim() || undefined,
+            conteudoExtraido: textoExterno,
+            conteudoConfirmado: textoExterno,
+          };
 
       const res = await iniciarEsteiraReflexao({
         reflexaoExterna: textoExterno,
