@@ -30,20 +30,20 @@ const INFO_PLANOS: Record<
   conteudo: {
     rotulo: "Plano do Conteúdo",
     descricao: "Sobre o que o autor pensa — universos temáticos, teses centrais e repertório teórico.",
-    corBadge: "bg-blue-500/10 text-blue-300 border-blue-500/30",
-    corBorda: "border-blue-500/30",
+    corBadge: "bg-blue-50 text-blue-700 border-blue-200",
+    corBorda: "border-blue-200",
   },
   metodo: {
     rotulo: "Plano do Método",
     descricao: "Como o autor raciocina — passos de análise, abertura, associação analógica e clímax argumentativo.",
-    corBadge: "bg-amber-500/10 text-amber-300 border-amber-500/30",
-    corBorda: "border-amber-500/30",
+    corBadge: "bg-amber-50 text-amber-700 border-amber-200",
+    corBorda: "border-amber-200",
   },
   expressao: {
     rotulo: "Plano da Expressão",
     descricao: "Como o autor escreve — tom de voz, cadência frasal, vocabulário característico e densidade.",
-    corBadge: "bg-purple-500/10 text-purple-300 border-purple-500/30",
-    corBorda: "border-purple-500/30",
+    corBadge: "bg-violet-50 text-violet-700 border-violet-200",
+    corBorda: "border-violet-200",
   },
 };
 
@@ -93,11 +93,11 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
           onClick={() => setPlanoFiltro("todos")}
           className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
             planoFiltro === "todos"
-              ? "bg-neutral-100 text-neutral-900 shadow-md font-semibold"
-              : "bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-neutral-200"
+              ? "bg-blue-600 text-white shadow-sm font-semibold border border-blue-600"
+              : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900"
           }`}
         >
-          Todas as 18 Dimensões
+          Todas as dimensões
         </button>
 
         {(["conteudo", "metodo", "expressao"] as PlanoCanonico[]).map((plano) => {
@@ -112,7 +112,7 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
               className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all border ${
                 ativo
                   ? `${info.corBadge} font-semibold shadow-md`
-                  : "bg-neutral-900/60 border-neutral-800 text-neutral-400 hover:text-neutral-200"
+                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`}
             >
               {info.rotulo}
@@ -141,10 +141,10 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
           return (
             <div
               key={dimensao.id}
-              className={`bg-neutral-900/70 border rounded-2xl transition-all overflow-hidden ${
+              className={`bg-white border rounded-2xl shadow-sm transition-all overflow-hidden ${
                 estaAberta
-                  ? "border-neutral-700 shadow-xl shadow-black/50"
-                  : "border-neutral-800/80 hover:border-neutral-700/60"
+                  ? "border-blue-200 shadow-md"
+                  : "border-slate-200 hover:border-slate-300"
               }`}
             >
               {/* Header do Item do Acordeão */}
@@ -153,16 +153,16 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
                 onClick={() =>
                   setDimensaoAbertaId(estaAberta ? null : dimensao.id)
                 }
-                className="w-full p-4 flex items-center justify-between text-left gap-4 hover:bg-neutral-800/30 transition-colors"
+                className="w-full p-4 flex items-center justify-between text-left gap-4 hover:bg-slate-50 transition-colors"
               >
                 <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                  <span className="text-xs font-mono px-2 py-1 rounded bg-neutral-950 border border-neutral-800 text-amber-400 font-semibold shrink-0">
+                  <span className="text-xs font-mono px-2 py-1 rounded bg-slate-100 border border-slate-200 text-blue-600 font-semibold shrink-0">
                     {dimensao.codigo}
                   </span>
 
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-serif text-base font-medium text-neutral-100 truncate">
+                      <h3 className="font-serif text-base font-medium text-slate-900 truncate">
                         {dimensao.nome}
                       </h3>
                       <span
@@ -171,7 +171,7 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
                         {dimensao.plano}
                       </span>
                     </div>
-                    <p className="text-xs text-neutral-400 truncate mt-0.5">
+                    <p className="text-xs text-slate-500 truncate mt-0.5">
                       {dimensao.descricao}
                     </p>
                   </div>
@@ -179,10 +179,10 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
 
                 <div className="flex items-center gap-4 shrink-0">
                   <div className="text-right hidden md:block">
-                    <div className="text-xs text-neutral-300 font-mono">
+                    <div className="text-xs text-slate-700 font-mono">
                       {caracsDim.length} carac. • {regrasDim.length} regras
                     </div>
-                    <div className="text-[10px] text-neutral-500">
+                    <div className="text-[10px] text-slate-400">
                       {dimensao.confianca_media > 0
                         ? `${Math.round(dimensao.confianca_media * 100)}% confiança`
                         : "Não analisado"}
@@ -190,8 +190,8 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
                   </div>
 
                   <ChevronDown
-                    className={`w-4 h-4 text-neutral-400 transition-transform duration-200 ${
-                      estaAberta ? "rotate-180 text-amber-400" : ""
+                    className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${
+                      estaAberta ? "rotate-180 text-blue-600" : ""
                     }`}
                   />
                 </div>
@@ -199,14 +199,14 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
 
               {/* Conteúdo Expandido da Dimensão */}
               {estaAberta && (
-                <div className="p-5 border-t border-neutral-800/80 bg-neutral-950/40 space-y-5">
+                <div className="p-5 border-t border-slate-100 bg-slate-50/60 space-y-5">
                   {/* Faixa de Descrição & Ação do Motor IA */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-neutral-900/60 border border-neutral-800">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-white border border-slate-200">
                     <div>
-                      <span className="text-[10px] uppercase font-mono text-neutral-500 block mb-1">
-                        Definição Epistemológica da Dimensão
+                      <span className="text-[10px] uppercase font-mono text-slate-400 block mb-1">
+                        Sobre esta dimensão
                       </span>
-                      <p className="text-xs text-neutral-300 leading-relaxed max-w-2xl">
+                      <p className="text-xs text-slate-700 leading-relaxed max-w-2xl">
                         {dimensao.descricao}
                       </p>
                     </div>
@@ -215,17 +215,17 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
                       type="button"
                       disabled={estaAnalisando}
                       onClick={() => handleMapearIA(dimensao.id)}
-                      className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:opacity-50 text-neutral-950 font-medium rounded-xl text-xs shadow-md transition-all whitespace-nowrap shrink-0"
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 disabled:opacity-50 text-white font-medium rounded-xl text-xs shadow-md transition-all whitespace-nowrap shrink-0"
                     >
                       {estaAnalisando ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Analisando com gpt-4o...</span>
+                          <span>Analisando...</span>
                         </>
                       ) : (
                         <>
                           <Sparkles className="w-3.5 h-3.5" />
-                          <span>Mapear Dimensão com IA</span>
+                          <span>Analisar dimensão</span>
                         </>
                       )}
                     </button>
@@ -237,8 +237,8 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
                       <div
                         className={`p-3 rounded-xl text-xs flex items-center gap-2.5 ${
                           mensagemStatus.tipo === "sucesso"
-                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-300"
-                            : "bg-rose-500/10 border border-rose-500/30 text-rose-300"
+                            ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                            : "bg-rose-50 border border-rose-200 text-rose-700"
                         }`}
                       >
                         {mensagemStatus.tipo === "sucesso" ? (
@@ -253,19 +253,19 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
                   {/* Listagem de Características */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-semibold text-neutral-300 uppercase font-mono tracking-wider">
-                        Características Mapeadas ({caracsDim.length})
+                      <h4 className="text-xs font-semibold text-slate-700 uppercase font-mono tracking-wider">
+                        Características mapeadas ({caracsDim.length})
                       </h4>
                     </div>
 
                     {caracsDim.length === 0 ? (
-                      <div className="text-center py-8 px-4 border border-dashed border-neutral-800 rounded-xl">
-                        <Cpu className="w-8 h-8 text-neutral-600 mx-auto mb-2" />
-                        <p className="text-xs text-neutral-400">
+                      <div className="text-center py-8 px-4 border border-dashed border-slate-300 bg-white rounded-xl">
+                        <Cpu className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                        <p className="text-xs text-slate-500">
                           Nenhuma característica mapeada ainda para esta dimensão.
                         </p>
-                        <p className="text-[11px] text-neutral-500 mt-1">
-                          Clique no botão “Mapear Dimensão com IA” acima para extrair o padrão autoral a partir dos fragmentos.
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          Clique no botão “Analisar dimensão” acima para extrair o padrão autoral a partir dos fragmentos.
                         </p>
                       </div>
                     ) : (
@@ -278,18 +278,18 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
                           return (
                             <div
                               key={carac.id}
-                              className="p-4 rounded-xl bg-neutral-900/90 border border-neutral-800 space-y-3"
+                              className="p-4 rounded-xl bg-white border border-slate-200 space-y-3"
                             >
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
-                                  <h5 className="font-serif text-sm font-medium text-neutral-100">
+                                  <h5 className="font-serif text-sm font-medium text-slate-900">
                                     {carac.titulo}
                                   </h5>
                                   <span
                                     className={`text-[10px] px-2 py-0.5 rounded-full font-mono border ${
                                       carac.origem === "nucleo_autoral"
-                                        ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
-                                        : "bg-blue-500/10 text-blue-300 border-blue-500/30"
+                                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                                        : "bg-blue-50 text-blue-700 border-blue-200"
                                     }`}
                                   >
                                     {carac.origem === "nucleo_autoral"
@@ -298,32 +298,32 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
                                   </span>
                                 </div>
 
-                                <div className="text-xs font-mono text-neutral-400 flex items-center gap-2">
+                                <div className="text-xs font-mono text-slate-500 flex items-center gap-2">
                                   <span>
                                     Confiança:{" "}
-                                    <strong className="text-neutral-200">
+                                    <strong className="text-slate-800">
                                       {Math.round(carac.confianca_calculada * 100)}%
                                     </strong>
                                   </span>
                                   {carac.total_evidencias > 0 && (
-                                    <span className="text-[11px] text-neutral-500">
+                                    <span className="text-[11px] text-slate-400">
                                       ({carac.total_evidencias} evidências)
                                     </span>
                                   )}
                                 </div>
                               </div>
 
-                              <p className="text-xs text-neutral-300 leading-relaxed">
+                              <p className="text-xs text-slate-700 leading-relaxed">
                                 {carac.descricao}
                               </p>
 
                               {/* Fórmula Metodológica */}
                               {carac.formula_metodologica && (
-                                <div className="p-2.5 rounded-lg bg-neutral-950 border border-amber-500/20 text-xs">
-                                  <span className="text-[10px] font-mono text-amber-400 font-semibold block uppercase tracking-wider mb-1">
+                                <div className="p-2.5 rounded-lg bg-blue-50/60 border border-blue-100 text-xs">
+                                  <span className="text-[10px] font-mono text-blue-600 font-semibold block uppercase tracking-wider mb-1">
                                     Fórmula de Pensamento:
                                   </span>
-                                  <p className="text-neutral-200 italic font-serif">
+                                  <p className="text-slate-800 italic font-serif">
                                     “{carac.formula_metodologica}”
                                   </p>
                                 </div>
@@ -331,20 +331,20 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
 
                               {/* Regras Vinculadas à Característica */}
                               {regrasDaCarac.length > 0 && (
-                                <div className="pt-2 border-t border-neutral-800/80 space-y-1.5">
-                                  <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500 block">
-                                    Regras & Vetos Derivados:
+                                <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                                  <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 block">
+                                    Regras associadas:
                                   </span>
                                   <div className="space-y-1">
                                     {regrasDaCarac.map((r) => (
                                       <div
                                         key={r.id}
-                                        className="text-xs flex items-start gap-2 text-neutral-300"
+                                        className="text-xs flex items-start gap-2 text-slate-700"
                                       >
                                         {r.tipo_regra === "proscritiva" ? (
-                                          <Ban className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                                          <Ban className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
                                         ) : (
-                                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
                                         )}
                                         <span className="leading-snug">
                                           {r.enunciado}
