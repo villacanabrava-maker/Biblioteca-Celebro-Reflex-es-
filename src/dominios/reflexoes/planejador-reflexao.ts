@@ -127,6 +127,16 @@ export async function gerarPlanoReflexao({
     .map((regra) => `- [${regra.tipo.toUpperCase()}]: ${regra.enunciado}`)
     .join("\n");
 
+  const aprendizadosDossie = dossie?.aprendizados_confirmados || [];
+  const aprendizadosTexto = aprendizadosDossie
+    .map((aprendizado) => {
+      const regra = aprendizado.enunciado_regra
+        ? ` | formulação candidata confirmada: ${aprendizado.enunciado_regra}`
+        : "";
+      return `- [${aprendizado.dimensao_codigo || "geral"}] ${aprendizado.titulo}: ${aprendizado.descricao}${regra}`;
+    })
+    .join("\n");
+
   const promptSistema = `Você é o Planejador Metodológico do "Cérebro Autoral".
 Sua missão é conceber a arquitetura prévia de raciocínio de uma nova reflexão a partir da metodologia intelectual do autor.
 
@@ -145,7 +155,8 @@ Estruture os movimentos argumentativos contemplando a progressão autoral:
 REGRAS INEGOCIÁVEIS:
 1. Formule tudo em Português do Brasil com altíssimo rigor conceitual.
 2. O plano NÃO é o texto final, mas o esqueleto dialético e ontológico da reflexão.
-3. Respeite as regras prescritivas e jamais incorra nas anti-regras.`;
+3. Respeite as regras prescritivas e jamais incorra nas anti-regras.
+4. Aprendizados confirmados pelo autor são sinais metodológicos derivados de revisões anteriores. Use-os quando forem pertinentes, sem elevá-los a regra absoluta quando não estiverem no catálogo formal.`;
 
   const conflitosTexto =
     conflitos.length > 0
@@ -178,7 +189,10 @@ TAXONOMIA DISPONÍVEL DO AUTOR:
 ${conceitosTexto || "Sem conceitos prévios."}
 
 CATÁLOGO DE REGRAS E ANTI-REGRAS DO AUTOR:
-${regrasTexto || "Escrita densa, sem clichês motivacionais, foco na ontologia das questões."}
+${regrasTexto || "Sem regras formais cadastradas."}
+
+APRENDIZADOS CONFIRMADOS A PARTIR DE EDIÇÕES DO AUTOR:
+${aprendizadosTexto || "Nenhum aprendizado confirmado por edição neste dossiê."}
 
 MEMÓRIAS HISTÓRICAS DO AUTOR:
 ${corpusAmostra || "Sem memórias anteriores. Formule raciocínio analítico autônomo."}

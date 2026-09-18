@@ -64,6 +64,64 @@ export interface RegraCerebro {
   caracteristica_titulo?: string;
 }
 
+export type TipoPropostaAtualizacaoCerebro =
+  | "nova_caracteristica"
+  | "atualizacao_regra"
+  | "nova_metodologia"
+  | "depreciacao";
+
+export type EstadoDecisaoProposta =
+  | "pendente"
+  | "confirmada"
+  | "editada"
+  | "rejeitada";
+
+export interface EvidenciaEdicaoAutoral {
+  indice: number;
+  tipo: "adicao" | "remocao" | "substituicao";
+  antes: string;
+  depois: string;
+  palavras_removidas: number;
+  palavras_adicionadas: number;
+}
+
+export interface DadosPropostaAtualizacao {
+  origem?: {
+    tipo?: string;
+    entrada_id?: string;
+    versao_base_id?: string;
+    versao_editada_id?: string;
+  };
+  dimensao?: {
+    id?: string;
+    codigo?: string;
+    nome?: string;
+  };
+  aprendizado?: {
+    titulo?: string;
+    descricao?: string;
+    enunciado_regra?: string | null;
+    tipo_regra?: TipoRegra | null;
+  };
+  alteracoes_referencia?: number[];
+  evidencias_edicao?: EvidenciaEdicaoAutoral[];
+  [chave: string]: unknown;
+}
+
+export interface PropostaAtualizacaoCerebro {
+  id: string;
+  usuario_id: string;
+  versao_cerebro_id?: string | null;
+  tipo_proposta: TipoPropostaAtualizacaoCerebro;
+  estado_decisao: EstadoDecisaoProposta;
+  dados_propostos: DadosPropostaAtualizacao;
+  justificativa_ia: string;
+  confianca_calculada: number;
+  decidido_em?: string | null;
+  notas_autor?: string | null;
+  criado_em: string;
+}
+
 export interface ResumoCerebro {
   usuario_id: string;
   total_caracteristicas: number;

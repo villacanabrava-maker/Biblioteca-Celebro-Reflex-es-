@@ -4,6 +4,7 @@ import {
   obterCaracteristicasDimensao,
   obterRegrasCerebro,
   obterResumoCerebro,
+  obterPropostasAtualizacaoCerebro,
 } from "@/acoes/cerebro";
 import { PainelCerebroModerno } from "@/componentes/cerebro/painel-cerebro-moderno";
 
@@ -16,11 +17,12 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function PaginaCerebro() {
-  const [resumo, dimensoes, caracteristicas, regras] = await Promise.all([
+  const [resumo, dimensoes, caracteristicas, regras, propostas] = await Promise.all([
     obterResumoCerebro(),
     obterDimensoesCerebro(),
     obterCaracteristicasDimensao(),
     obterRegrasCerebro(),
+    obterPropostasAtualizacaoCerebro(),
   ]);
 
   return (
@@ -29,6 +31,7 @@ export default async function PaginaCerebro() {
       dimensoes={dimensoes}
       caracteristicas={caracteristicas}
       regras={regras}
+      propostas={propostas}
     />
   );
 }

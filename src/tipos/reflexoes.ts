@@ -108,10 +108,20 @@ export interface DossieItemConceito {
   dominio: string;
 }
 
+export interface DossieAprendizadoConfirmado {
+  proposta_id: string;
+  tipo_proposta: "nova_caracteristica" | "atualizacao_regra" | "nova_metodologia" | "depreciacao";
+  dimensao_codigo?: string;
+  titulo: string;
+  descricao: string;
+  enunciado_regra?: string | null;
+}
+
 export interface DossieContextual {
   fragmentos_selecionados: DossieItemFragmento[];
   conceitos_chave: DossieItemConceito[];
   regras_sugeridas: { tipo: string; enunciado: string }[];
+  aprendizados_confirmados?: DossieAprendizadoConfirmado[];
   conflitos_detectados?: ConflitoDetectado[];
 }
 
