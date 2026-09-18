@@ -10,7 +10,7 @@ A fonte de verdade operacional é o estado real do repositório, Supabase e prod
 
 ## Estado reconciliado
 
-Base atual de produção: `85b331c9f80194c508cbb8a33936bd29482f7a9a`.
+A produção canônica acompanha `main`; cada frente só é considerada concluída quando GitHub Actions e Vercel confirmam o mesmo código com gates verdes. O plano não fixa mais um SHA antigo como “base atual”, pois isso ficava obsoleto no merge seguinte.
 
 A implementação `89bdf1f3fc859d3039daa060b808e09a3a38867d` consolidou integridade/proveniência de fontes, curadoria em massa de memórias, ordem Auditor → Texto, edição autoral com preservação da versão da IA e remoção de fallbacks reais de configuração do Supabase. A migration `0024_versionamento_edicao_autoral_reflexoes` já está aplicada no Supabase.
 
@@ -24,8 +24,8 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 | Home / slogan | Concluído | Mantém saudação e usa “Transforme memórias em reflexões.” |
 | Biblioteca / áudio | Concluído | Gravação, transcrição revisável e fonte original preservada. |
 | Tags inteligentes | Concluído em produção | Biblioteca recebe apenas conceitos confirmados da Taxonomia como sugestões, preserva IDs/códigos no metadado, mantém tags livres opcionais e permite busca pelas tags. |
-| Card da Biblioteca | Concluído | Superfície principal clicável; ações internas preservadas. |
-| Modal/fragmentos | Concluído parcialmente | Fluxo funcional; manter revisão visual no QA geral. |
+| Card da Biblioteca | Em validação nesta branch | Mantém a superfície inteira clicável com link HTML nativo, elimina o `div role="link"` com interações aninhadas, preserva ações internas e melhora reflow/alvos de toque. |
+| Modal/fragmentos | Concluído parcialmente | Modais principais já receberam semântica ARIA, foco/teclado, retorno de foco e reflow; a revisão visual específica de fragmentos permanece no QA geral. |
 | Download | Concluído | Nome de download passou a respeitar a obra/arquivo. |
 | Sínteses cognitivas | Concluído em produção | Pipeline gera sínteses hierárquicas por seção e documento, com proveniência física, tese central somente quando sustentada e leitura isolada por documento. |
 | Data de entrada | Concluído em produção | Dossiê de Auditoria usa a data real de criação da obra na Biblioteca, não a data técnica de publicação do processamento. |
@@ -70,12 +70,23 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 - O cadastro do Rflex01 passa a impor validação também no servidor, com e-mail válido, nome não vazio e senha mínima de 8 caracteres.
 - Usuários existentes não têm o login afetado pela nova regra de cadastro.
 
+## QA transversal já executado
+
+- cadastro endurecido no servidor sem quebrar login existente;
+- middleware sem bypass amplo de rotas públicas;
+- testes automatizados de sessão e proteção de rotas;
+- diálogos principais com padrão modal acessível;
+- labels/campos principais associados programaticamente;
+- navegação com página atual e foco visível;
+- reflow dos modais em telas pequenas.
+
 ## Ordem de execução a partir daqui
 
-1. Endurecer cadastro/autenticação dentro das capacidades do Supabase Free.
-2. QA transversal: E2E autenticado, acessibilidade, responsividade e regressão visual.
-3. Performance e observabilidade baseadas em medições reais.
-4. Proteção formal da branch `main`.
+1. concluir semântica/responsividade do card da Biblioteca;
+2. revisar responsividade e regressão visual das páginas/cards restantes;
+3. preparar E2E autenticado sem credenciais no código;
+4. medir performance e observabilidade antes de alterações estruturais;
+5. proteção formal da branch `main` quando houver acesso administrativo compatível.
 
 ## Guardrails
 
