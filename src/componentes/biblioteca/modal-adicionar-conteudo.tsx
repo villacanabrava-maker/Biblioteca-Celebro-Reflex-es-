@@ -142,6 +142,41 @@ export function ModalAdicionarConteudo({
     },
   ];
 
+  async function descartarAudioTemporario() {
+    const caminho = fonteAudio?.storageCaminho;
+    if (caminho) {
+      await removerArquivosTemporariosBiblioteca([caminho]);
+    }
+    setFonteAudio(null);
+    setProgressoAudio(0);
+  }
+
+  function selecionarModo(novoModo: ModoEntrada) {
+    if (novoModo === modo) return;
+
+    if (modo === "audio") {
+      void descartarAudioTemporario();
+      setConteudoTexto("");
+    }
+
+    if (novoModo !== "arquivo") {
+      setArquivo(null);
+    }
+
+    setErro(null);
+    setModo(novoModo);
+  }
+
+  async function fecharModalComLimpeza() {
+    if (etapa !== "formulario" || processandoAudio) return;
+
+    if (fonteAudio?.storageCaminho) {
+      await removerArquivosTemporariosBiblioteca([fonteAudio.storageCaminho]);
+    }
+
+    aoFechar();
+  }
+
   function inferirMetadadosDoArquivo(file: File) {
     setArquivo(file);
     const nomeBase = file.name.replace(/\.[^/.]+$/, "");
@@ -457,7 +492,7 @@ export function ModalAdicionarConteudo({
           </div>
           <button
             type="button"
-            onClick={aoFechar}
+            onClick={() => void fecharModalComLimpeza()}
             disabled={emProcesso}
             aria-label="Fechar modal"
             className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40"
@@ -479,7 +514,7 @@ export function ModalAdicionarConteudo({
                 <button
                   key={op.id}
                   type="button"
-                  onClick={() => setModo(op.id)}
+                  onClick={() => selecionarModo(op.id)}
                   disabled={emProcesso}
                   className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all ${
                     selecionado
