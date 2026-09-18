@@ -24,7 +24,7 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 | Home / slogan | Concluído | Mantém saudação e usa “Transforme memórias em reflexões.” |
 | Biblioteca / áudio | Concluído | Gravação, transcrição revisável e fonte original preservada. |
 | Tags inteligentes | Concluído em produção | Biblioteca recebe apenas conceitos confirmados da Taxonomia como sugestões, preserva IDs/códigos no metadado, mantém tags livres opcionais e permite busca pelas tags. |
-| Card da Biblioteca | Em validação nesta branch | Mantém a superfície inteira clicável com link HTML nativo, elimina o `div role="link"` com interações aninhadas, preserva ações internas e melhora reflow/alvos de toque. |
+| Card da Biblioteca | Concluído | Mantém a superfície inteira clicável com link HTML nativo, elimina o `div role="link"` com interações aninhadas, preserva ações internas e melhora reflow/alvos de toque. |
 | Modal/fragmentos | Concluído parcialmente | Modais principais já receberam semântica ARIA, foco/teclado, retorno de foco e reflow; a revisão visual específica de fragmentos permanece no QA geral. |
 | Download | Concluído | Nome de download passou a respeitar a obra/arquivo. |
 | Sínteses cognitivas | Concluído em produção | Pipeline gera sínteses hierárquicas por seção e documento, com proveniência física, tese central somente quando sustentada e leitura isolada por documento. |
@@ -82,11 +82,10 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 
 ## Ordem de execução a partir daqui
 
-1. concluir semântica/responsividade do card da Biblioteca;
-2. revisar responsividade e regressão visual das páginas/cards restantes;
-3. preparar E2E autenticado sem credenciais no código;
-4. medir performance e observabilidade antes de alterações estruturais;
-5. proteção formal da branch `main` quando houver acesso administrativo compatível.
+1. revisar responsividade e regressão visual das páginas/cards restantes;
+2. preparar E2E autenticado sem credenciais no código;
+3. medir performance e observabilidade antes de alterações estruturais;
+4. proteção formal da branch `main` quando houver acesso administrativo compatível.
 
 ## Guardrails
 
