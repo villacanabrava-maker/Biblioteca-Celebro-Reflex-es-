@@ -159,7 +159,7 @@ export function WizardCriarReflexao() {
       setCarregando(true);
       setErro(null);
 
-      const res = await acionarRedacaoReflexao({
+      await acionarRedacaoReflexao({
         entradaId,
         planoId,
       });
