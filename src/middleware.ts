@@ -1,6 +1,22 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const ROTAS_PUBLICAS_EXATAS = new Set([
+  "/login",
+  "/auth",
+  "/favicon.ico",
+  "/robots.txt",
+  "/sitemap.xml",
+]);
+
+export function ehRotaPublica(pathname: string) {
+  return (
+    ROTAS_PUBLICAS_EXATAS.has(pathname) ||
+    pathname.startsWith("/auth/") ||
+    pathname.startsWith("/_next/")
+  );
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -58,14 +74,10 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const ehRotaPublica =
-    request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/auth") ||
-    request.nextUrl.pathname.startsWith("/_next") ||
-    request.nextUrl.pathname.includes(".");
+  const rotaPublica = ehRotaPublica(request.nextUrl.pathname);
 
   // Se o usuário não está autenticado e tenta acessar rota protegida, redireciona para /login
-  if (!user && !ehRotaPublica) {
+  if (!user && !rotaPublica) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
