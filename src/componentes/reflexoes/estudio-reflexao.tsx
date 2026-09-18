@@ -189,7 +189,7 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
                 Reflexão / Estímulo Externo:
               </span>
               <p className="text-slate-800 leading-relaxed font-serif text-sm">
-                "{entrada.reflexao_externa || entrada.provocacao_inicial}"
+                “{entrada.reflexao_externa || entrada.provocacao_inicial}”
               </p>
               {entrada.tipo_origem_externa && (
                 <span className="inline-block text-[10px] text-slate-400">
@@ -203,7 +203,7 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
                 Comentário Atual do Autor:
               </span>
               <p className="text-slate-800 leading-relaxed font-serif text-sm">
-                "{entrada.comentario_autor || "Nenhum comentário pessoal adicional registrado."}"
+                “{entrada.comentario_autor || "Nenhum comentário pessoal adicional registrado."}”
               </p>
             </div>
           </div>
@@ -252,7 +252,7 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
                       {m.obra_titulo}
                     </span>
                     <p className="text-slate-600 font-serif line-clamp-3 text-[11px] leading-relaxed">
-                      "{m.conteudo}"
+                      “{m.conteudo}”
                     </p>
                   </div>
                 ))}
