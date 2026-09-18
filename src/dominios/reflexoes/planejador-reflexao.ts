@@ -69,9 +69,11 @@ export async function gerarPlanoReflexao({
 
   const textoExterno = reflexaoExterna || entradaDb?.reflexao_externa || provocacaoInicial;
   const textoComentario = comentarioAutor || entradaDb?.comentario_autor || "";
-  const conflitos = (
-    (entradaDb?.conflitos_detectados as ConflitoDetectado[] | null) || []
-  ).filter((conflito) => conflito.considerado_no_plano !== false);
+  const conflitosRegistrados =
+    (entradaDb?.conflitos_detectados as ConflitoDetectado[] | null) || [];
+  const conflitos = conflitosRegistrados.filter(
+    (conflito) => conflito.considerado_no_plano !== false
+  );
 
   const dossie = (entradaDb?.dossie_contexto as DossieContextual | null) || null;
 
@@ -145,9 +147,17 @@ REGRAS INEGOCIÁVEIS:
 2. O plano NÃO é o texto final, mas o esqueleto dialético e ontológico da reflexão.
 3. Respeite as regras prescritivas e jamais incorra nas anti-regras.`;
 
-  const conflitosTexto = conflitos.length > 0
-    ? conflitos.map((c: any) => `- [${c.tipo}] ${c.descricao} (Atrito: "${c.posicao_externa}" vs "${c.posicao_autoral}")`).join("\n")
-    : "Nenhum conflito explícito registrado. Explorar dialética interna.";
+  const conflitosTexto =
+    conflitos.length > 0
+      ? conflitos
+          .map(
+            (conflito) =>
+              `- [${conflito.tipo}] ${conflito.descricao} (Atrito: "${conflito.posicao_externa}" vs "${conflito.posicao_autoral}")`
+          )
+          .join("\n")
+      : conflitosRegistrados.length > 0
+      ? "O autor optou por não mobilizar os conflitos mapeados neste plano. Não os use como condicionantes e não invente tensões substitutas."
+      : "Nenhum conflito explícito foi detectado. Não invente um conflito apenas para preencher esta seção.";
 
   const promptUsuario = `PLANEJE A ARQUITETURA COGNITIVA DA REFLEXÃO:
 - Título Proposto: "${titulo}"
