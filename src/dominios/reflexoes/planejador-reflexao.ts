@@ -8,7 +8,7 @@
 import { z } from "zod";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { executarChamadaEstruturada, protegerEntradaDeDados, PAPEIS_IA } from "@/ia/orquestrador";
-import type { FormatoReflexao, MovimentoArgumentativo, ContraArgumentoAntecipado } from "@/tipos/reflexoes";
+import type { FormatoReflexao } from "@/tipos/reflexoes";
 
 const EsquemaPlanoZod = z.object({
   tese_central: z.string().describe("Tese autoral profunda, assertiva e provocativa que o autor defenderá"),
