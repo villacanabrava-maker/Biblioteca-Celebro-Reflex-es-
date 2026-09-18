@@ -1,6 +1,4 @@
 import zlib from "zlib";
-import { CanvasFactory } from "pdf-parse/worker";
-import { PDFParse } from "pdf-parse";
 
 export interface ResultadoExtracaoTexto {
   textoCompleto: string;
@@ -126,6 +124,12 @@ export async function extrairTextoDeBuffer(
   const ehDocx = nome.endsWith(".docx") || mime.includes("wordprocessingml") || (ehZipReal && !ehPdfReal);
 
   if (ehPdfReal) {
+    // Importação tardia: rotas como Home/Biblioteca não devem carregar
+    // o runtime nativo do PDF quando nenhum PDF está sendo processado.
+    const [{ PDFParse }, { CanvasFactory }] = await Promise.all([
+      import("pdf-parse"),
+      import("pdf-parse/worker"),
+    ]);
     const parser = new PDFParse({ data: buffer, CanvasFactory });
 
     try {
