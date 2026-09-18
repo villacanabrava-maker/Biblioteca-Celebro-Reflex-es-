@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { criarClienteServidor } from "@/infraestrutura/supabase/cliente-servidor";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
+import { validarDadosCadastroConta } from "@/dominios/auth/validacao-cadastro";
 
 /**
  * Autentica o usuário com e-mail e senha e estabelece a sessão persistente nos cookies.
@@ -82,16 +83,24 @@ export async function cadastrarConta(dados: {
   senha: string;
 }) {
   try {
+    const validacao = validarDadosCadastroConta(dados);
+    if (!validacao.sucesso) {
+      return { sucesso: false, erro: validacao.erro };
+    }
+
     const admin = criarClienteAdmin();
     const supabase = await criarClienteServidor();
 
-    const emailLimpo = dados.email.trim().toLowerCase();
-    const nomeLimpo = dados.nome.trim() || "Autor";
+    const {
+      email: emailLimpo,
+      nome: nomeLimpo,
+      senha: senhaValidada,
+    } = validacao.dados;
 
     // 1. Criar o usuário via Admin API com e-mail já confirmado
     const { data: userData, error: createError } = await admin.auth.admin.createUser({
       email: emailLimpo,
-      password: dados.senha,
+      password: senhaValidada,
       email_confirm: true,
       user_metadata: {
         nome_completo: nomeLimpo,
@@ -137,7 +146,7 @@ export async function cadastrarConta(dados: {
     // 3. Efetuar login e gravar cookies de sessão para o cliente
     const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
       email: emailLimpo,
-      password: dados.senha,
+      password: senhaValidada,
     });
 
     if (loginError) {

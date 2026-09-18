@@ -173,8 +173,10 @@ Dados reais observados:
    - não criar policies amplas apenas para eliminar o lint.
 
 2. **Supabase Auth**
-   - Leaked Password Protection continua desabilitado;
-   - requer alteração de configuração do Auth; o conector atual não expõe ação para essa configuração.
+   - o advisor continua sinalizando Leaked Password Protection desabilitado;
+   - a documentação atual do Supabase informa que esse recurso exige plano Pro ou superior;
+   - mantendo a decisão do projeto de usar Supabase Free, o alerta é uma limitação conhecida e não um gate executável;
+   - o aplicativo compensa parcialmente com validação de cadastro no servidor e mínimo canônico de 8 caracteres.
 
 3. **Performance**
    - advisor ainda aponta FKs sem índice e índices ainda não utilizados;
