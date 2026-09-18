@@ -31,6 +31,9 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      - name: Diagnóstico npm audit
+        run: npm audit --json || true
+
       - name: Checar tipos TypeScript
         run: npx tsc --noEmit
 
