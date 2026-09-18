@@ -30,6 +30,8 @@ export type EstadoConceitoTaxonomico =
 
 export type OrigemConceitoTaxonomico = "curadoria" | "ia" | "importacao";
 
+export type EstadoRelacaoTaxonomica = "ativo" | "revisao" | "rejeitado";
+
 export type TipoRelacaoOntologica =
   | "mais_amplo"
   | "mais_especifico"
@@ -66,6 +68,8 @@ export interface ArestaGrafoTaxonomia {
   usuario_id: string;
   tipo_relacao: TipoRelacaoOntologica;
   confianca: number;
+  origem: "curadoria" | "ia" | "importacao";
+  estado: EstadoRelacaoTaxonomica;
   origem_id: string;
   origem_termo: string;
   origem_dominio: DominioTaxonomico;
