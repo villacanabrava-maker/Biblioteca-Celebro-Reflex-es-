@@ -284,11 +284,6 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
               <p className="mt-0.5 text-rose-700">{erro}</p>
             </div>
 
-            {resultado.avisoTaxonomia && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800">
-                {resultado.avisoTaxonomia} O documento permanece processado; a Taxonomia pode ser reanalisada na tela do documento.
-              </div>
-            )}
           </div>
         )}
 
@@ -333,6 +328,12 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
                 <span className="text-base font-extrabold text-slate-800 font-mono">${resultado.custoEstimadoUsd.toFixed(5)}</span>
               </div>
             </div>
+
+            {resultado.avisoTaxonomia && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800">
+                {resultado.avisoTaxonomia} O documento permanece processado; a Taxonomia pode ser reanalisada na tela do documento.
+              </div>
+            )}
           </div>
         )}
 
