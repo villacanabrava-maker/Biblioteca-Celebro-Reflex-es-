@@ -8,19 +8,25 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const supabaseUrl =
+  const supabaseUrl = (
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.SUPABASE_URL ||
-    "https://cqavdefyelarhyjqmahi.supabase.co";
+    ""
+  ).trim();
 
-  const supabaseAnonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    (process.env as any)["PRÓXIMA_CHAVE_ANÔNIMA_SUPABASE_PÚBLICA"] ||
-    (process.env as any)["PROXIMA_CHAVE_ANONIMA_SUPABASE_PUBLICA"] ||
-    process.env.SUPABASE_ANON_KEY ||
+  const supabaseAnonKey = (
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.SUPABASE_PUBLISHABLE_KEY ||
-    "sb_publishable_eLnVnSrdoECL5j2D2QG5sw_7mgYdYbO";
+    process.env.SUPABASE_ANON_KEY ||
+    ""
+  ).trim();
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      "Configuração pública do Supabase ausente no middleware."
+    );
+  }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
