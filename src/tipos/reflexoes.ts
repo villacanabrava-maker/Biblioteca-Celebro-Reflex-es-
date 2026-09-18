@@ -165,6 +165,29 @@ export interface PlanoReflexao {
   criado_em: string;
 }
 
+export type TipoAlteracaoEdicaoAutor = "adicao" | "remocao" | "substituicao";
+
+export interface AlteracaoEdicaoAutor {
+  tipo: TipoAlteracaoEdicaoAutor;
+  antes: string;
+  depois: string;
+  palavras_removidas: number;
+  palavras_adicionadas: number;
+}
+
+export interface DiffEdicaoAutor {
+  versao_base_id: string;
+  versao_editada_id: string;
+  estrategia: "palavra" | "bloco";
+  alteracoes: AlteracaoEdicaoAutor[];
+  total_palavras_base: number;
+  total_palavras_editada: number;
+  palavras_removidas: number;
+  palavras_adicionadas: number;
+  blocos_alterados: number;
+  percentual_alteracao: number;
+}
+
 export interface VersaoReflexao {
   id: string;
   entrada_id: string;
@@ -177,6 +200,7 @@ export interface VersaoReflexao {
   total_palavras: number;
   origem_versao?: "ia" | "edicao_autor";
   versao_base_id?: string | null;
+  diff_edicao?: DiffEdicaoAutor | null;
   estado: EstadoVersaoReflexao;
   criado_em: string;
   atualizado_em: string;
