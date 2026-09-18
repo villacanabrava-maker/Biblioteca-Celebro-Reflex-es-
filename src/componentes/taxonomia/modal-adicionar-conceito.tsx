@@ -73,7 +73,7 @@ export function ModalAdicionarConceito({ aberto, aoFechar, aoSucesso }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
       <div
         ref={dialogRef}
         role="dialog"
