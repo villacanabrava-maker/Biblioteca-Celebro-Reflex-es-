@@ -137,7 +137,9 @@ export async function extrairTextoDeBuffer(
       textoBruto = dadosTexto.text;
       totalPaginas = dadosInfo.total || 1;
       metadados = {
-        info: dadosInfo.infoData || {},
+        formato: "pdf",
+        totalPaginas: dadosInfo.total || 1,
+        tamanhoBytes: buffer.length,
       };
     } catch (err: any) {
       console.warn("Falha ao analisar PDF binário:", err.message);
