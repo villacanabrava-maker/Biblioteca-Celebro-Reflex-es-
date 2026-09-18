@@ -353,20 +353,24 @@ export async function obterExtracaoCompletaDocumento(
           const { data: nomesConceitos } = await admin
             .schema("taxonomia")
             .from("conceitos")
-            .select("id, nome")
+            .select("id, termo_preferencial")
+            .eq("usuario_id", usuarioId)
+            .eq("estado", "ativo")
             .in("id", conceitosIds);
 
           const mapaNomes: Record<string, string> = {};
-          (nomesConceitos || []).forEach((nc: any) => {
-            mapaNomes[nc.id] = nc.nome;
+          (nomesConceitos || []).forEach((conceito: any) => {
+            mapaNomes[conceito.id] = conceito.termo_preferencial;
           });
 
-          conceitosVinculados = conceitosData.map((c: any) => ({
-            conceito_id: c.conceito_id,
-            conceito_nome: mapaNomes[c.conceito_id] || "Conceito Ontológico",
-            relevancia: Number(c.relevancia) || 0.85,
-            fragmento_id: c.fragmento_id,
-          }));
+          conceitosVinculados = conceitosData
+            .filter((vinculo: any) => Boolean(mapaNomes[vinculo.conceito_id]))
+            .map((vinculo: any) => ({
+              conceito_id: vinculo.conceito_id,
+              conceito_nome: mapaNomes[vinculo.conceito_id],
+              relevancia: Number(vinculo.relevancia) || 0.85,
+              fragmento_id: vinculo.fragmento_id,
+            }));
         }
       } catch (errConceitos) {
         console.warn("Aviso ao carregar conceitos:", errConceitos);
