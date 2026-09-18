@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Cpu, CheckCircle2, AlertCircle, Loader2, Layers, Zap, BookOpen, Brain, FileText, ArrowRight } from "lucide-react";
+import { X, Cpu, CheckCircle2, AlertCircle, Loader2, Layers, Zap, BookOpen, Brain, FileText, ArrowRight, Sparkles } from "lucide-react";
 import { iniciarProcessamentoObra } from "@/acoes/processamento";
 import type { ObraDetalhada } from "@/tipos/biblioteca";
 
