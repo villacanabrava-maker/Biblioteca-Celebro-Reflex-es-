@@ -63,7 +63,7 @@ export function CardObra({
       setBaixando(true);
       const url = await obterUrlDownloadOriginal(obra.arquivo_caminho);
       window.open(url, "_blank");
-    } catch (err) {
+    } catch {
       alert("Erro ao gerar link de download do arquivo.");
     } finally {
       setBaixando(false);
