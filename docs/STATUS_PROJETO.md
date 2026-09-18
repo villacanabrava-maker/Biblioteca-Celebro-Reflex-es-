@@ -205,13 +205,11 @@ Já fechados nesta fase:
 - guardrails contra segredos/configuração real no código;
 - endurecimento do cadastro;
 - proteção de rotas do middleware;
-- primeira passada de acessibilidade, teclado e reflow dos modais principais.
-
-Frente em validação:
-- semântica e responsividade do card da Biblioteca, preservando “card inteiro clicável” sem controles interativos aninhados.
+- primeira passada de acessibilidade, teclado e reflow dos modais principais;
+- semântica e responsividade do card da Biblioteca: superfície inteira clicável com link HTML nativo, ações internas independentes e alvos/reflow revisados.
 
 Próxima sequência:
-1. concluir responsividade e regressão visual dos principais cards/páginas;
+1. concluir responsividade e regressão visual dos demais cards/páginas;
 2. preparar E2E autenticado sem armazenar credenciais no repositório;
 3. medir performance antes de alterar índices;
 4. ampliar observabilidade de runtime;
