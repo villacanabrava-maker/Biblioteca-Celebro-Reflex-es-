@@ -83,7 +83,7 @@ export function LeitorVersaoReflexao({
             <span className="text-[10px] uppercase tracking-wider text-blue-700 font-bold block mb-1">
               Síntese Executiva
             </span>
-            <p className="text-xs text-slate-700 leading-relaxed italic font-serif">
+            <p className="text-sm text-slate-700 leading-7 italic font-serif max-w-3xl">
               “{versaoAtual.sumario_executivo}”
             </p>
           </div>
@@ -92,7 +92,7 @@ export function LeitorVersaoReflexao({
 
       {/* Corpo do Texto Redigido em Markdown */}
       <div className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-10 shadow-sm">
-        <div className="prose prose-slate max-w-none font-serif text-base leading-relaxed text-slate-800 whitespace-pre-wrap">
+        <div className="leitura-confortavel mx-auto font-serif text-slate-800 whitespace-pre-wrap">
           {versaoAtual.conteudo_markdown}
         </div>
       </div>
@@ -121,7 +121,7 @@ export function LeitorVersaoReflexao({
         {mostrarEvidencias && (
           <div className="p-6 border-t border-slate-100 bg-slate-50/50 space-y-4">
             {versaoAtual.citacoes.length === 0 ? (
-              <p className="text-xs text-slate-500 italic">
+              <p className="text-sm text-slate-500 italic">
                 Nenhuma citação explícita foi vinculada diretamente para esta versão.
               </p>
             ) : (
@@ -148,7 +148,7 @@ export function LeitorVersaoReflexao({
                       <span className="text-[10px] text-slate-400 font-semibold block">
                         No texto da reflexão:
                       </span>
-                      <p className="text-xs text-slate-800 font-medium mt-0.5">
+                      <p className="text-sm text-slate-800 font-medium mt-1 leading-6">
                         “{cit.trecho_afirmacao_gerada}”
                       </p>
                     </div>
@@ -158,7 +158,7 @@ export function LeitorVersaoReflexao({
                       <span className="text-[10px] text-slate-400 font-semibold block">
                         Trecho no corpus autoral:
                       </span>
-                      <p className="text-xs text-slate-600 italic mt-0.5 font-serif">
+                      <p className="text-sm text-slate-600 italic mt-1 font-serif leading-6">
                         “{cit.trecho_original_citado}”
                       </p>
                     </div>
