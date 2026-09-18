@@ -159,7 +159,7 @@ export function PainelRevisaoAutor({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {(estadoEntrada === "concluida" || aprovado) && (
+          {estadoEntrada === "concluida" && (
             <button
               type="button"
               disabled={analisandoTaxonomia || salvando}
