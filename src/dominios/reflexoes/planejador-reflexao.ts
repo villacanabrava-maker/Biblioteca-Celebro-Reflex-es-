@@ -8,7 +8,7 @@
 import { z } from "zod";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { executarChamadaEstruturada, protegerEntradaDeDados, PAPEIS_IA } from "@/ia/orquestrador";
-import type { FormatoReflexao } from "@/tipos/reflexoes";
+import type { DossieContextual, FormatoReflexao } from "@/tipos/reflexoes";
 
 const EsquemaPlanoZod = z.object({
   tese_central: z.string().describe("Tese autoral profunda, assertiva e provocativa que o autor defenderá"),
@@ -71,38 +71,27 @@ export async function gerarPlanoReflexao({
   const textoComentario = comentarioAutor || entradaDb?.comentario_autor || "";
   const conflitos = (entradaDb?.conflitos_detectados as any[]) || [];
 
-  // 2. Obter memórias autorais
-  const { data: fragmentos } = await admin
-    .from("v_fragmentos_detalhados")
-    .select("id, conteudo, obra_titulo")
-    .eq("usuario_id", usuarioId)
-    .eq("obra_natureza", "autoral")
-    .limit(10);
+  const dossie = (entradaDb?.dossie_contexto as DossieContextual | null) || null;
 
-  const corpusAmostra = (fragmentos || [])
+  // 2. Usar exatamente as memórias persistidas no dossiê desta reflexão.
+  // Sem dossiê real, seguir com corpus vazio em vez de substituir por fragmentos genéricos.
+  const fragmentosDossie = dossie?.fragmentos_selecionados || [];
+
+  const corpusAmostra = fragmentosDossie
     .map((f, i) => `[Memória ${i + 1} - Obra: "${f.obra_titulo}"]\n${f.conteudo}`)
     .join("\n\n---\n\n");
 
-  const fontesIds = (fragmentos || []).map((f) => f.id);
+  const fontesIds = fragmentosDossie.map((f) => f.id);
 
-  // 3. Obter conceitos da taxonomia
-  const { data: conceitos } = await admin
-    .from("v_taxonomia_conceitos")
-    .select("termo_preferencial, definicao, dominio")
-    .limit(20);
-
-  const conceitosTexto = (conceitos || [])
-    .map((c) => `- ${c.termo_preferencial} (${c.dominio}): ${c.definicao}`)
+  // 3. Preservar os conceitos capturados no mesmo snapshot do dossiê.
+  const conceitosDossie = dossie?.conceitos_chave || [];
+  const conceitosTexto = conceitosDossie
+    .map((c) => `- ${c.termo} (${c.dominio}): ${c.definicao}`)
     .join("\n");
 
-  // 4. Obter regras ativas do Cérebro
-  const { data: regras } = await admin
-    .from("v_cerebro_regras_ativas")
-    .select("tipo_regra, enunciado, peso")
-    .eq("usuario_id", usuarioId)
-    .limit(15);
-
-  const regrasTexto = (regras || [])
+  // 4. Preservar as regras sugeridas no mesmo snapshot do dossiê.
+  const regrasDossie = dossie?.regras_sugeridas || [];
+  const regrasTexto = regrasDossie
     .map((r) => `- [${r.tipo_regra.toUpperCase()}] (Peso ${r.peso}/10): ${r.enunciado}`)
     .join("\n");
 
