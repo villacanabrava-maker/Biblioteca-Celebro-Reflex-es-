@@ -2,29 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import {
-  FileCheck2,
-  BookOpen,
-  Brain,
-  Sparkles,
-  Layers,
-  Search,
-  Quote,
-  ArrowRight,
-  ExternalLink,
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Clock,
-  Hash,
-  Copy,
-  Check,
-  Tag,
-  ShieldCheck,
-  Zap,
-  Filter,
-  Bookmark,
-} from "lucide-react";
+import { BookOpen, Brain, Sparkles, Layers, Search, Quote, ChevronDown, ChevronRight, Copy, Check, Tag, ShieldCheck } from "lucide-react";
 import type { ExtracaoCompletaDocumento } from "@/acoes/processamento";
 import { clsx } from "clsx";
 
