@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { NaoAutenticadoError } from "@/infraestrutura/auth/usuario-atual";
 
 describe("P0 - Segurança e Autenticação Fail-Closed", () => {
