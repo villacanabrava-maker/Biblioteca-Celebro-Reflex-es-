@@ -57,6 +57,13 @@ export interface ExtracaoCompletaDocumento {
     conceitos_chave: string[];
     argumentos_principais: string[];
   }[];
+  elementos: {
+    id: string;
+    fragmento_id: string;
+    tipo_elemento: string;
+    conteudo: string;
+    confianca: number;
+  }[];
   fragmentos: {
     id: string;
     secao_id: string | null;
@@ -82,6 +89,7 @@ export interface ExtracaoCompletaDocumento {
     totalPalavras: number;
     totalTokens: number;
     totalSinteses: number;
+    totalElementos: number;
     totalConceitos: number;
   };
 }
@@ -94,54 +102,74 @@ export async function obterListaDocumentosProcessados(): Promise<DocumentoProces
     const usuarioId = await obterUsuarioAtualId();
     const admin = criarClienteAdmin();
 
-    // 1. Busca as obras do usuário que já foram processadas ou cadastradas
-    const { data: obras, error: obrasError } = await admin
-      .from("v_obras_detalhadas")
+    // 1. Busca documentos diretamente da tabela canônica de processamento
+    const { data: docsBase, error: docsError } = await admin
+      .schema("processamento")
+      .from("documentos_processados")
       .select("*")
       .eq("usuario_id", usuarioId)
       .order("criado_em", { ascending: false });
 
-    if (obrasError) {
-      console.warn("Aviso ao buscar v_obras_detalhadas:", obrasError.message);
-    }
-
-    // 2. Busca os documentos da tabela processamento.documentos_processados
-    const { data: docsProcessados } = await admin
-      .schema("processamento")
-      .from("documentos_processados")
+    // 2. Busca as obras da biblioteca
+    const { data: obras } = await admin
+      .from("v_obras_detalhadas")
       .select("*")
       .eq("usuario_id", usuarioId);
 
-    const mapaDocs: Record<string, any> = {};
-    (docsProcessados || []).forEach((d: any) => {
-      if (d.versao_obra_id) mapaDocs[d.versao_obra_id] = d;
-      mapaDocs[d.id] = d;
+    const mapaObrasPorVersao: Record<string, any> = {};
+    const mapaObrasPorId: Record<string, any> = {};
+
+    (obras || []).forEach((o: any) => {
+      if (o.versao_id) mapaObrasPorVersao[o.versao_id] = o;
+      mapaObrasPorId[o.id] = o;
     });
 
-    const listaObras = (obras as ObraDetalhada[]) || [];
-
-    // Se temos obras processadas, montamos a lista
     const resultado: DocumentoProcessadoResumo[] = [];
 
-    for (const obra of listaObras) {
-      const versaoId = obra.versao_id || obra.id;
-      const doc = mapaDocs[versaoId] || mapaDocs[obra.id];
-
-      // Inclui obras que foram processadas ou que possuem documento estruturado
-      if (obra.estado_processamento === "processado" || doc) {
+    // Se temos registros na tabela documentos_processados
+    if (docsBase && docsBase.length > 0) {
+      for (const doc of docsBase) {
+        const obra = mapaObrasPorVersao[doc.versao_obra_id] || mapaObrasPorId[doc.id];
         resultado.push({
-          id: doc?.id || obra.id,
-          versao_obra_id: versaoId,
+          id: doc.id,
+          versao_obra_id: doc.versao_obra_id,
+          usuario_id: doc.usuario_id,
+          titulo_processado: doc.titulo_processado || obra?.titulo || "Documento Processado",
+          total_secoes: doc.total_secoes || 0,
+          total_fragmentos: doc.total_fragmentos || 0,
+          total_palavras: doc.total_palavras || 0,
+          total_tokens_estimado: doc.total_tokens_estimado || 0,
+          estado_publicacao: doc.estado_publicacao || "ativo",
+          publicado_em: doc.publicado_em || doc.criado_em,
+          criado_em: doc.criado_em,
+          atualizado_em: doc.atualizado_em,
+          obra_id: obra?.id || "",
+          obra_titulo: obra?.titulo || doc.titulo_processado,
+          obra_tipo: obra?.tipo || "livro",
+          autoria: obra?.natureza || "autoral",
+          papel_cerebro: obra?.participa_cerebro ? "nucleo_autoral" : "referencia_externa",
+          autor_nome: obra?.autor_nome || "Você",
+        });
+      }
+      return resultado;
+    }
+
+    // Se não há na tabela de documentos, mas há obras marcadas como processadas
+    (obras || []).forEach((obra: any) => {
+      if (obra.estado_processamento === "processado") {
+        resultado.push({
+          id: obra.id,
+          versao_obra_id: obra.versao_id || obra.id,
           usuario_id: obra.usuario_id || usuarioId,
-          titulo_processado: doc?.titulo_processado || obra.titulo,
-          total_secoes: doc?.total_secoes || (obra.total_paginas ? Math.max(1, Math.round(obra.total_paginas / 15)) : 3),
-          total_fragmentos: doc?.total_fragmentos || (obra.total_paginas ? obra.total_paginas * 4 : 12),
-          total_palavras: doc?.total_palavras || obra.total_palavras_estimado || 0,
-          total_tokens_estimado: doc?.total_tokens_estimado || Math.round((obra.total_palavras_estimado || 0) * 1.3),
-          estado_publicacao: doc?.estado_publicacao || "ativo",
-          publicado_em: doc?.publicado_em || obra.atualizado_em || obra.criado_em,
-          criado_em: doc?.criado_em || obra.criado_em,
-          atualizado_em: doc?.atualizado_em || obra.atualizado_em,
+          titulo_processado: obra.titulo,
+          total_secoes: obra.total_paginas ? Math.max(1, Math.round(obra.total_paginas / 15)) : 3,
+          total_fragmentos: obra.total_paginas ? obra.total_paginas * 4 : 12,
+          total_palavras: obra.total_palavras_estimado || 0,
+          total_tokens_estimado: Math.round((obra.total_palavras_estimado || 0) * 1.3),
+          estado_publicacao: "ativo",
+          publicado_em: obra.atualizado_em || obra.criado_em,
+          criado_em: obra.criado_em,
+          atualizado_em: obra.atualizado_em,
           obra_id: obra.id,
           obra_titulo: obra.titulo,
           obra_tipo: obra.tipo || "livro",
@@ -150,7 +178,7 @@ export async function obterListaDocumentosProcessados(): Promise<DocumentoProces
           autor_nome: obra.autor_nome || "Você",
         });
       }
-    }
+    });
 
     return resultado;
   } catch (erro) {
@@ -161,7 +189,7 @@ export async function obterListaDocumentosProcessados(): Promise<DocumentoProces
 
 /**
  * Obtém os materiais extraídos completos de um livro/documento processado
- * (Árvore de seções, sínteses, fragmentos, conceitos e evidências).
+ * (Árvore de seções, sínteses, elementos conceituais, fragmentos, conceitos e evidências).
  */
 export async function obterExtracaoCompletaDocumento(
   documentoIdOuVersaoId: string
@@ -170,9 +198,8 @@ export async function obterExtracaoCompletaDocumento(
     const usuarioId = await obterUsuarioAtualId();
     const admin = criarClienteAdmin();
 
-    // 1. Busca o Documento Processado ou Obra
-    let doc: any = null;
-    const { data: docEncontrado } = await admin
+    // 1. Busca o Documento Processado
+    const { data: doc } = await admin
       .schema("processamento")
       .from("documentos_processados")
       .select("*")
@@ -180,17 +207,16 @@ export async function obterExtracaoCompletaDocumento(
       .eq("usuario_id", usuarioId)
       .maybeSingle();
 
-    doc = docEncontrado;
+    const docId = doc?.id || documentoIdOuVersaoId;
+    const versaoId = doc?.versao_obra_id || documentoIdOuVersaoId;
 
     // 2. Busca Obra vinculada
     let obra: any = null;
-    const versaoObraId = doc?.versao_obra_id || documentoIdOuVersaoId;
-
     const { data: versaoObra } = await admin
       .schema("biblioteca")
       .from("versoes_obras")
       .select("obra_id")
-      .or(`id.eq.${versaoObraId},obra_id.eq.${documentoIdOuVersaoId}`)
+      .or(`id.eq.${versaoId},obra_id.eq.${documentoIdOuVersaoId}`)
       .maybeSingle();
 
     const targetObraId = versaoObra?.obra_id || documentoIdOuVersaoId;
@@ -208,9 +234,7 @@ export async function obterExtracaoCompletaDocumento(
       return null;
     }
 
-    const docId = doc?.id || documentoIdOuVersaoId;
-
-    // 3. Busca Seções
+    // 3. Busca Seções Hierárquicas
     const { data: secoes } = await admin
       .schema("processamento")
       .from("secoes")
@@ -219,16 +243,7 @@ export async function obterExtracaoCompletaDocumento(
       .eq("usuario_id", usuarioId)
       .order("ordem", { ascending: true });
 
-    // 4. Busca Sínteses
-    const { data: sinteses } = await admin
-      .schema("processamento")
-      .from("sinteses_secoes")
-      .select("*")
-      .eq("documento_processado_id", docId)
-      .eq("usuario_id", usuarioId)
-      .order("criado_em", { ascending: true });
-
-    // 5. Busca Fragmentos Textuais
+    // 4. Busca Fragmentos Textuais
     const { data: fragmentos } = await admin
       .schema("processamento")
       .from("fragmentos")
@@ -237,10 +252,46 @@ export async function obterExtracaoCompletaDocumento(
       .eq("usuario_id", usuarioId)
       .order("ordem", { ascending: true });
 
-    // 6. Busca Conceitos Vinculados aos Fragmentos
-    const fragmentosIds = (fragmentos || []).map((f: any) => f.id);
-    let conceitosVinculados: any[] = [];
+    const listaFragmentos = fragmentos || [];
+    const fragmentosIds = listaFragmentos.map((f: any) => f.id);
 
+    // 5. Busca Elementos Conceituais e Argumentativos
+    let listaElementos: any[] = [];
+    if (fragmentosIds.length > 0) {
+      const { data: elementosData } = await admin
+        .schema("processamento")
+        .from("elementos")
+        .select("*")
+        .in("fragmento_id", fragmentosIds.slice(0, 100))
+        .eq("usuario_id", usuarioId);
+
+      listaElementos = elementosData || [];
+    }
+
+    // 6. Busca Sínteses
+    let listaSinteses: any[] = [];
+    try {
+      const { data: sintesesData } = await admin
+        .schema("processamento")
+        .from("sinteses")
+        .select("*")
+        .eq("usuario_id", usuarioId);
+
+      listaSinteses = (sintesesData || []).map((s: any) => ({
+        id: s.id,
+        secao_id: null,
+        tipo_sintese: s.nivel_abstracao || "executivo",
+        conteudo: s.conteudo_sintese || "",
+        tese_principal: s.pontos_chave?.[0] || undefined,
+        conceitos_chave: Array.isArray(s.pontos_chave) ? s.pontos_chave : [],
+        argumentos_principais: [],
+      }));
+    } catch {
+      // Ignora se a tabela de sínteses estiver vazia
+    }
+
+    // 7. Busca Conceitos Vinculados
+    let conceitosVinculados: any[] = [];
     if (fragmentosIds.length > 0) {
       try {
         const { data: conceitosData } = await admin
@@ -276,12 +327,10 @@ export async function obterExtracaoCompletaDocumento(
     }
 
     const listaSecoes = secoes || [];
-    const listaSinteses = sinteses || [];
-    const listaFragmentos = fragmentos || [];
 
     const docFinal: DocumentoProcessado = doc || {
       id: docId,
-      versao_obra_id: versaoObraId,
+      versao_obra_id: versaoId,
       usuario_id: usuarioId,
       titulo_processado: obra?.titulo || "Documento Processado",
       total_secoes: listaSecoes.length,
@@ -307,14 +356,13 @@ export async function obterExtracaoCompletaDocumento(
         tipo_secao: s.tipo_secao,
         resumo_secao: s.resumo_secao,
       })),
-      sinteses: listaSinteses.map((st: any) => ({
-        id: st.id,
-        secao_id: st.secao_id,
-        tipo_sintese: st.tipo_sintese,
-        conteudo: st.conteudo,
-        tese_principal: st.tese_principal,
-        conceitos_chave: st.conceitos_chave || [],
-        argumentos_principais: st.argumentos_principais || [],
+      sinteses: listaSinteses,
+      elementos: listaElementos.map((e: any) => ({
+        id: e.id,
+        fragmento_id: e.fragmento_id,
+        tipo_elemento: e.tipo_elemento,
+        conteudo: e.conteudo,
+        confianca: Number(e.confianca) || 0.85,
       })),
       fragmentos: listaFragmentos.map((f: any) => ({
         id: f.id,
@@ -336,6 +384,7 @@ export async function obterExtracaoCompletaDocumento(
         totalPalavras: docFinal.total_palavras || listaFragmentos.reduce((acc: number, f: any) => acc + (f.total_palavras || 0), 0),
         totalTokens: docFinal.total_tokens_estimado || 0,
         totalSinteses: listaSinteses.length,
+        totalElementos: listaElementos.length,
         totalConceitos: conceitosVinculados.length,
       },
     };
@@ -383,26 +432,15 @@ export async function obterDocumentoProcessado(
     const usuarioId = await obterUsuarioAtualId();
     const admin = criarClienteAdmin();
 
-    const { data, error } = await admin
-      .from("v_documentos_processados")
+    const { data: baseData } = await admin
+      .schema("processamento")
+      .from("documentos_processados")
       .select("*")
       .eq("versao_obra_id", versaoObraId)
       .eq("usuario_id", usuarioId)
       .maybeSingle();
 
-    if (error || !data) {
-      const { data: baseData } = await admin
-        .schema("processamento")
-        .from("documentos_processados")
-        .select("*")
-        .eq("versao_obra_id", versaoObraId)
-        .eq("usuario_id", usuarioId)
-        .maybeSingle();
-
-      return (baseData as DocumentoProcessado) || null;
-    }
-
-    return (data as DocumentoProcessado) || null;
+    return (baseData as DocumentoProcessado) || null;
   } catch (err) {
     console.error("Erro ao obter documento processado:", err);
     return null;
@@ -421,28 +459,16 @@ export async function obterFragmentosDocumento(
     const usuarioId = await obterUsuarioAtualId();
     const admin = criarClienteAdmin();
 
-    const { data, error } = await admin
-      .from("v_fragmentos_detalhados")
+    const { data: baseData } = await admin
+      .schema("processamento")
+      .from("fragmentos")
       .select("*")
       .eq("documento_processado_id", documentoProcessadoId)
       .eq("usuario_id", usuarioId)
       .order("ordem", { ascending: true })
       .range(offset, offset + limite - 1);
 
-    if (error || !data) {
-      const { data: baseData } = await admin
-        .schema("processamento")
-        .from("fragmentos")
-        .select("*")
-        .eq("documento_processado_id", documentoProcessadoId)
-        .eq("usuario_id", usuarioId)
-        .order("ordem", { ascending: true })
-        .range(offset, offset + limite - 1);
-
-      return (baseData as FragmentoTextual[]) || [];
-    }
-
-    return (data as FragmentoTextual[]) || [];
+    return (baseData as FragmentoTextual[]) || [];
   } catch (err) {
     console.error("Erro ao listar fragmentos do documento:", err);
     return [];
@@ -501,7 +527,8 @@ export async function obterStatusExecucao(execucaoId: string) {
 
     const [execResult, etapasResult] = await Promise.all([
       admin
-        .from("v_execucoes_processamento")
+        .schema("processamento")
+        .from("execucoes")
         .select("*")
         .eq("id", execucaoId)
         .eq("usuario_id", usuarioId)
