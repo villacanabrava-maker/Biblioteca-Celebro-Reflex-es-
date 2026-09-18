@@ -14,7 +14,10 @@ import { GravadorAudio } from "@/componentes/comum/gravador-audio";
 import { useDialogModalAcessivel } from "@/componentes/comum/use-dialog-modal-acessivel";
 import type { TipoObra, ObraDetalhada } from "@/tipos/biblioteca";
 import type { SugestaoTagTaxonomia } from "@/tipos/taxonomia";
-import { LIMITE_ARQUIVO_BIBLIOTECA_BYTES } from "@/lib/validacoes/biblioteca";
+import {
+  LIMITE_ARQUIVO_BIBLIOTECA_BYTES,
+  LIMITE_AUDIO_TRANSCRICAO_BYTES,
+} from "@/lib/limites-upload";
 
 interface Props {
   aberto: boolean;
@@ -274,7 +277,7 @@ export function ModalAdicionarConteudo({
       return;
     }
 
-    const limiteBytes = 24 * 1024 * 1024;
+    const limiteBytes = LIMITE_AUDIO_TRANSCRICAO_BYTES;
     if (file.size > limiteBytes) {
       setErro("A gravação excedeu 24 MB. Grave um trecho menor para permitir a transcrição.");
       return;
