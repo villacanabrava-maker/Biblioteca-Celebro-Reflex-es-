@@ -185,7 +185,11 @@ export async function excluirObra(obraId: string) {
 /**
  * Gera uma URL assinada temporária para download seguro do arquivo original.
  */
-export async function obterUrlDownloadOriginal(arquivoCaminho: string): Promise<string> {
+export async function obterUrlDownloadOriginal(
+  arquivoCaminho: string,
+  titulo?: string,
+  arquivoNomeOriginal?: string | null
+): Promise<string> {
   const admin = criarClienteAdmin();
 
   const { data, error } = await admin.storage
@@ -196,7 +200,22 @@ export async function obterUrlDownloadOriginal(arquivoCaminho: string): Promise<
     throw new Error("Não foi possível gerar o link seguro para download do arquivo.");
   }
 
-  return data.signedUrl;
+  const nomeReferencia = arquivoNomeOriginal || arquivoCaminho.split("/").pop() || "arquivo";
+  const extensao = nomeReferencia.includes(".")
+    ? `.${nomeReferencia.split(".").pop()}`
+    : "";
+  const baseSegura = (titulo || nomeReferencia.replace(/\.[^/.]+$/, "") || "arquivo")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9 _.-]/g, "")
+    .trim()
+    .replace(/\s+/g, "_")
+    .slice(0, 120) || "arquivo";
+
+  const urlDownload = new URL(data.signedUrl);
+  urlDownload.searchParams.set("download", `${baseSegura}${extensao}`);
+
+  return urlDownload.toString();
 }
 
 export interface FragmentoVisual {
