@@ -53,30 +53,23 @@ export async function iniciarUploadTus({
   aoSucesso,
   aoErro,
 }: OpcoesUploadTus): Promise<tus.Upload> {
-  const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.SUPABASE_URL ||
-    "https://cqavdefyelarhyjqmahi.supabase.co";
-
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    (process.env as any)["PRÓXIMA_CHAVE_ANÔNIMA_SUPABASE_PÚBLICA"] ||
-    (process.env as any)["PROXIMA_CHAVE_ANONIMA_SUPABASE_PUBLICA"] ||
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.SUPABASE_PUBLISHABLE_KEY ||
-    "sb_publishable_eLnVnSrdoECL5j2D2QG5sw_7mgYdYbO";
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  // Se não foi passado explicitamente, busca o token ativo da sessão
+  if (!supabaseUrl || !anonKey) {
+    throw new Error(
+      "O armazenamento do Rflex01 não está configurado neste ambiente. Verifique as variáveis públicas do Supabase."
+    );
+  }
+
+  // Upload de biblioteca exige sessão autenticada. Não cair para uma chave
+  // pública quando a sessão expirar ou estiver indisponível.
   let bearerToken = tokenAutenticacao;
   if (!bearerToken) {
-    try {
-      const authInfo = await obterTokenAutenticadoBrowser();
-      bearerToken = authInfo.token;
-    } catch (err: any) {
-      // Se não conseguiu obter sessão autenticada, usa a anonKey (fallback)
-      bearerToken = anonKey;
-    }
+    const authInfo = await obterTokenAutenticadoBrowser();
+    bearerToken = authInfo.token;
   }
 
   const endpoint = `${supabaseUrl}/storage/v1/upload/resumable`;
