@@ -41,6 +41,8 @@ reflex-01/
 ├─ .agents/                 instruções auxiliares para agentes
 ├─ .github/workflows/       CI do GitHub Actions
 ├─ docs/                    documentação e ADRs
+├─ README.md                mapa mestre técnico e operacional
+├─ ESCOPO_DO_APLICATIVO.md  apresentação funcional do produto
 ├─ src/
 │  ├─ app/                  páginas, layouts e rotas do App Router
 │  ├─ acoes/                Server Actions; principal camada de back-end web
