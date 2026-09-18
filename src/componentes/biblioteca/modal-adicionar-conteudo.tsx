@@ -1,27 +1,10 @@
 "use client";
 
 import { useState, useRef, ChangeEvent, DragEvent } from "react";
-import {
-  X,
-  UploadCloud,
-  FileText,
-  BookOpen,
-  Mail,
-  Compass,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  Tag,
-  PenTool,
-  Send,
-} from "lucide-react";
-import {
-  calcularHashSha256,
-  iniciarUploadTus,
-  obterTokenAutenticadoBrowser,
-} from "@/infraestrutura/storage/cliente-tus";
+import { X, UploadCloud, FileText, Mail, Compass, AlertCircle, Loader2, PenTool, Send } from "lucide-react";
+import { calcularHashSha256, iniciarUploadTus, obterTokenAutenticadoBrowser } from "@/infraestrutura/storage/cliente-tus";
 import { cadastrarObra } from "@/acoes/biblioteca";
-import type { TipoObra, NaturezaObra, ObraDetalhada } from "@/tipos/biblioteca";
+import type { TipoObra, ObraDetalhada } from "@/tipos/biblioteca";
 
 interface Props {
   aberto: boolean;
