@@ -10,15 +10,20 @@
 
 ## 🌐 Projeto canônico Rflex01
 
-- **Domínio Principal**: [https://reflex-01.vercel.app](https://reflex-01.vercel.app)
-- **Domínio de Release (Branch Main)**: [https://reflex-01-git-main-naninne.vercel.app](https://reflex-01-git-main-naninne.vercel.app)
-- **Domínio Canônico de Build**: [https://reflex-01-u3df2906o-naninne.vercel.app](https://reflex-01-u3df2906o-naninne.vercel.app)
+- **GitHub:** `villacanabrava-maker/reflex-01`
+- **Vercel project:** `rflex01`
+- **Supabase project:** `reflex-01`
+- **Supabase project ref:** `cqavdefyelarhyjqmahi`
+- **Branch de produção:** `main`
+
+> O nome de produto é **Rflex01**. Os slugs técnicos dos provedores podem variar em caixa, hífen e normalização sem representar projetos diferentes.
 
 ---
 
 ## 📦 Repositório GitHub atual
 
-- **GitHub Oficial**: [https://github.com/villacanabrava-maker/Biblioteca-Celebro-Reflex-es-.git](https://github.com/villacanabrava-maker/Biblioteca-Celebro-Reflex-es-.git)
+- **GitHub Oficial:** [https://github.com/villacanabrava-maker/reflex-01.git](https://github.com/villacanabrava-maker/reflex-01.git)
+- O endereço antigo `Biblioteca-Celebro-Reflex-es-` deve ser tratado apenas como redirecionamento histórico.
 
 ---
 
@@ -80,10 +85,12 @@ Acesse [http://localhost:3000](http://localhost:3000).
 
 O nome técnico oficial do projeto é **Rflex01**.
 
-Para manter todos os serviços alinhados, usar:
-- **GitHub repository:** `Rflex01`
-- **Vercel project:** `Rflex01`
-- **Supabase project display name:** `Rflex01`
+Mapeamento operacional confirmado:
+- **Produto:** `Rflex01`
+- **GitHub repository:** `villacanabrava-maker/reflex-01`
+- **Vercel project:** `rflex01`
+- **Supabase project display name:** `reflex-01`
+- **Supabase project ref:** `cqavdefyelarhyjqmahi`
 - **npm/package name:** `rflex01`
 
 A identidade descritiva do produto continua sendo **Memória Reflexiva — Cérebro Autoral**.
