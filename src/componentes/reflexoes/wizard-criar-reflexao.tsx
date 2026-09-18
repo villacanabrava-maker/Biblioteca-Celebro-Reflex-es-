@@ -3,7 +3,7 @@
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Sparkles, ArrowRight, ArrowLeft, FileText, UploadCloud, Globe, Brain, Loader2, AlertCircle, Check, BookOpen } from "lucide-react";
+import { Sparkles, ArrowRight, ArrowLeft, FileText, UploadCloud, Globe, Brain, Loader2, AlertCircle, Check, BookOpen, Mic } from "lucide-react";
 import {
   iniciarEsteiraReflexao,
   atualizarDossieReflexao,
@@ -12,7 +12,9 @@ import {
   extrairFonteDocumentoTemporaria,
   extrairFonteLinkTemporaria,
   prepararFonteBibliotecaTemporaria,
+  transcreverFonteAudioTemporaria,
 } from "@/acoes/reflexoes";
+import { GravadorAudio } from "@/componentes/comum/gravador-audio";
 import {
   calcularHashSha256,
   iniciarUploadTus,
@@ -48,11 +50,12 @@ export function WizardCriarReflexao() {
   const [planoId, setPlanoId] = useState<string | null>(null);
 
   // Etapa 1: Reflexão Externa
-  const [modoExterno, setModoExterno] = useState<"colar" | "arquivo" | "link" | "biblioteca">("colar");
+  const [modoExterno, setModoExterno] = useState<"colar" | "arquivo" | "link" | "audio" | "biblioteca">("colar");
   const [textoExterno, setTextoExterno] = useState("");
   const [tipoOrigem, setTipoOrigem] = useState<TipoOrigemExterna>("texto");
   const inputDocumentoRef = useRef<HTMLInputElement>(null);
   const [arquivoFonte, setArquivoFonte] = useState<File | null>(null);
+  const [arquivoAudioFonte, setArquivoAudioFonte] = useState<File | null>(null);
   const [fontePreparada, setFontePreparada] = useState<FonteReflexaoPreparada | null>(null);
   const [tituloFonte, setTituloFonte] = useState("");
   const [autorFonte, setAutorFonte] = useState("");
@@ -204,6 +207,84 @@ export function WizardCriarReflexao() {
   function lidarSelecaoDocumento(evento: ChangeEvent<HTMLInputElement>) {
     const file = evento.target.files?.[0];
     if (file) void prepararDocumentoComoFonte(file);
+  }
+
+  async function prepararAudioComoFonte(file: File | null) {
+    setArquivoAudioFonte(file);
+    setFontePreparada(null);
+    setTextoExterno("");
+
+    if (!file) return;
+
+    const limiteTranscricao = 24 * 1024 * 1024;
+    if (file.size > limiteTranscricao) {
+      setErro("A gravação excedeu 24 MB. Grave um trecho menor para transcrever com segurança.");
+      setArquivoAudioFonte(null);
+      return;
+    }
+
+    try {
+      setProcessandoFonte(true);
+      setErro(null);
+      setProgressoFonte(0);
+
+      const auth = await obterTokenAutenticadoBrowser();
+      const hashSha256 = await calcularHashSha256(file);
+      const timestamp = Date.now();
+      const nomeSanitizado = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const caminho = `${auth.usuarioId}/${timestamp}/audio/${nomeSanitizado}`;
+
+      await new Promise<void>((resolve, reject) => {
+        iniciarUploadTus({
+          arquivo: file,
+          caminhoDestino: caminho,
+          bucket: "fontes-reflexoes",
+          tokenAutenticacao: auth.token,
+          aoProgredir: (porcentagem) => setProgressoFonte(porcentagem),
+          aoSucesso: () => resolve(),
+          aoErro: (erroUpload) => reject(erroUpload),
+        }).catch(reject);
+      });
+
+      const transcricao = await transcreverFonteAudioTemporaria({
+        storageCaminho: caminho,
+        arquivoNomeOriginal: file.name,
+        arquivoMimeType: file.type || "audio/webm",
+      });
+
+      const tituloSugerido = tituloFonte.trim() || `Gravação de ${new Date().toLocaleDateString("pt-BR")}`;
+
+      setTituloFonte(tituloSugerido);
+      setTipoOrigem("audio_transcricao");
+      setTextoExterno(transcricao.texto);
+      setFontePreparada({
+        tipo: "audio",
+        titulo: tituloSugerido,
+        autorNome: autorFonte.trim() || undefined,
+        storageBucket: "fontes-reflexoes",
+        storageCaminho: caminho,
+        arquivoNomeOriginal: file.name,
+        arquivoMimeType: file.type || "audio/webm",
+        arquivoTamanhoBytes: file.size,
+        hashSha256,
+        conteudoExtraido: transcricao.texto,
+        conteudoConfirmado: transcricao.texto,
+        metadados: {
+          idiomas: transcricao.idiomas,
+          totalCaracteres: transcricao.totalCaracteres,
+          totalPalavras: transcricao.totalPalavras,
+          origem: "gravacao_microfone",
+        },
+      });
+    } catch (err: unknown) {
+      const mensagem = err instanceof Error ? err.message : "Falha ao preparar a gravação.";
+      console.error("Erro ao preparar fonte de áudio:", err);
+      setErro(mensagem);
+      setFontePreparada(null);
+      setTextoExterno("");
+    } finally {
+      setProcessandoFonte(false);
+    }
   }
 
   async function prepararLinkComoFonte() {
@@ -476,7 +557,7 @@ export function WizardCriarReflexao() {
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <button
               type="button"
               onClick={() => {
@@ -539,6 +620,27 @@ export function WizardCriarReflexao() {
               <Globe className="w-4 h-4" />
               <span>Artigo / Link</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setModoExterno("audio");
+                setTipoOrigem("audio_transcricao");
+                setArquivoFonte(null);
+                setArquivoAudioFonte(null);
+                setFontePreparada(null);
+                setTextoExterno("");
+                setUrlFonte("");
+              }}
+              className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                modoExterno === "audio"
+                  ? "bg-blue-50 text-blue-700 border-blue-200 shadow-xs"
+                  : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              <Mic className="w-4 h-4" />
+              <span>Gravar áudio</span>
+            </button>
           </div>
 
           {modoExterno === "biblioteca" ? (
@@ -591,6 +693,60 @@ export function WizardCriarReflexao() {
               >
                 Escolher outra fonte
               </button>
+            </div>
+          ) : modoExterno === "audio" ? (
+            <div className="space-y-4">
+              <GravadorAudio
+                desabilitado={processandoFonte}
+                onArquivoPronto={(arquivo) => void prepararAudioComoFonte(arquivo)}
+              />
+
+              {arquivoAudioFonte && (
+                <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
+                  {(arquivoAudioFonte.size / 1024 / 1024).toFixed(2)} MB
+                  {processandoFonte
+                    ? ` · Enviando/transcrevendo ${progressoFonte}%`
+                    : fontePreparada?.tipo === "audio"
+                    ? " · Transcrição pronta para revisão"
+                    : " · Aguardando transcrição"}
+                </div>
+              )}
+
+              {fontePreparada?.tipo === "audio" && (
+                <>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <input
+                      type="text"
+                      value={tituloFonte}
+                      onChange={(e) => setTituloFonte(e.target.value)}
+                      placeholder="Título da gravação (opcional)"
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                    />
+                    <input
+                      type="text"
+                      value={autorFonte}
+                      onChange={(e) => setAutorFonte(e.target.value)}
+                      placeholder="Autor / origem (opcional)"
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-700">
+                      Transcrição — revise antes de continuar
+                    </label>
+                    <textarea
+                      value={textoExterno}
+                      onChange={(e) => setTextoExterno(e.target.value)}
+                      rows={8}
+                      className="w-full resize-y rounded-2xl border border-slate-200 px-4 py-3.5 text-sm leading-6 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-slate-400">
+                      O áudio original permanece preservado; suas correções ficam registradas como transcrição confirmada.
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           ) : modoExterno === "arquivo" ? (
             <div className="space-y-4">
@@ -755,6 +911,10 @@ export function WizardCriarReflexao() {
                 }
                 if (modoExterno === "link" && fontePreparada?.tipo !== "link") {
                   setErro("Extraia o artigo pelo link antes de continuar.");
+                  return;
+                }
+                if (modoExterno === "audio" && fontePreparada?.tipo !== "audio") {
+                  setErro("Finalize a gravação e aguarde a transcrição antes de continuar.");
                   return;
                 }
                 if (!textoExterno.trim()) {
