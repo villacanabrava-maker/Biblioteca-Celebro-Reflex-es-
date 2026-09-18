@@ -17,6 +17,7 @@ export type TipoOrigemExterna =
   | "mensagem"
   | "documento"
   | "audio_transcricao"
+  | "biblioteca"
   | "observacao";
 
 export type TipoFonteReflexao =
