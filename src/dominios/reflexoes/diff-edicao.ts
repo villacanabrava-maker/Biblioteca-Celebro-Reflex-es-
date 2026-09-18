@@ -14,7 +14,9 @@ const MAX_UNIDADES_DETALHADAS = 3000;
 const MAX_BLOCOS = 1800;
 
 function contarPalavras(texto: string): number {
-  return texto.trim().split(/\s+/u).filter(Boolean).length;
+  return (
+    texto.match(/[\p{L}\p{M}\p{N}_]+(?:['’][\p{L}\p{M}\p{N}_]+)*/gu) || []
+  ).length;
 }
 
 function normalizarEspaco(token: string): string {
