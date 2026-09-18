@@ -21,7 +21,8 @@ Documentação nunca substitui a verificação das integrações reais.
 | `docs/STATUS_PROJETO.md` | Estado canônico resumido do produto e das integrações. |
 | `docs/MAPA_REPOSITORIO.md` | Mapa técnico: onde ficam páginas, back-end, domínios, IA, Supabase, testes e configurações. |
 | `docs/RELATORIO_ETAPA_2_ORGANIZACAO.md` | Relatório da organização conservadora da Etapa 2, após concluída. |
-| `README.md` | Entrada curta do repositório. A reconstrução abrangente está reservada para a Etapa 3. |
+| `README.md` | Documentação mestre técnica e operacional do aplicativo, reconstruída e revalidada na Etapa 3. |
+| `ESCOPO_DO_APLICATIVO.md` | Apresentação funcional e profissional do produto para públicos técnicos e não técnicos. |
 | `GEMINI.md` | Diretrizes auxiliares para agentes/ferramentas de desenvolvimento; não é documentação de produto. |
 
 ## Registros de arquitetura
