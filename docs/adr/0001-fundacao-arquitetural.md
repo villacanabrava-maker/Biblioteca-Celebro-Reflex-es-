@@ -6,7 +6,7 @@
 
 ## Decisões Tomadas
 
-1. **Regra Zero**: Novo repositório GitHub (`villacanabrava-maker/cerebroa-autoral-app-anty`), novo projeto Supabase (`cqavdefyelarhyjqmahi`) e nova infraestrutura Vercel. Nenhum artefato legado migrado.
+1. **Regra Zero**: A infraestrutura criada do zero evoluiu para o nome canônico **Rflex01**. O repositório operacional é `villacanabrava-maker/reflex-01`, o Supabase permanece `cqavdefyelarhyjqmahi` e o projeto Vercel é `rflex01`. Nomes anteriores são históricos.
 2. **Separação Sagrada dos 3 Planos**: O sistema computacionalmente diferencia:
    - **Conteúdo**: O que o autor pensa (temas, memórias, teses).
    - **Método**: Como o autor pensa (tensões, transições, perguntas, associações).
@@ -19,4 +19,4 @@
 6. **Porta de Entrada Segura**: Apenas o schema `aplicacao` expõe views e RPCs com RLS para a Data API do Supabase. Todos os schemas de domínio (`biblioteca`, `processamento`, `taxonomia`, `cerebro_autoral`, `reflexoes`, `auditoria`, `sistema`) permanecem internos.
 7. **Integridade Polimórfica com `unidades_conhecimento`**: Criada a tabela canônica para associar fragmentos, seções e sínteses a Foreign Keys reais no PostgreSQL.
 8. **Embeddings Padronizados em 1536 Dimensões**: Utilizando o modelo `text-embedding-3-small` indexado com HNSW e distância cosseno.
-9. **Branching**: Padrão canônico em português `funcionalidade/*` com `main` protegida por CI e Pull Requests.
+9. **Branching**: Padrão operacional atual `feat/*`, `fix/*` e `chore/*`, com mudanças integradas por Pull Request e CI. A proteção formal da `main` ainda deve ser habilitada no GitHub.

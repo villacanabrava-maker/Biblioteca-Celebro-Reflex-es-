@@ -1,9 +1,16 @@
 "use client";
 
 import { useState, useRef, ChangeEvent, DragEvent } from "react";
-import { X, UploadCloud, FileText, Mail, Compass, AlertCircle, Loader2, PenTool, Send } from "lucide-react";
+import { X, UploadCloud, FileText, Mail, Compass, AlertCircle, Loader2, PenTool, Send, Mic } from "lucide-react";
 import { calcularHashSha256, iniciarUploadTus, obterTokenAutenticadoBrowser } from "@/infraestrutura/storage/cliente-tus";
-import { cadastrarObra } from "@/acoes/biblioteca";
+import {
+  cadastrarObra,
+  excluirObra,
+  registrarFonteOriginalObra,
+  removerArquivosTemporariosBiblioteca,
+  transcreverAudioBibliotecaTemporario,
+} from "@/acoes/biblioteca";
+import { GravadorAudio } from "@/componentes/comum/gravador-audio";
 import type { TipoObra, ObraDetalhada } from "@/tipos/biblioteca";
 
 interface Props {
@@ -15,6 +22,7 @@ interface Props {
 
 type ModoEntrada =
   | "arquivo"
+  | "audio"
   | "escrever_texto"
   | "relato"
   | "carta"
@@ -28,6 +36,16 @@ type EtapaUpload =
   | "registrando"
   | "concluido";
 
+interface FonteAudioBibliotecaPreparada {
+  arquivo: File;
+  storageCaminho: string;
+  hashSha256: string;
+  textoExtraido: string;
+  idiomas: unknown[];
+  totalCaracteres: number;
+  totalPalavras: number;
+}
+
 export function ModalAdicionarConteudo({
   aberto,
   aoFechar,
@@ -36,6 +54,9 @@ export function ModalAdicionarConteudo({
 }: Props) {
   const [modo, setModo] = useState<ModoEntrada>("arquivo");
   const [arquivo, setArquivo] = useState<File | null>(null);
+  const [fonteAudio, setFonteAudio] = useState<FonteAudioBibliotecaPreparada | null>(null);
+  const [processandoAudio, setProcessandoAudio] = useState(false);
+  const [progressoAudio, setProgressoAudio] = useState(0);
   const [arrastando, setArrastando] = useState(false);
   const inputArquivoRef = useRef<HTMLInputElement>(null);
 
@@ -85,6 +106,13 @@ export function ModalAdicionarConteudo({
       tipoObra: "livro",
     },
     {
+      id: "audio",
+      titulo: "Gravar áudio",
+      descricao: "Grave, transcreva e revise",
+      icone: Mic,
+      tipoObra: "relato",
+    },
+    {
       id: "escrever_texto",
       titulo: "Escrever texto",
       descricao: "Cole ou escreva diretamente",
@@ -113,6 +141,41 @@ export function ModalAdicionarConteudo({
       tipoObra: "reflexao",
     },
   ];
+
+  async function descartarAudioTemporario() {
+    const caminho = fonteAudio?.storageCaminho;
+    if (caminho) {
+      await removerArquivosTemporariosBiblioteca([caminho]);
+    }
+    setFonteAudio(null);
+    setProgressoAudio(0);
+  }
+
+  function selecionarModo(novoModo: ModoEntrada) {
+    if (novoModo === modo) return;
+
+    if (modo === "audio") {
+      void descartarAudioTemporario();
+      setConteudoTexto("");
+    }
+
+    if (novoModo !== "arquivo") {
+      setArquivo(null);
+    }
+
+    setErro(null);
+    setModo(novoModo);
+  }
+
+  async function fecharModalComLimpeza() {
+    if (etapa !== "formulario" || processandoAudio) return;
+
+    if (fonteAudio?.storageCaminho) {
+      await removerArquivosTemporariosBiblioteca([fonteAudio.storageCaminho]);
+    }
+
+    aoFechar();
+  }
 
   function inferirMetadadosDoArquivo(file: File) {
     setArquivo(file);
@@ -151,6 +214,83 @@ export function ModalAdicionarConteudo({
     }
   }
 
+  async function prepararAudioBiblioteca(file: File | null) {
+    if (!file) {
+      if (fonteAudio?.storageCaminho) {
+        void removerArquivosTemporariosBiblioteca([fonteAudio.storageCaminho]);
+      }
+      setFonteAudio(null);
+      setConteudoTexto("");
+      setProgressoAudio(0);
+      return;
+    }
+
+    const limiteBytes = 24 * 1024 * 1024;
+    if (file.size > limiteBytes) {
+      setErro("A gravação excedeu 24 MB. Grave um trecho menor para permitir a transcrição.");
+      return;
+    }
+
+    let caminhoAudio: string | null = null;
+
+    try {
+      setProcessandoAudio(true);
+      setProgressoAudio(0);
+      setErro(null);
+
+      const authInfo = await obterTokenAutenticadoBrowser();
+      const hashSha256 = await calcularHashSha256(file);
+      const timestamp = Date.now();
+      const nomeSanitizado = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      caminhoAudio = `${authInfo.usuarioId}/${timestamp}/audio/${nomeSanitizado}`;
+
+      await new Promise<void>((resolve, reject) => {
+        iniciarUploadTus({
+          arquivo: file,
+          caminhoDestino: caminhoAudio!,
+          bucket: "originais-biblioteca",
+          tokenAutenticacao: authInfo.token,
+          aoProgredir: (porcentagem) => setProgressoAudio(porcentagem),
+          aoSucesso: () => resolve(),
+          aoErro: (err) => reject(err),
+        }).catch(reject);
+      });
+
+      const transcricao = await transcreverAudioBibliotecaTemporario({
+        storageCaminho: caminhoAudio,
+        arquivoNomeOriginal: file.name,
+        arquivoMimeType: file.type || "audio/webm",
+      });
+
+      setConteudoTexto(transcricao.texto);
+      setFonteAudio({
+        arquivo: file,
+        storageCaminho: caminhoAudio,
+        hashSha256,
+        textoExtraido: transcricao.texto,
+        idiomas: transcricao.idiomas,
+        totalCaracteres: transcricao.totalCaracteres,
+        totalPalavras: transcricao.totalPalavras,
+      });
+
+      if (!titulo.trim()) {
+        setTitulo(`Gravação de ${new Date().toLocaleDateString("pt-BR")}`);
+      }
+    } catch (err: unknown) {
+      if (caminhoAudio) {
+        await removerArquivosTemporariosBiblioteca([caminhoAudio]);
+      }
+      const mensagem = err instanceof Error ? err.message : "Falha ao preparar o áudio.";
+      console.error("Erro no preparo do áudio da Biblioteca:", err);
+      setErro(mensagem);
+      setFonteAudio(null);
+      setConteudoTexto("");
+      setProgressoAudio(0);
+    } finally {
+      setProcessandoAudio(false);
+    }
+  }
+
   async function submeterFormulario(e: React.FormEvent) {
     e.preventDefault();
 
@@ -169,15 +309,28 @@ export function ModalAdicionarConteudo({
       arquivoParaUpload = arquivo;
     } else {
       if (!conteudoTexto.trim()) {
-        setErro("Por favor, digite ou cole o conteúdo do texto.");
+        setErro(
+          modo === "audio"
+            ? "Finalize a gravação e revise a transcrição antes de salvar."
+            : "Por favor, digite ou cole o conteúdo do texto."
+        );
         return;
       }
-      const nomeArquivo = `${titulo.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase() || "texto"}.txt`;
+
+      if (modo === "audio" && !fonteAudio) {
+        setErro("Finalize a gravação e aguarde a transcrição antes de salvar.");
+        return;
+      }
+
+      const prefixo = modo === "audio" ? "transcricao" : "texto";
+      const nomeArquivo = `${prefixo}_${titulo.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase() || "conteudo"}.txt`;
       const blob = new Blob([conteudoTexto], { type: "text/plain;charset=utf-8" });
       arquivoParaUpload = new File([blob], nomeArquivo, { type: "text/plain" });
     }
 
     setErro(null);
+    const caminhosCriados: string[] = [];
+    let obraCriadaId: string | null = null;
 
     try {
       // 1. Obter Sessão e Token Autenticado no Browser
@@ -213,11 +366,19 @@ export function ModalAdicionarConteudo({
           },
         }).catch(reject);
       });
+      caminhosCriados.push(caminhoDestino);
 
       // 5. Registrar no Banco de Dados
       setEtapa("registrando");
       const opcaoSelecionada = opcoesTipo.find((o) => o.id === modo);
-      const tipoObra: TipoObra = opcaoSelecionada ? opcaoSelecionada.tipoObra : "livro";
+      const tipoObra: TipoObra =
+        modo === "audio"
+          ? papelFonte === "autoral"
+            ? "relato"
+            : "entrevista"
+          : opcaoSelecionada
+          ? opcaoSelecionada.tipoObra
+          : "livro";
 
       const resultado = await cadastrarObra({
         titulo: titulo.trim(),
@@ -251,8 +412,44 @@ export function ModalAdicionarConteudo({
             .map((t) => t.trim())
             .filter(Boolean),
           origem_upload: modo,
+          ...(modo === "audio"
+            ? {
+                fonte_original_audio: true,
+                transcricao_revisada: true,
+              }
+            : {}),
         },
       });
+
+      obraCriadaId = resultado.obra.id;
+
+      if (modo === "audio" && fonteAudio) {
+        try {
+          await registrarFonteOriginalObra({
+            obraId: resultado.obra.id,
+            versaoObraId: resultado.obra.versao_id,
+            tipoFonte: "audio",
+            storageCaminho: fonteAudio.storageCaminho,
+            arquivoNomeOriginal: fonteAudio.arquivo.name,
+            arquivoMimeType: fonteAudio.arquivo.type || "audio/webm",
+            arquivoTamanhoBytes: fonteAudio.arquivo.size,
+            hashSha256: fonteAudio.hashSha256,
+            conteudoExtraido: fonteAudio.textoExtraido,
+            conteudoConfirmado: conteudoTexto,
+            metadados: {
+              papel: "fonte_original_da_obra",
+              idiomas: fonteAudio.idiomas,
+              totalCaracteres: fonteAudio.totalCaracteres,
+              totalPalavras: fonteAudio.totalPalavras,
+            },
+          });
+        } catch (erroFonte) {
+          await excluirObra(resultado.obra.id);
+          obraCriadaId = null;
+          await removerArquivosTemporariosBiblioteca([fonteAudio.storageCaminho]);
+          throw erroFonte;
+        }
+      }
 
       setEtapa("concluido");
       setTimeout(() => {
@@ -261,6 +458,11 @@ export function ModalAdicionarConteudo({
       }, 700);
     } catch (err: unknown) {
       console.error("Erro no fluxo de envio:", err);
+
+      if (!obraCriadaId && caminhosCriados.length > 0) {
+        await removerArquivosTemporariosBiblioteca(caminhosCriados);
+      }
+
       const mensagem =
         err instanceof Error ? err.message : "Erro inesperado ao realizar upload.";
       setErro(mensagem);
@@ -290,7 +492,7 @@ export function ModalAdicionarConteudo({
           </div>
           <button
             type="button"
-            onClick={aoFechar}
+            onClick={() => void fecharModalComLimpeza()}
             disabled={emProcesso}
             aria-label="Fechar modal"
             className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40"
@@ -312,7 +514,7 @@ export function ModalAdicionarConteudo({
                 <button
                   key={op.id}
                   type="button"
-                  onClick={() => setModo(op.id)}
+                  onClick={() => selecionarModo(op.id)}
                   disabled={emProcesso}
                   className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all ${
                     selecionado
@@ -413,6 +615,42 @@ export function ModalAdicionarConteudo({
                   </button>
                 </div>
               )}
+            </div>
+          ) : modo === "audio" ? (
+            <div className="space-y-4">
+              <GravadorAudio
+                desabilitado={processandoAudio || emProcesso}
+                onArquivoPronto={(novoArquivo) => void prepararAudioBiblioteca(novoArquivo)}
+              />
+
+              {processandoAudio && (
+                <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-medium text-blue-700">
+                  Enviando e transcrevendo áudio · {progressoAudio}%
+                </div>
+              )}
+
+              {fonteAudio && !processandoAudio && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-700">
+                  Áudio preservado. Revise a transcrição abaixo antes de salvar a obra.
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Transcrição revisável *
+                </label>
+                <textarea
+                  value={conteudoTexto}
+                  onChange={(e) => setConteudoTexto(e.target.value)}
+                  placeholder="A transcrição da gravação aparecerá aqui para revisão."
+                  rows={8}
+                  disabled={!fonteAudio || processandoAudio}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm leading-6 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-y font-sans disabled:bg-slate-50 disabled:text-slate-400"
+                />
+                <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                  O áudio original permanece guardado. O processamento do Cérebro usa esta transcrição depois da sua revisão.
+                </p>
+              </div>
             </div>
           ) : (
             /* Área de Texto Direto */
