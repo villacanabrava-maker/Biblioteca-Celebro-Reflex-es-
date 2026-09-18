@@ -425,3 +425,4 @@ export async function decidirRelacaoSugerida({
   } catch {}
 
   return { sucesso: true, estado: novoEstado };
+}
