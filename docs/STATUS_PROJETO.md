@@ -90,7 +90,8 @@ Concluído:
 Migrations aplicadas:
 - `0025_taxonomia_isolamento_rls`;
 - `0026_motor_taxonomia_automatica`;
-- `0027_grants_propostas_atualizacao` (corrige permissão backend da fila de aprendizado autoral).
+- `0027_grants_propostas_atualizacao` (corrige permissão backend da fila de aprendizado autoral);
+- `0028_dimensoes_canonicas_readonly` (protege o catálogo das 18 dimensões como leitura autenticada e escrita administrativa).
 
 ### Cérebro Autoral
 
@@ -154,6 +155,7 @@ Dados reais observados:
 
 ### Resolvido
 
+- `cerebro_autoral.dimensoes`: migration `0028_dimensoes_canonicas_readonly` aplicada; RLS ativo, leitura permitida a `authenticated`, escrita revogada de clientes e preservada para `service_role`.
 - `cerebro_autoral.propostas_atualizacao`: migration `0027_grants_propostas_atualizacao` aplicada; `service_role` recuperou SELECT/INSERT/UPDATE/DELETE e `authenticated` permanece sem acesso direto.
 - Taxonomia deixou de ter RLS desabilitado.
 - Ownership e políticas foram aplicados antes da automação.
@@ -162,15 +164,7 @@ Dados reais observados:
 
 ### Pendente e deliberado
 
-1. **`cerebro_autoral.dimensoes`**
-   - catálogo global das 18 dimensões;
-   - RLS está desabilitado;
-   - `authenticated` atualmente possui SELECT/INSERT/UPDATE/DELETE;
-   - o código da aplicação apenas lê esse catálogo e ações de escrita não são necessárias;
-   - não habilitar RLS automaticamente sem política explícita;
-   - decisão segura proposta: catálogo legível e imutável para usuários autenticados, escrita exclusiva do backend/migrations.
-
-2. **Tabelas internas de Processamento com RLS ligado e sem policies diretas**
+1. **Tabelas internas de Processamento com RLS ligado e sem policies diretas**
    - `processamento.elementos`;
    - `processamento.etapas_execucao`;
    - `processamento.evidencias`;
@@ -178,11 +172,11 @@ Dados reais observados:
    - o modelo atual usa backend/service role para essas operações; sem policy, acesso direto do cliente autenticado é bloqueado.
    - não criar policies amplas apenas para eliminar o lint.
 
-3. **Supabase Auth**
+2. **Supabase Auth**
    - Leaked Password Protection continua desabilitado;
    - requer alteração de configuração do Auth; o conector atual não expõe ação para essa configuração.
 
-4. **Performance**
+3. **Performance**
    - advisor ainda aponta FKs sem índice e índices ainda não utilizados;
    - não remover/adicionar índices cegamente: priorizar queries reais e `EXPLAIN`/telemetria.
 
