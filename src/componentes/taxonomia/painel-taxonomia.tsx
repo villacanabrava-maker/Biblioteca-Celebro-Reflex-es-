@@ -1,8 +1,17 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Plus, Search, LayoutGrid, Network, BookOpen, Layers, GitBranch, Sparkles } from "lucide-react";
-import type { ConceitoTaxonomico, ArestaGrafoTaxonomia, DominioTaxonomico } from "@/tipos/taxonomia";
+import { useMemo, useState } from "react";
+import {
+  Plus,
+  Search,
+  LayoutGrid,
+  Network,
+  BookOpen,
+  Layers,
+  GitBranch,
+  Sparkles,
+} from "lucide-react";
+import type { ConceitoTaxonomico, ArestaGrafoTaxonomia } from "@/tipos/taxonomia";
 import { CardConceito } from "./card-conceito";
 import { GrafoTaxonomia } from "./grafo-taxonomia";
 import { ModalAdicionarConceito } from "./modal-adicionar-conceito";
@@ -13,16 +22,16 @@ interface Props {
 }
 
 const DOMINIOS: { id: string; rotulo: string }[] = [
-  { id: "todos", rotulo: "Todos os Domínios" },
+  { id: "todos", rotulo: "Todos os domínios" },
   { id: "intelectual", rotulo: "Intelectual" },
-  { id: "axiologico", rotulo: "Axiológico (Valores)" },
+  { id: "axiologico", rotulo: "Axiológico" },
   { id: "reflexivo", rotulo: "Reflexivo" },
   { id: "narrativo", rotulo: "Narrativo" },
   { id: "temporal", rotulo: "Temporal" },
   { id: "retorico", rotulo: "Retórico" },
   { id: "linguistico", rotulo: "Linguístico" },
   { id: "estrutural", rotulo: "Estrutural" },
-  { id: "autoral", rotulo: "Núcleo Autoral" },
+  { id: "autoral", rotulo: "Núcleo autoral" },
 ];
 
 export function PainelTaxonomia({ conceitosIniciais, arestasIniciais }: Props) {
@@ -31,163 +40,173 @@ export function PainelTaxonomia({ conceitosIniciais, arestasIniciais }: Props) {
   const [modoVisualizacao, setModoVisualizacao] = useState<"cards" | "grafo">("cards");
   const [modalAberto, setModalAberto] = useState(false);
 
-  // Filtros combinados
   const conceitosFiltrados = useMemo(() => {
-    return conceitosIniciais.filter((c) => {
-      const matchDominio = dominioSelecionado === "todos" || c.dominio === dominioSelecionado;
-      const termoNormalizado = busca.toLowerCase().trim();
+    return conceitosIniciais.filter((conceito) => {
+      const matchDominio =
+        dominioSelecionado === "todos" || conceito.dominio === dominioSelecionado;
+      const termo = busca.toLowerCase().trim();
       const matchBusca =
-        !termoNormalizado ||
-        c.termo_preferencial.toLowerCase().includes(termoNormalizado) ||
-        c.definicao.toLowerCase().includes(termoNormalizado) ||
-        c.termos_sinonimos?.some((s) => s.termo.toLowerCase().includes(termoNormalizado));
+        !termo ||
+        conceito.termo_preferencial.toLowerCase().includes(termo) ||
+        conceito.definicao.toLowerCase().includes(termo) ||
+        conceito.termos_sinonimos?.some((sinonimo) =>
+          sinonimo.termo.toLowerCase().includes(termo)
+        );
 
       return matchDominio && matchBusca;
     });
   }, [conceitosIniciais, busca, dominioSelecionado]);
 
-  // Métricas
   const metricas = useMemo(() => {
-    const totalConceitos = conceitosIniciais.length;
-    const dominiosAtivos = new Set(conceitosIniciais.map((c) => c.dominio)).size;
-    const totalConexoes = arestasIniciais.length;
-    const totalOcorrencias = conceitosIniciais.reduce((acc, c) => acc + (c.total_fragmentos || 0), 0);
-
-    return { totalConceitos, dominiosAtivos, totalConexoes, totalOcorrencias };
+    return {
+      totalConceitos: conceitosIniciais.length,
+      dominiosAtivos: new Set(conceitosIniciais.map((conceito) => conceito.dominio)).size,
+      totalConexoes: arestasIniciais.length,
+      totalOcorrencias: conceitosIniciais.reduce(
+        (total, conceito) => total + (conceito.total_fragmentos || 0),
+        0
+      ),
+    };
   }, [conceitosIniciais, arestasIniciais]);
 
+  const cards = [
+    {
+      rotulo: "Conceitos",
+      valor: metricas.totalConceitos,
+      detalhe: "conceitos registrados",
+      icone: BookOpen,
+      classe: "bg-blue-50 text-blue-600",
+    },
+    {
+      rotulo: "Domínios",
+      valor: metricas.dominiosAtivos,
+      detalhe: "campos com conceitos",
+      icone: Layers,
+      classe: "bg-violet-50 text-violet-600",
+    },
+    {
+      rotulo: "Conexões",
+      valor: metricas.totalConexoes,
+      detalhe: "relações no grafo",
+      icone: GitBranch,
+      classe: "bg-indigo-50 text-indigo-600",
+    },
+    {
+      rotulo: "Ocorrências",
+      valor: metricas.totalOcorrencias,
+      detalhe: "fragmentos associados",
+      icone: Sparkles,
+      classe: "bg-emerald-50 text-emerald-600",
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Cards de Métricas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-neutral-400 mb-2">
-            <span className="text-xs font-mono uppercase tracking-wider">Conceitos</span>
-            <BookOpen className="w-4 h-4 text-amber-400" />
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {cards.map(({ rotulo, valor, detalhe, icone: Icone, classe }) => (
+          <div key={rotulo} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500">{rotulo}</span>
+              <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${classe}`}>
+                <Icone className="h-4 w-4" />
+              </span>
+            </div>
+            <div className="text-2xl font-bold text-slate-900">{valor}</div>
+            <div className="mt-1 text-xs text-slate-500">{detalhe}</div>
           </div>
-          <div className="text-2xl font-serif text-neutral-100">{metricas.totalConceitos}</div>
-          <div className="text-[11px] text-neutral-500 mt-1">Conceitos canônicos ativos</div>
-        </div>
-
-        <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-neutral-400 mb-2">
-            <span className="text-xs font-mono uppercase tracking-wider">Domínios</span>
-            <Layers className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="text-2xl font-serif text-neutral-100">{metricas.dominiosAtivos}</div>
-          <div className="text-[11px] text-neutral-500 mt-1">Campos ontológicos com termos</div>
-        </div>
-
-        <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-neutral-400 mb-2">
-            <span className="text-xs font-mono uppercase tracking-wider">Conexões</span>
-            <GitBranch className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="text-2xl font-serif text-neutral-100">{metricas.totalConexoes}</div>
-          <div className="text-[11px] text-neutral-500 mt-1">Arestas ontológicas no grafo</div>
-        </div>
-
-        <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-neutral-400 mb-2">
-            <span className="text-xs font-mono uppercase tracking-wider">Ocorrências</span>
-            <Sparkles className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-2xl font-serif text-neutral-100">{metricas.totalOcorrencias}</div>
-          <div className="text-[11px] text-neutral-500 mt-1">Fragmentos autorais associados</div>
-        </div>
+        ))}
       </div>
 
-      {/* Barra de Controles: Busca, Domínios, Alternador e Ação */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-neutral-900/70 border border-neutral-800 p-3 rounded-2xl">
-        {/* Campo de Busca */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:flex-row md:items-center">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por conceito, definição ou sinônimo..."
-            className="w-full pl-9 pr-4 py-2 bg-neutral-950 border border-neutral-800 rounded-xl text-xs text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-amber-500 transition-colors"
+            onChange={(evento) => setBusca(evento.target.value)}
+            placeholder="Buscar conceito, definição ou sinônimo..."
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/10"
           />
         </div>
 
-        {/* Filtro por Domínio */}
         <select
           value={dominioSelecionado}
-          onChange={(e) => setDominioSelecionado(e.target.value)}
-          aria-label="Filtrar conceitos por domínio ontológico"
-          className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-300 focus:outline-none focus:border-amber-500 transition-colors"
+          onChange={(evento) => setDominioSelecionado(evento.target.value)}
+          aria-label="Filtrar conceitos por domínio"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-blue-500 focus:outline-none"
         >
-          {DOMINIOS.map((dom) => (
-            <option key={dom.id} value={dom.id}>
-              {dom.rotulo}
+          {DOMINIOS.map((dominio) => (
+            <option key={dominio.id} value={dominio.id}>
+              {dominio.rotulo}
             </option>
           ))}
         </select>
 
-        {/* Alternador de Modo de Visualização */}
-        <div className="flex items-center bg-neutral-950 border border-neutral-800 rounded-xl p-1 gap-1">
+        <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
           <button
             type="button"
             onClick={() => setModoVisualizacao("cards")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
               modoVisualizacao === "cards"
-                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm"
-                : "text-neutral-400 hover:text-neutral-200"
+                ? "bg-white text-blue-700 shadow-sm"
+                : "text-slate-500 hover:text-slate-800"
             }`}
           >
-            <LayoutGrid className="w-3.5 h-3.5" />
-            <span>Cards</span>
+            <LayoutGrid className="h-3.5 w-3.5" />
+            Cards
           </button>
           <button
             type="button"
             onClick={() => setModoVisualizacao("grafo")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
               modoVisualizacao === "grafo"
-                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm"
-                : "text-neutral-400 hover:text-neutral-200"
+                ? "bg-white text-blue-700 shadow-sm"
+                : "text-slate-500 hover:text-slate-800"
             }`}
           >
-            <Network className="w-3.5 h-3.5" />
-            <span>Grafo</span>
+            <Network className="h-3.5 w-3.5" />
+            Grafo
           </button>
         </div>
 
-        {/* Botão Novo Conceito */}
         <button
           type="button"
           onClick={() => setModalAberto(true)}
-          className="flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-neutral-950 font-medium rounded-xl text-xs shadow-md transition-all whitespace-nowrap"
+          className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm shadow-blue-600/20 transition-colors hover:bg-blue-700"
         >
-          <Plus className="w-4 h-4" />
-          <span>Novo Conceito</span>
+          <Plus className="h-4 w-4" />
+          Novo conceito
         </button>
       </div>
 
-      {/* Conteúdo Principal: Cards ou Grafo */}
       {modoVisualizacao === "cards" ? (
         conceitosFiltrados.length === 0 ? (
-          <div className="bg-neutral-900/40 border border-neutral-800 rounded-2xl p-12 text-center">
-            <BookOpen className="w-10 h-10 text-neutral-600 mx-auto mb-3" />
-            <h3 className="font-serif text-base text-neutral-300">Nenhum conceito encontrado</h3>
-            <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
+          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+              <BookOpen className="h-6 w-6" />
+            </div>
+            <h3 className="font-serif text-base font-bold text-slate-900">
+              Nenhum conceito encontrado
+            </h3>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
               {busca || dominioSelecionado !== "todos"
-                ? "Tente alterar os termos de busca ou o filtro de domínio."
-                : "Cadastre o primeiro conceito para inaugurar o vocabulário canônico do autor."}
+                ? "Altere a busca ou o filtro de domínio."
+                : "Cadastre o primeiro conceito para começar o mapa de ideias do seu acervo."}
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {conceitosFiltrados.map((conceito) => (
               <CardConceito key={conceito.id} conceito={conceito} />
             ))}
           </div>
         )
       ) : (
-        <GrafoTaxonomia conceitos={conceitosFiltrados} arestas={arestasIniciais} />
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 shadow-sm">
+          <GrafoTaxonomia conceitos={conceitosFiltrados} arestas={arestasIniciais} />
+        </div>
       )}
 
-      {/* Modal de Cadastro de Conceito */}
       <ModalAdicionarConceito
         aberto={modalAberto}
         aoFechar={() => setModalAberto(false)}
