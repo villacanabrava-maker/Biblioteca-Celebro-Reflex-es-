@@ -17,6 +17,7 @@ interface MenuUsuarioProps {
 export function MenuUsuario({ usuario }: MenuUsuarioProps) {
   const [aberto, setAberto] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const botaoMenuRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function handleClickFora(e: MouseEvent) {
@@ -28,15 +29,33 @@ export function MenuUsuario({ usuario }: MenuUsuarioProps) {
     return () => document.removeEventListener("mousedown", handleClickFora);
   }, []);
 
+  useEffect(() => {
+    if (!aberto) return;
+
+    function lidarEscape(evento: KeyboardEvent) {
+      if (evento.key !== "Escape") return;
+      evento.preventDefault();
+      setAberto(false);
+      botaoMenuRef.current?.focus();
+    }
+
+    document.addEventListener("keydown", lidarEscape);
+    return () => document.removeEventListener("keydown", lidarEscape);
+  }, [aberto]);
+
   const primeiroNome = usuario.nome ? usuario.nome.split(" ")[0] : "Autor";
   const inicial = usuario.nome ? usuario.nome.charAt(0).toUpperCase() : "A";
 
   return (
     <div className="relative" ref={menuRef}>
       <button
+        ref={botaoMenuRef}
+        type="button"
         onClick={() => setAberto(!aberto)}
-        className="flex items-center gap-2.5 p-1.5 pl-2 rounded-full hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200"
+        className="flex items-center gap-2.5 p-1.5 pl-2 rounded-full hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
         aria-label="Menu do usuário"
+        aria-expanded={aberto}
+        aria-controls="menu-usuario-conteudo"
       >
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white font-semibold text-xs shadow-sm">
           {inicial}
@@ -53,7 +72,10 @@ export function MenuUsuario({ usuario }: MenuUsuarioProps) {
       </button>
 
       {aberto && (
-        <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-900/10 py-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+        <div
+          id="menu-usuario-conteudo"
+          className="absolute right-0 mt-2 w-56 rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-900/10 py-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+        >
           <div className="px-4 py-2 border-b border-slate-100 mb-1">
             <p className="text-xs font-semibold text-slate-900 truncate">{usuario.nome}</p>
             <p className="text-[11px] text-slate-500 truncate">{usuario.email}</p>
