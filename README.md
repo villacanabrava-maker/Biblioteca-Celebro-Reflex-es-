@@ -6,6 +6,22 @@ Plataforma pessoal de inteligência autoral que aprende, a partir das obras do a
 
 ---
 
+## 🌐 Deploys Oficiais de Produção (Vercel)
+
+Estes são os únicos domínios de deploy de produção oficiais e ativos da plataforma:
+
+- **Domínio Principal**: [https://reflex-01.vercel.app](https://reflex-01.vercel.app)
+- **Domínio de Release (Branch Main)**: [https://reflex-01-git-main-naninne.vercel.app](https://reflex-01-git-main-naninne.vercel.app)
+- **Domínio Canônico de Build**: [https://reflex-01-u3df2906o-naninne.vercel.app](https://reflex-01-u3df2906o-naninne.vercel.app)
+
+---
+
+## 📦 Repositório Oficial
+
+- **GitHub**: [https://github.com/villacanabrava-maker/cerebroa-autoral-app-anty.git](https://github.com/villacanabrava-maker/cerebroa-autoral-app-anty.git)
+
+---
+
 ## 🏛️ Princípios Arquiteturais
 
 1. **Separação em 3 Planos**: Conteúdo (*sobre o que pensa*), Método (*como raciocina*) e Expressão (*como aparece na linguagem*).
@@ -46,7 +62,12 @@ npm run db:migrate
 npm run db:test
 ```
 
-### 4. Iniciar o servidor de desenvolvimento:
+### 4. Executar os testes automatizados:
+```bash
+npm test
+```
+
+### 5. Iniciar o servidor de desenvolvimento:
 ```bash
 npm run dev
 ```
