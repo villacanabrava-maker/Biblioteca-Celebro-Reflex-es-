@@ -77,7 +77,7 @@ export default async function PaginaInicial() {
             {saudacao}, {primeiroNome}! 👋
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Acompanhe seu acervo, continue processamentos e transforme memória em novas reflexões.
+            Transforme memórias em reflexões.
           </p>
         </div>
 
