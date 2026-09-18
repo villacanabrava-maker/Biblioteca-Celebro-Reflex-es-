@@ -114,7 +114,6 @@ export async function executarPipelineProcessamento({
     .eq("id", versaoObraId);
 
   let totalTokensGlobal = 0;
-  let documentoProcessadoId = "";
   let totalSecoesCriadas = 0;
   let totalFragmentosCriados = 0;
 
@@ -257,8 +256,6 @@ export async function executarPipelineProcessamento({
     if (errDocProc || !docProc) {
       throw new Error(`Erro ao registrar documento processado: ${errDocProc?.message}`);
     }
-
-    documentoProcessadoId = docProc.id;
 
     // 3.2 Inserir Seções com Unidade de Conhecimento
     const mapaSecoesId = new Map<number, string>();
