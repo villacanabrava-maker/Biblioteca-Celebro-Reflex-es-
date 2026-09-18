@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, FileText, CheckCircle2, Quote, ExternalLink, ChevronDown, Sparkles } from "lucide-react";
+import { FileText, Quote, ChevronDown } from "lucide-react";
 import type { VersaoReflexao, CitacaoEvidencia } from "@/tipos/reflexoes";
 
 interface Props {
