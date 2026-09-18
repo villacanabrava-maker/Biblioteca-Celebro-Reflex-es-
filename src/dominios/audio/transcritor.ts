@@ -28,7 +28,11 @@ export async function transcreverAudioBuffer({
     throw new Error("O áudio excede o limite de 25 MB da transcrição.");
   }
 
-  const arquivo = new File([buffer], nomeArquivo, { type: mimeType });
+  const bytes = buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength
+  ) as ArrayBuffer;
+  const arquivo = new File([bytes], nomeArquivo, { type: mimeType });
   const openai = obterClienteOpenAI();
 
   const resposta = await (openai.audio.transcriptions.create as any)({
