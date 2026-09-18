@@ -10,7 +10,7 @@ A fonte de verdade operacional é o estado real do repositório, Supabase e prod
 
 ## Estado reconciliado
 
-Base atual de produção: `7e2e3b89478cf7a8a5b250b4d6fbdba32d2b3424`.
+Base atual de produção: `82486017ffac9aa235cc22fc170b522eb05621ec`.
 
 A implementação `89bdf1f3fc859d3039daa060b808e09a3a38867d` consolidou integridade/proveniência de fontes, curadoria em massa de memórias, ordem Auditor → Texto, edição autoral com preservação da versão da IA e remoção de fallbacks reais de configuração do Supabase. A migration `0024_versionamento_edicao_autoral_reflexoes` já está aplicada no Supabase.
 
@@ -45,14 +45,14 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 | Pós-aprovação | Concluído | Redireciona para Minhas Reflexões. |
 | Card de Reflexão | Concluído em produção | Toda a superfície do card navega para o Estúdio, com foco acessível. |
 | Cérebro / métricas | Concluído | View/resumo corrigidos para refletir dados reais. |
-| Taxonomia automática | Aberto | UI ainda depende de cadastro manual; conceitos/relações continuam sem motor automático. |
-| Segurança Taxonomia/RLS | Em validação nesta branch | Migration 0025 introduz ownership por usuário, RLS coerente para conceitos/termos/relações/versões e reforça conceito↔fragmento sem backfill silencioso. |
+| Taxonomia automática | Em validação nesta branch | Documentos e reflexões aprovadas geram conceitos com evidência verificável; nós e relações de IA exigem confirmação humana antes de entrar no mapa canônico. |
+| Segurança Taxonomia/RLS | Concluído em produção | Migration 0025 aplicada: ownership por usuário, RLS coerente e vínculos protegidos. |
 
 ## Ordem de execução a partir daqui
 
-1. Validar e aplicar o isolamento/RLS da Taxonomia desta branch.
-2. Construir motor taxonômico automático integrado a documentos e reflexões.
-3. Usar a Taxonomia como fonte das sugestões de tags na Biblioteca.
+1. Validar e aplicar o motor taxonômico automático desta branch.
+2. Usar somente conceitos confirmados da Taxonomia como fonte das sugestões de tags na Biblioteca.
+3. Revisar segurança remanescente do Processamento e habilitar proteção de senhas vazadas no Supabase Auth.
 4. QA transversal: responsividade, acessibilidade, regressão visual, performance e E2E dos fluxos críticos.
 
 ## Guardrails
@@ -61,6 +61,7 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 - Não trocar Next.js, Supabase, Vercel ou arquitetura existente sem evidência concreta.
 - Não criar métricas, conceitos, sínteses ou regras fictícias.
 - Não promover automaticamente uma edição do autor a “regra metodológica”; primeiro registrar evidência, depois propor e exigir validação.
+- Não promover conceito ou relação sugeridos por IA ao mapa canônico sem decisão explícita do autor.
 - Não habilitar RLS sem políticas adequadas.
 - Não considerar uma mudança concluída sem CI e verificação do estado real de produção.
 - Não apresentar percentuais, custos ou etapas intermediárias simuladas como se fossem telemetria real.
