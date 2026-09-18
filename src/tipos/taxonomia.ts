@@ -39,11 +39,14 @@ export interface TermoSinonimo {
 
 export interface ConceitoTaxonomico {
   id: string;
+  usuario_id: string;
   codigo: string;
   termo_preferencial: string;
   definicao: string;
   dominio: DominioTaxonomico;
   estado: string;
+  origem: "curadoria" | "ia" | "importacao";
+  confianca: number;
   criado_em: string;
   total_fragmentos: number;
   termos_sinonimos: TermoSinonimo[];
@@ -51,6 +54,7 @@ export interface ConceitoTaxonomico {
 
 export interface ArestaGrafoTaxonomia {
   relacao_id: string;
+  usuario_id: string;
   tipo_relacao: TipoRelacaoOntologica;
   confianca: number;
   origem_id: string;

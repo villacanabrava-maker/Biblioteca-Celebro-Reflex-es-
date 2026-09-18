@@ -10,7 +10,7 @@ A fonte de verdade operacional é o estado real do repositório, Supabase e prod
 
 ## Estado reconciliado
 
-Base atual de produção: `33acdc1c4b429cdd9e88c2e55693c2b4fb41bf63`.
+Base atual de produção: `7e2e3b89478cf7a8a5b250b4d6fbdba32d2b3424`.
 
 A implementação `89bdf1f3fc859d3039daa060b808e09a3a38867d` consolidou integridade/proveniência de fontes, curadoria em massa de memórias, ordem Auditor → Texto, edição autoral com preservação da versão da IA e remoção de fallbacks reais de configuração do Supabase. A migration `0024_versionamento_edicao_autoral_reflexoes` já está aplicada no Supabase.
 
@@ -27,7 +27,7 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 | Card da Biblioteca | Concluído | Superfície principal clicável; ações internas preservadas. |
 | Modal/fragmentos | Concluído parcialmente | Fluxo funcional; manter revisão visual no QA geral. |
 | Download | Concluído | Nome de download passou a respeitar a obra/arquivo. |
-| Sínteses cognitivas | Concluído nesta branch | Pipeline passa a gerar sínteses hierárquicas por seção e documento, com proveniência física, tese central somente quando sustentada e leitura isolada por documento. |
+| Sínteses cognitivas | Concluído em produção | Pipeline gera sínteses hierárquicas por seção e documento, com proveniência física, tese central somente quando sustentada e leitura isolada por documento. |
 | Data de entrada | Concluído em produção | Dossiê de Auditoria usa a data real de criação da obra na Biblioteca, não a data técnica de publicação do processamento. |
 | “Refletir com esta obra” | Concluído | `fonteId` é consumido e a obra entra como fonte canônica. |
 | Reflexão por documento | Concluído | Upload privado, extração e conteúdo revisável. |
@@ -46,15 +46,14 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 | Card de Reflexão | Concluído em produção | Toda a superfície do card navega para o Estúdio, com foco acessível. |
 | Cérebro / métricas | Concluído | View/resumo corrigidos para refletir dados reais. |
 | Taxonomia automática | Aberto | UI ainda depende de cadastro manual; conceitos/relações continuam sem motor automático. |
-| Segurança Taxonomia/RLS | Aberto controlado | Não habilitar RLS cegamente; desenhar políticas coerentes antes da migration. |
+| Segurança Taxonomia/RLS | Em validação nesta branch | Migration 0025 introduz ownership por usuário, RLS coerente para conceitos/termos/relações/versões e reforça conceito↔fragmento sem backfill silencioso. |
 
 ## Ordem de execução a partir daqui
 
-1. Concluir e validar as sínteses cognitivas hierárquicas desta branch.
+1. Validar e aplicar o isolamento/RLS da Taxonomia desta branch.
 2. Construir motor taxonômico automático integrado a documentos e reflexões.
 3. Usar a Taxonomia como fonte das sugestões de tags na Biblioteca.
-4. Revisar RLS da Taxonomia com políticas explícitas e testes negativos.
-5. QA transversal: responsividade, acessibilidade, regressão visual, performance e E2E dos fluxos críticos.
+4. QA transversal: responsividade, acessibilidade, regressão visual, performance e E2E dos fluxos críticos.
 
 ## Guardrails
 
