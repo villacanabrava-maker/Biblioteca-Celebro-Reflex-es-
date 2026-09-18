@@ -10,7 +10,7 @@ A fonte de verdade operacional é o estado real do repositório, Supabase e prod
 
 ## Estado reconciliado
 
-Base atual de produção: `13178edcd67ceca76425938962d3f723975b18c9`.
+Base atual de produção: `85b331c9f80194c508cbb8a33936bd29482f7a9a`.
 
 A implementação `89bdf1f3fc859d3039daa060b808e09a3a38867d` consolidou integridade/proveniência de fontes, curadoria em massa de memórias, ordem Auditor → Texto, edição autoral com preservação da versão da IA e remoção de fallbacks reais de configuração do Supabase. A migration `0024_versionamento_edicao_autoral_reflexoes` já está aplicada no Supabase.
 
@@ -23,7 +23,7 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 | Tipografia de leitura | Concluído | Escala global e fontes de leitura revisadas. |
 | Home / slogan | Concluído | Mantém saudação e usa “Transforme memórias em reflexões.” |
 | Biblioteca / áudio | Concluído | Gravação, transcrição revisável e fonte original preservada. |
-| Tags inteligentes | Em validação nesta branch | Biblioteca recebe apenas conceitos confirmados da Taxonomia como sugestões, preserva IDs/códigos no metadado e mantém tags livres opcionais. |
+| Tags inteligentes | Concluído em produção | Biblioteca recebe apenas conceitos confirmados da Taxonomia como sugestões, preserva IDs/códigos no metadado, mantém tags livres opcionais e permite busca pelas tags. |
 | Card da Biblioteca | Concluído | Superfície principal clicável; ações internas preservadas. |
 | Modal/fragmentos | Concluído parcialmente | Fluxo funcional; manter revisão visual no QA geral. |
 | Download | Concluído | Nome de download passou a respeitar a obra/arquivo. |
@@ -50,9 +50,11 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 
 ## Ordem de execução a partir daqui
 
-1. Validar as tags inteligentes da Biblioteca desta branch.
-2. Revisar segurança remanescente do Processamento e habilitar proteção de senhas vazadas no Supabase Auth.
-3. QA transversal: responsividade, acessibilidade, regressão visual, performance e E2E dos fluxos críticos.
+1. Fechar decisão segura para o catálogo global `cerebro_autoral.dimensoes` (RLS/read-only).
+2. Habilitar proteção contra senhas vazadas no Supabase Auth.
+3. QA transversal: E2E autenticado, acessibilidade, responsividade e regressão visual.
+4. Performance e observabilidade baseadas em medições reais.
+5. Proteção formal da branch `main`.
 
 ## Guardrails
 
