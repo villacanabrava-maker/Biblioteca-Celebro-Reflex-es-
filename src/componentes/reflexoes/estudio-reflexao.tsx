@@ -41,7 +41,7 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
 
   const abaPadrao =
     versoes.length > 0
-      ? "texto"
+      ? "auditoria"
       : plano
       ? "plano"
       : "intencao";
@@ -133,19 +133,6 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
 
         <button
           type="button"
-          onClick={() => setAbaAtiva("texto")}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold transition-all whitespace-nowrap ${
-            abaAtiva === "texto"
-              ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-xs"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-          }`}
-        >
-          <FileText className="w-3.5 h-3.5" />
-          <span>3. Texto & Evidências ({versoes.length})</span>
-        </button>
-
-        <button
-          type="button"
           onClick={() => setAbaAtiva("auditoria")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold transition-all whitespace-nowrap ${
             abaAtiva === "auditoria"
@@ -154,7 +141,20 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
           }`}
         >
           <ShieldCheck className="w-3.5 h-3.5" />
-          <span>4. Auditor Crítico</span>
+          <span>3. Auditor Crítico</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAbaAtiva("texto")}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold transition-all whitespace-nowrap ${
+            abaAtiva === "texto"
+              ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-xs"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>4. Texto & Evidências ({versoes.length})</span>
         </button>
 
         <button
@@ -269,7 +269,7 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
           temVersao={versoes.length > 0}
           aoConcluirRedacao={() => {
             router.refresh();
-            setAbaAtiva("texto");
+            setAbaAtiva("auditoria");
           }}
         />
       )}
