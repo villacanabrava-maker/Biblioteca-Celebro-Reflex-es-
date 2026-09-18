@@ -1,6 +1,5 @@
 import { z } from "zod";
-
-export const LIMITE_ARQUIVO_BIBLIOTECA_BYTES = 50 * 1024 * 1024;
+import { LIMITE_ARQUIVO_BIBLIOTECA_BYTES } from "@/lib/limites-upload";
 
 export const tipoObraSchema = z.enum([
   "livro",
