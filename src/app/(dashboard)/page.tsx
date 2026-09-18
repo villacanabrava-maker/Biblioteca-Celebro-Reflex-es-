@@ -7,13 +7,8 @@ import {
   FileCheck2,
   ArrowRight,
   ChevronRight,
-  UploadCloud,
-  CheckCircle2,
   Clock,
   Zap,
-  TrendingUp,
-  Feather,
-  PlusCircle,
   BrainCircuit,
   Upload,
 } from "lucide-react";
@@ -48,7 +43,6 @@ export default async function PaginaInicial() {
 
   // Contagens por tipo
   const totalLivros = obras.filter((o) => o.tipo === "livro").length;
-  const totalReflexoesTipo = obras.filter((o) => o.tipo === "reflexao").length;
   const totalCartas = obras.filter((o) => o.tipo === "carta").length;
 
   // Obras pendentes de processamento
@@ -62,12 +56,10 @@ export default async function PaginaInicial() {
   const reflexoesEmRevisao = reflexoes.filter(
     (r) => r.estado_entrada === "em_auditoria" || r.estado_entrada === "em_redacao"
   ).length;
-  const reflexoesEmElaboracao = Math.max(0, totalReflexoesCriadas - reflexoesConcluidas - reflexoesEmRevisao);
 
-  // Porcentagem calculada de análise da memória autoral
-  const percentualAnalise =
-    totalDocumentos > 0 ? Math.min(100, Math.max(45, Math.round((totalDocumentos / 10) * 85))) : 78;
-  const totalMemoriasEstimadas = (resumoCerebro?.total_caracteristicas || 12) * 8 + totalDocumentos * 15;
+  // Progresso baseado apenas em documentos efetivamente processados.
+  const percentualProcessado =
+    totalDocumentos > 0 ? Math.round((totalProcessados / totalDocumentos) * 100) : 0;
 
   // Hora do dia para saudação
   const hora = new Date().getHours();
@@ -133,18 +125,18 @@ export default async function PaginaInicial() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                 <Brain className="w-4 h-4 text-blue-300" />
-                Memória Analisada
+                Acervo processado
               </span>
-              <span className="text-xs font-mono font-bold text-blue-300">{percentualAnalise}%</span>
+              <span className="text-xs font-mono font-bold text-blue-300">{percentualProcessado}%</span>
             </div>
             <div className="h-2 rounded-full bg-white/20 overflow-hidden mb-2">
               <div
                 className="h-full bg-blue-400 rounded-full transition-all duration-1000"
-                style={{ width: `${percentualAnalise}%` }}
+                style={{ width: `${percentualProcessado}%` }}
               />
             </div>
             <p className="text-[11px] text-slate-400 font-mono">
-              {totalMemoriasEstimadas} conexões neurais
+              {totalProcessados} de {totalDocumentos} documentos processados
             </p>
           </div>
         </div>
@@ -205,9 +197,9 @@ export default async function PaginaInicial() {
           </div>
           <div className="mt-4">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Cérebro Ativo</h2>
-            <p className="text-2xl font-bold text-slate-900 mt-1">18 Dimensões</p>
+            <p className="text-2xl font-bold text-slate-900 mt-1">{resumoCerebro.total_caracteristicas}</p>
             <p className="text-xs text-indigo-600 font-medium mt-1">
-              3 Planos Metodológicos
+              {resumoCerebro.total_regras} regras metodológicas
             </p>
           </div>
         </Link>
