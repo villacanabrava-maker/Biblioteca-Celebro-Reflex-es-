@@ -13,7 +13,10 @@ import {
   Save,
   X,
 } from "lucide-react";
-import { salvarEdicaoAutorReflexao } from "@/acoes/reflexoes";
+import {
+  analisarAprendizadoEdicaoReflexao,
+  salvarEdicaoAutorReflexao,
+} from "@/acoes/reflexoes";
 import type { VersaoReflexao, CitacaoEvidencia } from "@/tipos/reflexoes";
 
 interface Props {
@@ -37,6 +40,7 @@ export function LeitorVersaoReflexao({
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [erroEdicao, setErroEdicao] = useState<string | null>(null);
   const [mensagemEdicao, setMensagemEdicao] = useState<string | null>(null);
+  const [analisandoAprendizado, setAnalisandoAprendizado] = useState(false);
 
   if (versoes.length === 0) {
     return (
@@ -241,9 +245,49 @@ export function LeitorVersaoReflexao({
               </div>
             </div>
 
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-              {diffEdicao.percentual_alteracao}% do conteúdo alterado
-            </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                {diffEdicao.percentual_alteracao}% do conteúdo alterado
+              </span>
+              <button
+                type="button"
+                disabled={analisandoAprendizado}
+                onClick={async () => {
+                  try {
+                    setAnalisandoAprendizado(true);
+                    setMensagemEdicao(null);
+                    const resultado = await analisarAprendizadoEdicaoReflexao({
+                      entradaId,
+                      versaoEditadaId: versaoAtual.id,
+                    });
+
+                    setMensagemEdicao(
+                      resultado.totalPropostas > 0
+                        ? resultado.reutilizadas
+                          ? `${resultado.totalPropostas} proposta(s) de aprendizado já estavam registradas no Cérebro.`
+                          : `${resultado.totalPropostas} proposta(s) de aprendizado foram enviadas ao Cérebro para sua revisão.`
+                        : "A análise foi concluída e não encontrou um padrão suficientemente sustentado para propor."
+                    );
+                  } catch (erro: unknown) {
+                    setMensagemEdicao(
+                      erro instanceof Error
+                        ? erro.message
+                        : "Falha ao analisar a edição para aprendizado."
+                    );
+                  } finally {
+                    setAnalisandoAprendizado(false);
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+              >
+                {analisandoAprendizado ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <GitCompareArrows className="h-4 w-4" />
+                )}
+                Analisar edição no Cérebro
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
