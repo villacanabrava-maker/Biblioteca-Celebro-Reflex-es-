@@ -551,6 +551,7 @@ export async function iniciarEsteiraReflexao({
   titulo,
   formatoDesejado = "ensaio",
   fonte,
+  fontesAdicionais = [],
 }: {
   reflexaoExterna: string;
   tipoOrigemExterna?: TipoOrigemExterna;
@@ -559,6 +560,7 @@ export async function iniciarEsteiraReflexao({
   titulo?: string;
   formatoDesejado?: FormatoReflexao;
   fonte?: FonteReflexaoPreparada;
+  fontesAdicionais?: FonteReflexaoPreparada[];
 }): Promise<{
   sucesso: boolean;
   entradaId: string;
@@ -617,15 +619,22 @@ export async function iniciarEsteiraReflexao({
   };
 
   try {
-    await registrarFonteCanonica({
-      entradaId: entrada.id,
-      usuarioId,
-      fonte: {
+    const fontesParaRegistrar: FonteReflexaoPreparada[] = [
+      {
         ...fonteCanonica,
         conteudoConfirmado:
           fonteCanonica.conteudoConfirmado?.trim() || reflexaoExterna.trim(),
       },
-    });
+      ...fontesAdicionais,
+    ];
+
+    for (const fonteParaRegistrar of fontesParaRegistrar) {
+      await registrarFonteCanonica({
+        entradaId: entrada.id,
+        usuarioId,
+        fonte: fonteParaRegistrar,
+      });
+    }
   } catch (erroFonte) {
     await admin
       .schema("reflexoes")
