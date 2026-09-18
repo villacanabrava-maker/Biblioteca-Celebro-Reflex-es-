@@ -91,6 +91,7 @@ Migrations aplicadas:
 - `0026_motor_taxonomia_automatica`;
 - `0027_grants_propostas_atualizacao` (corrige permissão backend da fila de aprendizado autoral);
 - `0028_dimensoes_canonicas_readonly` (protege o catálogo das 18 dimensões como leitura autenticada e escrita administrativa).
+- `0029_limite_upload_biblioteca_50mb` (alinha o bucket `originais-biblioteca` ao limite de 50 MB desta fase).
 
 ### Cérebro Autoral
 
@@ -179,7 +180,13 @@ Dados reais observados:
 
 ### Pendente e deliberado
 
-1. **Tabelas internas de Processamento com RLS ligado e sem policies diretas**
+1. **Schema `sistema` com seis tabelas sem RLS**
+   - `modelos_ia`, `prompts`, `versoes_prompts`, `versoes_pipeline`, `configuracoes_usuario`, `perfis_embedding`;
+   - `anon` não possui privilégios diretos, mas `authenticated` ainda possui escrita;
+   - não habilitar RLS automaticamente sem políticas específicas;
+   - política proposta: catálogos globais read-only para `authenticated` e escrita apenas administrativa; `configuracoes_usuario` isolada por `auth.uid()`.
+
+2. **Tabelas internas de Processamento com RLS ligado e sem policies diretas**
    - `processamento.elementos`;
    - `processamento.etapas_execucao`;
    - `processamento.evidencias`;
@@ -187,13 +194,13 @@ Dados reais observados:
    - o modelo atual usa backend/service role para essas operações; sem policy, acesso direto do cliente autenticado é bloqueado.
    - não criar policies amplas apenas para eliminar o lint.
 
-2. **Supabase Auth**
+3. **Supabase Auth**
    - o advisor continua sinalizando Leaked Password Protection desabilitado;
    - a documentação atual do Supabase informa que esse recurso exige plano Pro ou superior;
    - mantendo a decisão do projeto de usar Supabase Free, o alerta é uma limitação conhecida e não um gate executável;
    - o aplicativo compensa parcialmente com validação de cadastro no servidor e mínimo canônico de 8 caracteres.
 
-3. **Performance**
+4. **Performance**
    - advisor ainda aponta FKs sem índice e índices ainda não utilizados;
    - não remover/adicionar índices cegamente: priorizar queries reais e `EXPLAIN`/telemetria.
 
@@ -208,12 +215,14 @@ Já fechados nesta fase:
 - primeira passada de acessibilidade, teclado e reflow dos modais principais;
 - semântica e responsividade do card da Biblioteca: superfície inteira clicável com link HTML nativo, ações internas independentes e alvos/reflow revisados.
 
+Encerramento desta etapa documentado em `docs/RELATORIO_ENCERRAMENTO_ETAPA_2026-09-18.md`.
+
 Próxima sequência:
-1. concluir responsividade e regressão visual dos demais cards/páginas;
-2. preparar E2E autenticado sem armazenar credenciais no repositório;
-3. medir performance antes de alterar índices;
-4. ampliar observabilidade de runtime;
-5. tratar proteção formal da `main` quando a integração administrativa permitir.
+1. iniciar a nova etapa a partir do relatório de encerramento;
+2. tratar RLS do schema `sistema` com políticas explícitas;
+3. preparar E2E autenticado com credencial/sessão de teste apropriada;
+4. medir performance com carga real antes de novas migrations de índice;
+5. habilitar proteção formal da `main` quando houver ação administrativa disponível.
 
 ## 7. Regras de execução
 

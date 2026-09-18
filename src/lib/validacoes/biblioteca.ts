@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LIMITE_ARQUIVO_BIBLIOTECA_BYTES } from "@/lib/limites-upload";
 
 export const tipoObraSchema = z.enum([
   "livro",
@@ -53,7 +54,13 @@ export const cadastrarObraSchema = z.object({
     .default(1.0),
   arquivo_caminho: z.string().min(5, "Caminho do arquivo inválido."),
   arquivo_nome_original: z.string().min(1, "Nome do arquivo original obrigatório."),
-  arquivo_tamanho_bytes: z.number().positive("Tamanho do arquivo deve ser positivo."),
+  arquivo_tamanho_bytes: z
+    .number()
+    .positive("Tamanho do arquivo deve ser positivo.")
+    .max(
+      LIMITE_ARQUIVO_BIBLIOTECA_BYTES,
+      "O arquivo excede o limite de 50 MB da Biblioteca."
+    ),
   arquivo_mime_type: z.string().min(3, "MIME type obrigatório."),
   hash_sha256: z
     .string()
