@@ -10,6 +10,7 @@ import { detectarConflitosEMontarDossie } from "@/dominios/reflexoes/detector-co
 import { gerarPlanoReflexao } from "@/dominios/reflexoes/planejador-reflexao";
 import { redigirReflexao } from "@/dominios/reflexoes/redator-reflexao";
 import { calcularDiffEdicaoAutor } from "@/dominios/reflexoes/diff-edicao";
+import { gerarPropostasAprendizadoDaEdicao } from "@/dominios/cerebro/analisador-edicao-autoral";
 import { auditarVersaoReflexao } from "@/dominios/auditoria/auditor-independente";
 import { extrairTextoDeBuffer } from "@/dominios/processamento/extrator-texto";
 import { transcreverAudioBuffer } from "@/dominios/audio/transcritor";
@@ -1118,9 +1119,29 @@ export async function salvarEdicaoAutorReflexao({
     throw new Error(`Falha ao registrar a revisão autoral: ${erroRevisao.message}`);
   }
 
+  let totalPropostasAprendizado = 0;
+  let avisoAprendizado: string | null = null;
+
+  try {
+    const aprendizado = await gerarPropostasAprendizadoDaEdicao({
+      entradaId,
+      versaoEditadaId: novaVersao.id,
+      usuarioId,
+    });
+    totalPropostasAprendizado = aprendizado.totalPropostas;
+  } catch (erroAprendizado: unknown) {
+    console.error(
+      "A edição foi salva, mas a análise de aprendizado autoral falhou:",
+      erroAprendizado
+    );
+    avisoAprendizado =
+      "A edição foi salva, mas as propostas de aprendizado não puderam ser geradas agora.";
+  }
+
   try {
     revalidatePath(`/reflexoes/${entradaId}`);
     revalidatePath("/reflexoes");
+    revalidatePath("/cerebro");
   } catch {}
 
   return {
@@ -1128,6 +1149,8 @@ export async function salvarEdicaoAutorReflexao({
     alterado: true,
     versaoId: novaVersao.id as string,
     numeroVersao: novaVersao.numero_versao as number,
+    totalPropostasAprendizado,
+    avisoAprendizado,
   };
 }
 
