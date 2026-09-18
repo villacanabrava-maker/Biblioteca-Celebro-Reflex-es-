@@ -3,23 +3,32 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Brain, BookOpen, ShieldCheck, Ban, Sparkles, Layers3, Info } from "lucide-react";
-import type { DimensaoCerebro, CaracteristicaCerebro, RegraCerebro, ResumoCerebro } from "@/tipos/cerebro";
+import type {
+  DimensaoCerebro,
+  CaracteristicaCerebro,
+  PropostaAtualizacaoCerebro,
+  RegraCerebro,
+  ResumoCerebro,
+} from "@/tipos/cerebro";
 import { AcordeaoDimensoes } from "./acordeao-dimensoes";
+import { PainelPropostasAprendizado } from "./painel-propostas-aprendizado";
 
 interface Props {
   resumo: ResumoCerebro;
   dimensoes: DimensaoCerebro[];
   caracteristicas: CaracteristicaCerebro[];
   regras: RegraCerebro[];
+  propostas: PropostaAtualizacaoCerebro[];
 }
 
-type AbaCerebro = "visao_geral" | "dimensoes" | "regras";
+type AbaCerebro = "visao_geral" | "dimensoes" | "regras" | "aprendizados";
 
 export function PainelCerebroModerno({
   resumo,
   dimensoes,
   caracteristicas,
   regras,
+  propostas,
 }: Props) {
   const [abaAtiva, setAbaAtiva] = useState<AbaCerebro>("visao_geral");
 
@@ -60,10 +69,21 @@ export function PainelCerebroModerno({
     },
   ];
 
+  const totalPropostasPendentes = propostas.filter(
+    (proposta) => proposta.estado_decisao === "pendente"
+  ).length;
+
   const abas: { id: AbaCerebro; rotulo: string }[] = [
     { id: "visao_geral", rotulo: "Visão geral" },
     { id: "dimensoes", rotulo: "Dimensões" },
     { id: "regras", rotulo: "Regras" },
+    {
+      id: "aprendizados",
+      rotulo:
+        totalPropostasPendentes > 0
+          ? `Aprendizados (${totalPropostasPendentes})`
+          : "Aprendizados",
+    },
   ];
 
   return (
@@ -273,6 +293,10 @@ export function PainelCerebroModerno({
             regras={regras}
           />
         </div>
+      )}
+
+      {abaAtiva === "aprendizados" && (
+        <PainelPropostasAprendizado propostas={propostas} />
       )}
 
       {abaAtiva === "regras" && (
