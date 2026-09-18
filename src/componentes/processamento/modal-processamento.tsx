@@ -12,7 +12,7 @@ interface Props {
   aoConcluir: (obraId: string) => void;
 }
 
-type EtapaStatus = "esperando" | "concluido";
+type EtapaStatus = "esperando" | "concluido" | "falha";
 
 interface EtapaVisual {
   id: number;
@@ -29,6 +29,8 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
     totalSecoes: number;
     totalFragmentos: number;
     totalSinteses: number;
+    totalConceitosTaxonomia?: number;
+    avisoTaxonomia?: string | null;
     totalTokens: number;
     custoEstimadoUsd: number;
   } | null>(null);
@@ -76,6 +78,13 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
       icone: Brain,
       status: "esperando",
     },
+    {
+      id: 7,
+      titulo: "7. Taxonomia Automática",
+      subtitulo: "Extração de conceitos com evidências verificadas e revisão final do autor",
+      icone: Sparkles,
+      status: "esperando",
+    },
   ]);
 
   if (!aberto || !obra) return null;
@@ -103,11 +112,16 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
         throw new Error(res.erro || "Falha desconhecida no pipeline.");
       }
 
-      // Marcar todas como concluídas
-      setEtapas((prev) =>
-        prev.map((e) => ({ ...e, status: "concluido" }))
-      );
       if (res.resultado) {
+        setEtapas((prev) =>
+          prev.map((etapa) => ({
+            ...etapa,
+            status:
+              etapa.id === 7 && res.resultado?.avisoTaxonomia
+                ? "falha"
+                : "concluido",
+          }))
+        );
         setResultado(res.resultado);
       }
       aoConcluir(obra.id);
@@ -189,12 +203,13 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
         {/* Etapas declaradas da metodologia; o status intermediário não é simulado. */}
         <div className="space-y-2.5">
           <h4 className="text-xs uppercase tracking-wider text-slate-500 font-bold px-0.5">
-            Metodologia de Processamento em 6 Fases
+            Metodologia de Processamento em 7 Fases
           </h4>
           <div className="space-y-2">
             {etapas.map((et) => {
               const Icone = et.icone;
               const isConcluido = et.status === "concluido";
+              const isFalha = et.status === "falha";
 
               return (
                 <div
@@ -202,6 +217,8 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
                   className={`flex items-start gap-3 p-3 rounded-2xl border transition-all ${
                     isConcluido
                       ? "bg-emerald-50/50 border-emerald-200"
+                      : isFalha
+                      ? "bg-amber-50/70 border-amber-200"
                       : "bg-white border-slate-200/70"
                   }`}
                 >
@@ -209,6 +226,8 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
                     className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
                       isConcluido
                         ? "bg-emerald-500 text-white"
+                        : isFalha
+                        ? "bg-amber-500 text-white"
                         : processando
                         ? "bg-blue-50 text-blue-600"
                         : "bg-slate-100 text-slate-400"
@@ -216,6 +235,8 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
                   >
                     {isConcluido ? (
                       <CheckCircle2 className="w-3.5 h-3.5" />
+                    ) : isFalha ? (
+                      <AlertCircle className="w-3.5 h-3.5" />
                     ) : (
                       <Icone className="w-3.5 h-3.5" />
                     )}
@@ -224,7 +245,11 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
                   <div className="flex-1 min-w-0">
                     <p
                       className={`text-xs font-bold leading-tight ${
-                        isConcluido ? "text-emerald-900" : "text-slate-800"
+                        isConcluido
+                          ? "text-emerald-900"
+                          : isFalha
+                          ? "text-amber-900"
+                          : "text-slate-800"
                       }`}
                     >
                       {et.titulo}
@@ -237,6 +262,11 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
                   {isConcluido && (
                     <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full shrink-0">
                       Concluído
+                    </span>
+                  )}
+                  {isFalha && (
+                    <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full shrink-0">
+                      Reanálise disponível
                     </span>
                   )}
                 </div>
@@ -253,6 +283,7 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
               <p className="font-bold">Ocorreu uma falha no processamento</p>
               <p className="mt-0.5 text-rose-700">{erro}</p>
             </div>
+
           </div>
         )}
 
@@ -264,7 +295,7 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
               Livro totalmente processado e integrado ao Cérebro!
             </div>
             
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
               <div className="p-2.5 bg-white border border-emerald-100 rounded-xl text-center">
                 <span className="text-[10px] text-slate-400 uppercase font-semibold block">Capítulos/Seções</span>
                 <span className="text-base font-extrabold text-slate-800">{resultado.totalSecoes}</span>
@@ -281,6 +312,13 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
               </div>
 
               <div className="p-2.5 bg-white border border-emerald-100 rounded-xl text-center">
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Conceitos mapeados</span>
+                <span className="text-base font-extrabold text-slate-800">
+                  {resultado.totalConceitosTaxonomia ?? 0}
+                </span>
+              </div>
+
+              <div className="p-2.5 bg-white border border-emerald-100 rounded-xl text-center">
                 <span className="text-[10px] text-slate-400 uppercase font-semibold block">Tokens Vetorizados</span>
                 <span className="text-base font-extrabold text-slate-800">{resultado.totalTokens}</span>
               </div>
@@ -290,6 +328,12 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
                 <span className="text-base font-extrabold text-slate-800 font-mono">${resultado.custoEstimadoUsd.toFixed(5)}</span>
               </div>
             </div>
+
+            {resultado.avisoTaxonomia && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800">
+                {resultado.avisoTaxonomia} O documento permanece processado; a Taxonomia pode ser reanalisada na tela do documento.
+              </div>
+            )}
           </div>
         )}
 

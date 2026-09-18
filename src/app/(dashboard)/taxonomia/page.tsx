@@ -1,6 +1,10 @@
 import { Metadata } from "next";
 import { Compass } from "lucide-react";
-import { obterConceitos, obterGrafoTaxonomia } from "@/acoes/taxonomia";
+import {
+  obterConceitos,
+  obterGrafoTaxonomia,
+  obterRelacoesEmRevisao,
+} from "@/acoes/taxonomia";
 import { PainelTaxonomia } from "@/componentes/taxonomia/painel-taxonomia";
 
 export const metadata: Metadata = {
@@ -11,9 +15,10 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function PaginaTaxonomia() {
-  const [conceitos, arestas] = await Promise.all([
+  const [conceitos, arestas, relacoesEmRevisao] = await Promise.all([
     obterConceitos(),
     obterGrafoTaxonomia(),
+    obterRelacoesEmRevisao(),
   ]);
 
   return (
@@ -34,6 +39,7 @@ export default async function PaginaTaxonomia() {
       <PainelTaxonomia
         conceitosIniciais={conceitos}
         arestasIniciais={arestas}
+        relacoesEmRevisaoIniciais={relacoesEmRevisao}
       />
     </div>
   );

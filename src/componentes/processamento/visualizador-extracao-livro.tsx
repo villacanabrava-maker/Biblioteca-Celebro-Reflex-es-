@@ -2,15 +2,18 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { BookOpen, Brain, Sparkles, Layers, Search, Quote, ChevronDown, ChevronRight, Copy, Check, Tag, ShieldCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { BookOpen, Brain, Sparkles, Layers, Search, Quote, ChevronDown, ChevronRight, Copy, Check, Tag, ShieldCheck, Loader2, RefreshCw } from "lucide-react";
 import type { ExtracaoCompletaDocumento } from "@/acoes/processamento";
 import { clsx } from "clsx";
+import { analisarTaxonomiaDocumento } from "@/acoes/taxonomia";
 
 interface Props {
   dados: ExtracaoCompletaDocumento;
 }
 
 export function VisualizadorExtracaoLivro({ dados }: Props) {
+  const router = useRouter();
   const { documento, obra, secoes, sinteses, fragmentos, conceitosVinculados, estatisticas } = dados;
 
   const [abaAtiva, setAbaAtiva] = useState<"estrutura" | "conhecimento" | "fragmentos" | "auditoria">("estrutura");
@@ -19,6 +22,8 @@ export function VisualizadorExtracaoLivro({ dados }: Props) {
   const [secaoExpandidaId, setSecaoExpandidaId] = useState<string | null>(secoes[0]?.id || null);
   const [copiadoId, setCopiadoId] = useState<string | null>(null);
   const [paginaFragmentos, setPaginaFragmentos] = useState(1);
+  const [analisandoTaxonomia, setAnalisandoTaxonomia] = useState(false);
+  const [mensagemTaxonomia, setMensagemTaxonomia] = useState<string | null>(null);
   const itensPorPagina = 25;
 
   // Filtragem dos fragmentos
@@ -96,6 +101,41 @@ export function VisualizadorExtracaoLivro({ dados }: Props) {
                 </Link>
               )}
 
+              <button
+                type="button"
+                disabled={analisandoTaxonomia}
+                onClick={async () => {
+                  try {
+                    setAnalisandoTaxonomia(true);
+                    setMensagemTaxonomia(null);
+                    const resultado = await analisarTaxonomiaDocumento({
+                      documentoProcessadoId: documento.id,
+                      forcar: true,
+                    });
+                    setMensagemTaxonomia(
+                      `Taxonomia analisada: ${resultado.totalConceitosPropostos} proposta(s) nova(s) e ${resultado.totalConceitosReutilizados} conceito(s) reutilizado(s).`
+                    );
+                    router.refresh();
+                  } catch (erro: unknown) {
+                    setMensagemTaxonomia(
+                      erro instanceof Error
+                        ? erro.message
+                        : "Falha ao reanalisar a Taxonomia deste documento."
+                    );
+                  } finally {
+                    setAnalisandoTaxonomia(false);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all disabled:opacity-50"
+              >
+                {analisandoTaxonomia ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5" />
+                )}
+                <span>Reanalisar Taxonomia</span>
+              </button>
+
               <Link
                 href={`/reflexoes/criar?fonteId=${obra?.id || ""}`}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-500/30 transition-all active:scale-95"
@@ -105,6 +145,12 @@ export function VisualizadorExtracaoLivro({ dados }: Props) {
               </Link>
             </div>
           </div>
+
+          {mensagemTaxonomia && (
+            <div className="rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-3 text-xs leading-5 text-slate-200">
+              {mensagemTaxonomia}
+            </div>
+          )}
 
           {/* Cards de Métricas da Extração */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-800/80">

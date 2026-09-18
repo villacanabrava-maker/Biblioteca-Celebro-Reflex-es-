@@ -11,6 +11,7 @@ import { gerarPlanoReflexao } from "@/dominios/reflexoes/planejador-reflexao";
 import { redigirReflexao } from "@/dominios/reflexoes/redator-reflexao";
 import { calcularDiffEdicaoAutor } from "@/dominios/reflexoes/diff-edicao";
 import { gerarPropostasAprendizadoDaEdicao } from "@/dominios/cerebro/analisador-edicao-autoral";
+import { taxonomizarReflexaoAprovada } from "@/dominios/taxonomia/aplicador-taxonomia";
 import { auditarVersaoReflexao } from "@/dominios/auditoria/auditor-independente";
 import { extrairTextoDeBuffer } from "@/dominios/processamento/extrator-texto";
 import { transcreverAudioBuffer } from "@/dominios/audio/transcritor";
@@ -1219,27 +1220,63 @@ export async function registrarRevisaoAutor({
     throw new Error(`Falha ao registrar revisão: ${error.message}`);
   }
 
+  let totalConceitosTaxonomia = 0;
+  let avisoTaxonomia: string | null = null;
+
   // Se aprovado pelo autor, marcar versão e entrada como aprovadas
   if (aprovado) {
-    await admin
+    const { error: erroVersao } = await admin
       .schema("reflexoes")
       .from("versoes_reflexao")
       .update({ estado: "aprovado" })
-      .eq("id", versaoId);
+      .eq("id", versaoId)
+      .eq("entrada_id", entradaId)
+      .eq("usuario_id", usuarioId);
 
-    await admin
+    if (erroVersao) {
+      throw new Error(`Falha ao aprovar versão da reflexão: ${erroVersao.message}`);
+    }
+
+    const { error: erroEntrada } = await admin
       .schema("reflexoes")
       .from("entradas")
       .update({ estado: "concluida" })
-      .eq("id", entradaId);
+      .eq("id", entradaId)
+      .eq("usuario_id", usuarioId);
+
+    if (erroEntrada) {
+      throw new Error(`Falha ao concluir entrada da reflexão: ${erroEntrada.message}`);
+    }
+
+    try {
+      const taxonomia = await taxonomizarReflexaoAprovada({
+        versaoReflexaoId: versaoId,
+        usuarioId,
+      });
+      totalConceitosTaxonomia =
+        taxonomia.totalConceitosPropostos +
+        taxonomia.totalConceitosReutilizados;
+    } catch (erroTaxonomia: unknown) {
+      console.error(
+        "A reflexão foi aprovada, mas a Taxonomia automática falhou:",
+        erroTaxonomia
+      );
+      avisoTaxonomia =
+        "A reflexão foi aprovada, mas a análise taxonômica precisa ser refeita.";
+    }
   }
 
   try {
     revalidatePath(`/reflexoes/${entradaId}`);
     revalidatePath("/reflexoes");
+    revalidatePath("/taxonomia");
   } catch {}
 
-  return { sucesso: true };
+  return {
+    sucesso: true,
+    totalConceitosTaxonomia,
+    avisoTaxonomia,
+  };
 }
 
 /**
