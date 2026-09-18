@@ -7,6 +7,7 @@ import { Sparkles, ArrowRight, ArrowLeft, FileText, UploadCloud, Globe, Brain, L
 import {
   iniciarEsteiraReflexao,
   atualizarDossieReflexao,
+  atualizarConflitosReflexao,
   gerarPlanoParaEntrada,
   acionarRedacaoReflexao,
   extrairFonteDocumentoTemporaria,
@@ -133,6 +134,31 @@ export function WizardCriarReflexao() {
 
   function limparSelecaoMemorias() {
     setMemorias((prev) => prev.map((memoria) => ({ ...memoria, selecionada: false })));
+  }
+
+  function alternarConflito(indice: number) {
+    setConflitos((prev) =>
+      prev.map((conflito, i) =>
+        i === indice
+          ? {
+              ...conflito,
+              considerado_no_plano: conflito.considerado_no_plano === false,
+            }
+          : conflito
+      )
+    );
+  }
+
+  function considerarTodosConflitos() {
+    setConflitos((prev) =>
+      prev.map((conflito) => ({ ...conflito, considerado_no_plano: true }))
+    );
+  }
+
+  function ignorarTodosConflitos() {
+    setConflitos((prev) =>
+      prev.map((conflito) => ({ ...conflito, considerado_no_plano: false }))
+    );
   }
 
   async function descartarFonteTemporaria(fonte: FonteReflexaoPreparada | null) {
@@ -513,7 +539,12 @@ export function WizardCriarReflexao() {
       });
 
       setEntradaId(res.entradaId);
-      setConflitos(res.conflitos || []);
+      setConflitos(
+        (res.conflitos || []).map((conflito) => ({
+          ...conflito,
+          considerado_no_plano: conflito.considerado_no_plano !== false,
+        }))
+      );
 
       // Mapear memórias retornadas do dossiê
       if (res.dossie?.fragmentos_selecionados?.length) {
@@ -574,6 +605,13 @@ export function WizardCriarReflexao() {
       await atualizarDossieReflexao({
         entradaId,
         fragmentosIds: memorias.filter((memoria) => memoria.selecionada).map((memoria) => memoria.id),
+      });
+
+      await atualizarConflitosReflexao({
+        entradaId,
+        indicesConsiderados: conflitos
+          .map((conflito, indice) => (conflito.considerado_no_plano !== false ? indice : -1))
+          .filter((indice) => indice >= 0),
       });
 
       const res = await gerarPlanoParaEntrada(entradaId);
@@ -1305,9 +1343,34 @@ export function WizardCriarReflexao() {
               4. Tensões Dialéticas e Oportunidades Cognitivas
             </h2>
             <p className="text-sm text-slate-500 mt-1 leading-6">
-              O sistema combinou estímulo externo, seu pensamento presente e a base histórica autoral:
+              O sistema combinou estímulo externo, seu pensamento presente e a base histórica autoral.
+              Você decide quais tensões devem influenciar o plano; todas continuam preservadas no histórico.
             </p>
           </div>
+
+          {conflitos.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <span className="text-xs text-slate-600">
+                {conflitos.filter((conflito) => conflito.considerado_no_plano !== false).length} de {conflitos.length} tensões consideradas no plano
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={considerarTodosConflitos}
+                  className="rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-amber-700"
+                >
+                  Considerar todas
+                </button>
+                <button
+                  type="button"
+                  onClick={ignorarTodosConflitos}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                >
+                  Ignorar todas
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-3">
             {conflitos.length === 0 ? (
@@ -1318,26 +1381,55 @@ export function WizardCriarReflexao() {
                 </p>
               </div>
             ) : (
-              conflitos.map((c, i) => (
-                <div key={i} className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-2.5 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-amber-900 uppercase text-[10px] tracking-wider">
-                      {c.tipo}
-                    </span>
-                  </div>
-                  <p className="text-slate-800 font-semibold">{c.descricao}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm pt-1">
-                    <div className="bg-white p-2.5 rounded-xl border border-amber-100">
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">Estímulo Externo:</span>
-                      <span className="text-slate-700">{c.posicao_externa}</span>
+              conflitos.map((c, i) => {
+                const considerado = c.considerado_no_plano !== false;
+
+                return (
+                  <div
+                    key={c.id || i}
+                    className={`p-4 rounded-2xl border space-y-2.5 text-sm transition-colors ${
+                      considerado
+                        ? "bg-amber-50/50 border-amber-200/80"
+                        : "bg-slate-50 border-slate-200"
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span
+                        className={`font-bold uppercase text-[10px] tracking-wider ${
+                          considerado ? "text-amber-900" : "text-slate-500"
+                        }`}
+                      >
+                        {c.tipo}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => alternarConflito(i)}
+                        aria-pressed={considerado}
+                        className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+                          considerado
+                            ? "bg-amber-600 text-white hover:bg-amber-700"
+                            : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        {considerado ? "Considerar no plano" : "Ignorado no plano"}
+                      </button>
                     </div>
-                    <div className="bg-white p-2.5 rounded-xl border border-amber-100">
-                      <span className="text-[10px] font-bold text-blue-600 block uppercase">Posição Autoral:</span>
-                      <span className="text-slate-700">{c.posicao_autoral}</span>
+                    <p className={`font-semibold ${considerado ? "text-slate-800" : "text-slate-500"}`}>
+                      {c.descricao}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm pt-1">
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">Estímulo Externo:</span>
+                        <span className="text-slate-700">{c.posicao_externa}</span>
+                      </div>
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                        <span className="text-[10px] font-bold text-blue-600 block uppercase">Posição Autoral:</span>
+                        <span className="text-slate-700">{c.posicao_autoral}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
