@@ -1,24 +1,29 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   Search,
   LayoutGrid,
   Network,
   BookOpen,
-  Layers,
   GitBranch,
   Sparkles,
+  Check,
+  X,
+  Loader2,
 } from "lucide-react";
 import type { ConceitoTaxonomico, ArestaGrafoTaxonomia } from "@/tipos/taxonomia";
 import { CardConceito } from "./card-conceito";
 import { GrafoTaxonomia } from "./grafo-taxonomia";
 import { ModalAdicionarConceito } from "./modal-adicionar-conceito";
+import { decidirRelacaoSugerida } from "@/acoes/taxonomia";
 
 interface Props {
   conceitosIniciais: ConceitoTaxonomico[];
   arestasIniciais: ArestaGrafoTaxonomia[];
+  relacoesEmRevisaoIniciais: ArestaGrafoTaxonomia[];
 }
 
 const DOMINIOS: { id: string; rotulo: string }[] = [
@@ -27,6 +32,7 @@ const DOMINIOS: { id: string; rotulo: string }[] = [
   { id: "axiologico", rotulo: "Axiológico" },
   { id: "reflexivo", rotulo: "Reflexivo" },
   { id: "narrativo", rotulo: "Narrativo" },
+  { id: "entidades", rotulo: "Entidades" },
   { id: "temporal", rotulo: "Temporal" },
   { id: "retorico", rotulo: "Retórico" },
   { id: "linguistico", rotulo: "Linguístico" },
@@ -34,12 +40,19 @@ const DOMINIOS: { id: string; rotulo: string }[] = [
   { id: "autoral", rotulo: "Núcleo autoral" },
 ];
 
-export function PainelTaxonomia({ conceitosIniciais, arestasIniciais }: Props) {
+export function PainelTaxonomia({
+  conceitosIniciais,
+  arestasIniciais,
+  relacoesEmRevisaoIniciais,
+}: Props) {
+  const router = useRouter();
   const [busca, setBusca] = useState("");
   const [dominioSelecionado, setDominioSelecionado] = useState("todos");
   const [estadoSelecionado, setEstadoSelecionado] = useState<"todos" | "ativo" | "revisao">("todos");
   const [modoVisualizacao, setModoVisualizacao] = useState<"cards" | "grafo">("cards");
   const [modalAberto, setModalAberto] = useState(false);
+  const [relacaoProcessandoId, setRelacaoProcessandoId] = useState<string | null>(null);
+  const [erroRelacao, setErroRelacao] = useState<string | null>(null);
 
   const conceitosFiltrados = useMemo(() => {
     return conceitosIniciais.filter((conceito) => {
@@ -106,6 +119,26 @@ export function PainelTaxonomia({ conceitosIniciais, arestasIniciais }: Props) {
     },
   ];
 
+  async function decidirRelacao(
+    relacaoId: string,
+    decisao: "confirmar" | "rejeitar"
+  ) {
+    try {
+      setRelacaoProcessandoId(relacaoId);
+      setErroRelacao(null);
+      await decidirRelacaoSugerida({ relacaoId, decisao });
+      router.refresh();
+    } catch (erro: unknown) {
+      setErroRelacao(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível registrar a decisão da relação."
+      );
+    } finally {
+      setRelacaoProcessandoId(null);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -122,6 +155,81 @@ export function PainelTaxonomia({ conceitosIniciais, arestasIniciais }: Props) {
           </div>
         ))}
       </div>
+
+      {relacoesEmRevisaoIniciais.length > 0 && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
+              <GitBranch className="h-4 w-4" />
+              Relações sugeridas pela IA ({relacoesEmRevisaoIniciais.length})
+            </div>
+            <p className="text-xs leading-5 text-amber-800/80">
+              Estas conexões só entram no grafo depois da sua confirmação.
+            </p>
+          </div>
+
+          {erroRelacao && (
+            <div role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              {erroRelacao}
+            </div>
+          )}
+
+          <div className="mt-3 space-y-2">
+            {relacoesEmRevisaoIniciais.map((relacao) => {
+              const processando = relacaoProcessandoId === relacao.relacao_id;
+
+              return (
+                <div
+                  key={relacao.relacao_id}
+                  className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900">
+                      {relacao.origem_termo}
+                      <span className="mx-2 text-amber-600">→</span>
+                      {relacao.destino_termo}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-500">
+                      <span>{relacao.tipo_relacao.replaceAll("_", " ")}</span>
+                      <span>•</span>
+                      <span>{Math.round(Number(relacao.confianca || 0) * 100)}% de confiança</span>
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      disabled={Boolean(relacaoProcessandoId)}
+                      onClick={() => void decidirRelacao(relacao.relacao_id, "rejeitar")}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {processando ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <X className="h-3.5 w-3.5" />
+                      )}
+                      Rejeitar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={Boolean(relacaoProcessandoId)}
+                      onClick={() => void decidirRelacao(relacao.relacao_id, "confirmar")}
+                      className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {processando ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
+                      Confirmar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:flex-row md:items-center">
         <div className="relative flex-1">
