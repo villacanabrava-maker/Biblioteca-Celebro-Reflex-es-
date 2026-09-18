@@ -293,6 +293,37 @@ export async function transcreverFonteAudioTemporaria({
   });
 }
 
+/**
+ * Remove arquivos temporários do bucket privado de fontes de Reflexões.
+ * Aceita somente caminhos pertencentes ao usuário autenticado.
+ */
+export async function removerFontesTemporariasReflexao(caminhos: string[]) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const normalizados = Array.from(
+    new Set(caminhos.map((caminho) => caminho.trim()).filter(Boolean))
+  );
+
+  if (normalizados.some((caminho) => !caminho.startsWith(`${usuarioId}/`))) {
+    throw new Error("Caminho temporário inválido para o usuário autenticado.");
+  }
+
+  if (normalizados.length === 0) {
+    return { sucesso: true, totalRemovidos: 0 };
+  }
+
+  const { error } = await admin.storage
+    .from("fontes-reflexoes")
+    .remove(normalizados);
+
+  if (error) {
+    throw new Error(`Falha ao remover fonte temporária: ${error.message}`);
+  }
+
+  return { sucesso: true, totalRemovidos: normalizados.length };
+}
+
 function enderecoEhPrivadoOuReservado(endereco: string): boolean {
   const versao = net.isIP(endereco);
 
@@ -591,16 +622,16 @@ export async function iniciarEsteiraReflexao({
     conteudoConfirmado: reflexaoExterna,
   };
 
-  try {
-    const fontesParaRegistrar: FonteReflexaoPreparada[] = [
-      {
-        ...fonteCanonica,
-        conteudoConfirmado:
-          fonteCanonica.conteudoConfirmado?.trim() || reflexaoExterna.trim(),
-      },
-      ...fontesAdicionais,
-    ];
+  const fontesParaRegistrar: FonteReflexaoPreparada[] = [
+    {
+      ...fonteCanonica,
+      conteudoConfirmado:
+        fonteCanonica.conteudoConfirmado?.trim() || reflexaoExterna.trim(),
+    },
+    ...fontesAdicionais,
+  ];
 
+  try {
     for (const fonteParaRegistrar of fontesParaRegistrar) {
       await registrarFonteCanonica({
         entradaId: entrada.id,
@@ -609,6 +640,18 @@ export async function iniciarEsteiraReflexao({
       });
     }
   } catch (erroFonte) {
+    const caminhosTemporarios = fontesParaRegistrar
+      .map((fonteParaRegistrar) => fonteParaRegistrar.storageCaminho)
+      .filter((caminho): caminho is string => Boolean(caminho));
+
+    if (caminhosTemporarios.length > 0) {
+      try {
+        await removerFontesTemporariasReflexao(caminhosTemporarios);
+      } catch (erroLimpeza) {
+        console.error("Falha ao compensar arquivos temporários de Reflexões:", erroLimpeza);
+      }
+    }
+
     await admin
       .schema("reflexoes")
       .from("entradas")
