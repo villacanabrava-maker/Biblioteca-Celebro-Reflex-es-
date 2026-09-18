@@ -186,7 +186,15 @@ export function validarConceitosTaxonomicos({
   fontes: FonteTaxonomica[];
   conceitosExistentes: ConceitoExistenteTaxonomia[];
 }): ConceitoTaxonomicoValidado[] {
-  const fontesPorId = new Map(fontes.map((fonte) => [fonte.id, fonte]));
+  const fontesPorId = new Map<string, string>();
+  for (const fonte of fontes) {
+    const atual = fontesPorId.get(fonte.id);
+    fontesPorId.set(
+      fonte.id,
+      atual ? `${atual}\n\n${fonte.conteudo}` : fonte.conteudo
+    );
+  }
+
   const conceitosPorCodigo = new Map(
     conceitosExistentes.map((conceito) => [conceito.codigo, conceito])
   );
@@ -204,10 +212,10 @@ export function validarConceitosTaxonomicos({
     const chavesEvidencia = new Set<string>();
 
     for (const evidencia of candidato.evidencias) {
-      const fonte = fontesPorId.get(evidencia.fonte_id);
+      const conteudoFonte = fontesPorId.get(evidencia.fonte_id);
       const trecho = evidencia.trecho_contextual.trim();
 
-      if (!fonte || !trechoEhSuportado(fonte.conteudo, trecho)) continue;
+      if (!conteudoFonte || !trechoEhSuportado(conteudoFonte, trecho)) continue;
 
       const chave = `${evidencia.fonte_id}::${normalizarParaComparacao(trecho)}`;
       if (chavesEvidencia.has(chave)) continue;
@@ -226,6 +234,13 @@ export function validarConceitosTaxonomicos({
       candidato.acao === "reutilizar" && candidato.codigo_existente
         ? conceitosPorCodigo.get(candidato.codigo_existente)
         : undefined;
+
+    if (candidato.acao === "reutilizar" && !solicitado) {
+      // Não transformar uma referência inventada a conceito existente em um
+      // novo conceito silenciosamente.
+      continue;
+    }
+
     const porCodigoGerado = conceitosPorCodigo.get(codigoGerado);
     const existente = solicitado || porCodigoGerado;
 
