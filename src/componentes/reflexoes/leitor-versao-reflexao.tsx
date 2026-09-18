@@ -36,6 +36,7 @@ export function LeitorVersaoReflexao({
   const [textoEditado, setTextoEditado] = useState("");
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [erroEdicao, setErroEdicao] = useState<string | null>(null);
+  const [mensagemEdicao, setMensagemEdicao] = useState<string | null>(null);
 
   if (versoes.length === 0) {
     return (
@@ -133,6 +134,7 @@ export function LeitorVersaoReflexao({
               onClick={() => {
                 setTextoEditado(versaoAtual.conteudo_markdown);
                 setErroEdicao(null);
+                setMensagemEdicao(null);
                 setEditando(true);
               }}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
@@ -142,6 +144,12 @@ export function LeitorVersaoReflexao({
             </button>
           )}
         </div>
+
+        {mensagemEdicao && !editando && (
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm leading-6 text-blue-900">
+            {mensagemEdicao}
+          </div>
+        )}
 
         {editando ? (
           <div className="space-y-3">
@@ -179,6 +187,21 @@ export function LeitorVersaoReflexao({
                       conteudoMarkdown: textoEditado,
                     });
                     setEditando(false);
+
+                    if (!resultado.alterado) {
+                      setMensagemEdicao("Nenhuma alteração textual foi detectada; a versão existente foi preservada.");
+                    } else if (resultado.avisoAprendizado) {
+                      setMensagemEdicao(resultado.avisoAprendizado);
+                    } else if (resultado.totalPropostasAprendizado > 0) {
+                      setMensagemEdicao(
+                        `Edição salva. ${resultado.totalPropostasAprendizado} proposta(s) de aprendizado foram enviadas ao Cérebro para sua revisão.`
+                      );
+                    } else {
+                      setMensagemEdicao(
+                        "Edição salva. Nenhum padrão metodológico suficientemente sustentado foi inferido desta alteração."
+                      );
+                    }
+
                     aoSalvarEdicao?.(resultado.versaoId);
                   } catch (erro: unknown) {
                     setErroEdicao(erro instanceof Error ? erro.message : "Falha ao salvar a edição.");
