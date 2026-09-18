@@ -4,7 +4,7 @@ import { obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
 import { ListaObras } from "@/componentes/biblioteca/lista-obras";
 
 export const metadata: Metadata = {
-  title: "Biblioteca | Memória Reflexiva",
+  title: "Biblioteca | Rflex01",
   description: "Seu acervo pessoal de documentos, livros, cartas, relatos e reflexões.",
 };
 
@@ -17,14 +17,14 @@ export default async function BibliotecaPage() {
   ]);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="mx-auto max-w-6xl space-y-6">
       {/* Cabeçalho da Biblioteca */}
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl sm:text-3xl font-serif font-bold text-slate-900 tracking-tight">
           Biblioteca
         </h1>
         <p className="text-xs sm:text-sm text-slate-500">
-          Seu acervo pessoal de documentos. Organize, pesquise e conecte suas memórias.
+          Seu acervo de documentos, textos e referências. Encontre o que precisa e acompanhe o processamento.
         </p>
       </div>
 
