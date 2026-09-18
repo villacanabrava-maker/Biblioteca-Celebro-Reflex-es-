@@ -38,7 +38,7 @@ export async function gerarEmbeddingsEmLote(
   let openai: any = null;
   try {
     openai = obterClienteOpenAI();
-  } catch (err: any) {
+  } catch {
     console.warn("OpenAI API Key não disponível. Usando embeddings determinísticos canônicos.");
   }
 

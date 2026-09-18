@@ -2,22 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import {
-  Brain,
-  BookOpen,
-  ShieldCheck,
-  Ban,
-  Sparkles,
-  Layers3,
-  ArrowRight,
-  Info,
-} from "lucide-react";
-import type {
-  DimensaoCerebro,
-  CaracteristicaCerebro,
-  RegraCerebro,
-  ResumoCerebro,
-} from "@/tipos/cerebro";
+import { Brain, BookOpen, ShieldCheck, Ban, Sparkles, Layers3, Info } from "lucide-react";
+import type { DimensaoCerebro, CaracteristicaCerebro, RegraCerebro, ResumoCerebro } from "@/tipos/cerebro";
 import { AcordeaoDimensoes } from "./acordeao-dimensoes";
 
 interface Props {

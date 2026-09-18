@@ -1,13 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Brain, Layers, ShieldAlert, Sparkles, BookOpen } from "lucide-react";
-import type {
-  DimensaoCerebro,
-  CaracteristicaCerebro,
-  RegraCerebro,
-  ResumoCerebro,
-} from "@/tipos/cerebro";
+import { Layers, ShieldAlert } from "lucide-react";
+import type { DimensaoCerebro, CaracteristicaCerebro, RegraCerebro, ResumoCerebro } from "@/tipos/cerebro";
 import { ResumoCerebroComponente } from "./resumo-cerebro";
 import { AcordeaoDimensoes } from "./acordeao-dimensoes";
 import { PainelRegras } from "./painel-regras";

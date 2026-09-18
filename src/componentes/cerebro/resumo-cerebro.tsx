@@ -1,4 +1,4 @@
-import { Brain, ShieldCheck, Ban, Sparkles, BookOpen, UserCheck } from "lucide-react";
+import { Brain, ShieldCheck, Ban, Sparkles } from "lucide-react";
 import type { ResumoCerebro } from "@/tipos/cerebro";
 
 interface Props {

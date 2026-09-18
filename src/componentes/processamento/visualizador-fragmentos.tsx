@@ -1,16 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  X,
-  FileText,
-  Search,
-  Sparkles,
-  BookOpen,
-  Hash,
-  Loader2,
-  CheckCircle2,
-} from "lucide-react";
+import { X, FileText, Search, BookOpen, Hash, Loader2, CheckCircle2 } from "lucide-react";
 import { obterDocumentoProcessado, obterFragmentosDocumento } from "@/acoes/processamento";
 import type { ObraDetalhada } from "@/tipos/biblioteca";
 import type { DocumentoProcessado, FragmentoTextual } from "@/tipos/processamento";

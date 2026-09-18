@@ -115,7 +115,6 @@ Mapeie as tensões dialéticas e conceitos recomendados para fundamentar a nova 
       id: f.id,
       conteudo: f.conteudo,
       obra_titulo: f.obra_titulo || "Obra Autoral",
-      aderencia: 0.95,
     })),
     conceitos_chave: (conceitos || []).map((c) => ({
       termo: c.termo_preferencial,

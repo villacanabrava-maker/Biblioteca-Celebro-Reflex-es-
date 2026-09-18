@@ -1,16 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  ShieldCheck,
-  AlertTriangle,
-  Ban,
-  Sparkles,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-  RotateCcw,
-} from "lucide-react";
+import { ShieldCheck, AlertTriangle, Ban, AlertCircle, RotateCcw } from "lucide-react";
 import type { RelatorioAuditoria } from "@/tipos/auditoria";
 import { reexecutarAuditoria } from "@/acoes/auditoria";
 

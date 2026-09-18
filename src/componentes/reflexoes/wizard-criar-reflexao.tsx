@@ -3,33 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Sparkles,
-  ArrowRight,
-  ArrowLeft,
-  FileText,
-  UploadCloud,
-  Globe,
-  Brain,
-  ShieldAlert,
-  ListOrdered,
-  CheckCircle2,
-  BookmarkPlus,
-  Loader2,
-  AlertCircle,
-  BookOpen,
-  Edit3,
-  Check,
-  ShieldCheck,
-  Quote,
-} from "lucide-react";
-import {
-  iniciarEsteiraReflexao,
-  gerarPlanoParaEntrada,
-  acionarRedacaoReflexao,
-  incorporarReflexaoMemoria,
-  registrarRevisaoAutor,
-} from "@/acoes/reflexoes";
+import { Sparkles, ArrowRight, ArrowLeft, FileText, UploadCloud, Globe, Brain, Loader2, AlertCircle, Check } from "lucide-react";
+import { iniciarEsteiraReflexao, atualizarDossieReflexao, gerarPlanoParaEntrada, acionarRedacaoReflexao } from "@/acoes/reflexoes";
 import type {
   FormatoReflexao,
   TipoOrigemExterna,
@@ -54,7 +29,6 @@ export function WizardCriarReflexao() {
   // Identificadores da esteira persistidos no backend
   const [entradaId, setEntradaId] = useState<string | null>(null);
   const [planoId, setPlanoId] = useState<string | null>(null);
-  const [versaoId, setVersaoId] = useState<string | null>(null);
 
   // Etapa 1: Reflexão Externa
   const [modoExterno, setModoExterno] = useState<"colar" | "arquivo" | "link">("colar");
@@ -73,15 +47,10 @@ export function WizardCriarReflexao() {
   const [conflitos, setConflitos] = useState<ConflitoDetectado[]>([]);
 
   // Etapa 5: Plano da Reflexão
-  const [formato, setFormato] = useState<FormatoReflexao>("ensaio");
+  const formato: FormatoReflexao = "ensaio";
   const [planoGerado, setPlanoGerado] = useState<PlanoReflexao | null>(null);
 
   // Etapa 6 & 7: Texto Gerado e Revisão Final
-  const [textoGerado, setTextoGerado] = useState("");
-  const [sumarioExecutivo, setSumarioExecutivo] = useState("");
-  const [textoFinalRevisado, setTextoFinalRevisado] = useState("");
-  const [incorporado, setIncorporado] = useState(false);
-  const [obraIdGerada, setObraIdGerada] = useState<string | null>(null);
 
   const etapas = [
     { num: 1, rotulo: "Externa" },
@@ -138,15 +107,7 @@ export function WizardCriarReflexao() {
           }))
         );
       } else {
-        setMemorias([
-          {
-            id: "mem-padrao-1",
-            titulo: "Princípio de Maturação e Tempo",
-            origem: "Cânone Autoral",
-            trecho: "O pensamento verdadeiro não se apressa; ele matura nas tensões da paciência ativa.",
-            selecionada: true,
-          },
-        ]);
+        setMemorias([]);
       }
 
       setEtapaAtual(3);
@@ -168,6 +129,11 @@ export function WizardCriarReflexao() {
     try {
       setCarregando(true);
       setErro(null);
+
+      await atualizarDossieReflexao({
+        entradaId,
+        fragmentosIds: memorias.filter((memoria) => memoria.selecionada).map((memoria) => memoria.id),
+      });
 
       const res = await gerarPlanoParaEntrada(entradaId);
       setPlanoId(res.plano.id);
@@ -193,12 +159,10 @@ export function WizardCriarReflexao() {
       setCarregando(true);
       setErro(null);
 
-      const res = await acionarRedacaoReflexao({
+      await acionarRedacaoReflexao({
         entradaId,
         planoId,
       });
-
-      setVersaoId(res.versaoId);
 
       // Redirecionar para o estúdio completo da reflexão gerada onde o autor tem toda a esteira
       router.push(`/reflexoes/${entradaId}`);
@@ -494,6 +458,14 @@ export function WizardCriarReflexao() {
           </div>
 
           <div className="space-y-3">
+            {memorias.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-5 text-center">
+                <p className="text-sm font-semibold text-slate-800">Nenhuma memória relacionada foi encontrada.</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Você pode continuar. O plano será gerado sem citar memórias que não estejam no seu acervo.
+                </p>
+              </div>
+            )}
             {memorias.map((mem) => (
               <div
                 key={mem.id}

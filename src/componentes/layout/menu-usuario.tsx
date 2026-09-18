@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { User, LogOut, Settings, Shield, ChevronDown } from "lucide-react";
+import { User, LogOut, Settings, ChevronDown } from "lucide-react";
 import { fazerLogout } from "@/acoes/auth";
 
 interface MenuUsuarioProps {

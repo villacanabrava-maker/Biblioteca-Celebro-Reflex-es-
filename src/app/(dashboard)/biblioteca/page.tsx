@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { obterObras, obterEstatisticasBiblioteca } from "@/acoes/biblioteca";
+import { obterObras } from "@/acoes/biblioteca";
 import { obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
 import { ListaObras } from "@/componentes/biblioteca/lista-obras";
 

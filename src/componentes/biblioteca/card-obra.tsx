@@ -2,26 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import {
-  BookOpen,
-  Feather,
-  Mail,
-  Compass,
-  FileText,
-  Layers,
-  Sparkles,
-  Download,
-  Trash2,
-  MoreVertical,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  Loader2,
-  Cpu,
-  ExternalLink,
-  Eye,
-  Zap,
-} from "lucide-react";
+import { BookOpen, Feather, Mail, Compass, FileText, Layers, Sparkles, Download, Trash2, MoreVertical, CheckCircle2, Clock, Loader2, Cpu, Eye, Zap } from "lucide-react";
 import type { ObraDetalhada, TipoObra } from "@/tipos/biblioteca";
 import { obterUrlDownloadOriginal, excluirObra } from "@/acoes/biblioteca";
 
@@ -82,7 +63,7 @@ export function CardObra({
       setBaixando(true);
       const url = await obterUrlDownloadOriginal(obra.arquivo_caminho);
       window.open(url, "_blank");
-    } catch (err) {
+    } catch {
       alert("Erro ao gerar link de download do arquivo.");
     } finally {
       setBaixando(false);

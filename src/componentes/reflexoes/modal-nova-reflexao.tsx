@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Sparkles, Loader2, BookOpen, AlertCircle } from "lucide-react";
+import { X, Sparkles, Loader2, AlertCircle } from "lucide-react";
 import { criarNovaReflexao } from "@/acoes/reflexoes";
 import type { FormatoReflexao } from "@/tipos/reflexoes";
 

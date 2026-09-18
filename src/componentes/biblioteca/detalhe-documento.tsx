@@ -88,7 +88,7 @@ export function DetalheDocumentoComponente({
       setBaixando(true);
       const url = await obterUrlDownloadOriginal(obra.arquivo_caminho);
       window.open(url, "_blank");
-    } catch (err) {
+    } catch {
       alert("Erro ao gerar link para download.");
     } finally {
       setBaixando(false);
@@ -617,7 +617,7 @@ export function DetalheDocumentoComponente({
               </div>
             ) : (
               <div className="space-y-4">
-                {fragmentosFiltrados.map((f, idx) => {
+                {fragmentosFiltrados.map((f) => {
                   const texto = f.conteudo_texto;
                   const termoBusca = buscaFragmento.toLowerCase();
                   const matchIdx = termoBusca ? texto.toLowerCase().indexOf(termoBusca) : -1;

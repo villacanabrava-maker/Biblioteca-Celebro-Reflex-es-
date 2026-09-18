@@ -1,15 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Brain,
-  Sparkles,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-  ArrowRight,
-  ShieldCheck,
-} from "lucide-react";
+import { Brain, Sparkles, Loader2, AlertCircle, ArrowRight } from "lucide-react";
 import type { PlanoReflexao } from "@/tipos/reflexoes";
 import { acionarRedacaoReflexao } from "@/acoes/reflexoes";
 
