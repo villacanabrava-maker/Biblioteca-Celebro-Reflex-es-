@@ -646,7 +646,7 @@ export function WizardCriarReflexao() {
               <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200/80 space-y-1.5">
                 <span className="text-[10px] uppercase font-bold text-blue-700 block">Tese Central:</span>
                 <p className="text-sm font-serif font-bold text-slate-900 leading-relaxed">
-                  "{planoGerado.tese_central}"
+                  “{planoGerado.tese_central}”
                 </p>
               </div>
 
