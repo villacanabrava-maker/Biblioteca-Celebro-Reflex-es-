@@ -9,7 +9,11 @@ export const metadata = {
 };
 
 export default async function DocumentosProcessadosPage() {
-  const documentos = await obterListaDocumentosProcessados();
-
-  return <PainelDocumentosProcessados documentos={documentos} />;
+  try {
+    const documentos = await obterListaDocumentosProcessados();
+    return <PainelDocumentosProcessados documentos={documentos || []} />;
+  } catch (err) {
+    console.error("Erro ao renderizar Documentos Processados:", err);
+    return <PainelDocumentosProcessados documentos={[]} />;
+  }
 }
