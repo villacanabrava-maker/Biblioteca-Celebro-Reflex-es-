@@ -189,14 +189,14 @@ export default function PaginaLogin() {
 
           {/* Alertas */}
           {erro && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-700 text-xs animate-in fade-in">
+            <div role="alert" className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-700 text-xs animate-in fade-in">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
               <span>{erro}</span>
             </div>
           )}
 
           {mensagemSucesso && (
-            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-emerald-700 text-xs animate-in fade-in">
+            <div role="status" aria-live="polite" className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-emerald-700 text-xs animate-in fade-in">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>{mensagemSucesso}</span>
             </div>
@@ -206,12 +206,13 @@ export default function PaginaLogin() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {modo === "cadastro" && (
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label htmlFor="auth-nome" className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Nome Completo
                 </label>
                 <div className="relative">
                   <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
+                    id="auth-nome"
                     type="text"
                     required
                     value={nome}
@@ -224,12 +225,13 @@ export default function PaginaLogin() {
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label htmlFor="auth-email" className="block text-xs font-semibold text-slate-700 mb-1.5">
                 E-mail
               </label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
+                  id="auth-email"
                   type="email"
                   required
                   value={email}
@@ -242,12 +244,13 @@ export default function PaginaLogin() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label htmlFor="auth-senha" className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Senha
               </label>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
+                  id="auth-senha"
                   type={mostrarSenha ? "text" : "password"}
                   required
                   value={senha}
@@ -275,12 +278,13 @@ export default function PaginaLogin() {
 
             {modo === "cadastro" && (
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label htmlFor="auth-confirmar-senha" className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Confirmar Senha
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
+                    id="auth-confirmar-senha"
                     type="password"
                     required
                     value={confirmarSenha}
