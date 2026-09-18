@@ -32,19 +32,40 @@ export function protegerEntradaDeDados(conteudo: string, rotulo = "DADO_BRUTO"):
 }
 
 /**
- * Gera embeddings vetoriais com o perfil padrão (text-embedding-3-small, 1536 dimensões).
+ * Função utilitária para pausar a execução (para backoff exponencial).
  */
-export async function gerarEmbedding(texto: string): Promise<number[]> {
-  const openai = obterClienteOpenAI();
-  const resposta = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: texto.slice(0, 8000), // limite seguro de tokens
-  });
-  return resposta.data[0].embedding;
+function esperar(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Executa uma chamada estruturada com garantia de schema Zod.
+ * Gera embeddings vetoriais com o perfil padrão (text-embedding-3-small, 1536 dimensões).
+ */
+export async function gerarEmbedding(texto: string, maxTentativas = 2): Promise<number[]> {
+  const openai = obterClienteOpenAI();
+  let ultimaFalha: any = null;
+
+  for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
+    try {
+      const resposta = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: texto.slice(0, 8000), // limite seguro de tokens
+      });
+      return resposta.data[0].embedding;
+    } catch (erro) {
+      ultimaFalha = erro;
+      if (tentativa < maxTentativas) {
+        await esperar(tentativa * 500);
+      }
+    }
+  }
+
+  console.error("Erro ao gerar embedding após retries:", ultimaFalha);
+  throw new Error(`Falha ao gerar embedding vetorial: ${ultimaFalha?.message || ultimaFalha}`);
+}
+
+/**
+ * Executa uma chamada estruturada com garantia de schema Zod e tolerância a falhas (retries).
  */
 export async function executarChamadaEstruturada<T>({
   papel,
@@ -54,6 +75,7 @@ export async function executarChamadaEstruturada<T>({
   esquemaZod,
   nomeEsquema,
   temperatura = 0.3,
+  maxTentativas = 2,
 }: {
   papel: PapelIA;
   modelo?: string;
@@ -62,6 +84,7 @@ export async function executarChamadaEstruturada<T>({
   esquemaZod: z.ZodType<T>;
   nomeEsquema: string;
   temperatura?: number;
+  maxTentativas?: number;
 }): Promise<T> {
   const openai = obterClienteOpenAI();
 
@@ -73,26 +96,36 @@ DIRETRIZES FUNDAMENTAIS DO SISTEMA:
 
 ${sistema}`;
 
-  try {
-    const resposta = await (openai.beta.chat.completions.parse as any)({
-      model: modelo,
-      messages: [
-        { role: "system", content: promptSistemaAprimorado },
-        { role: "user", content: usuario },
-      ],
-      response_format: zodResponseFormat(esquemaZod as any, nomeEsquema),
-      temperature: temperatura,
-    });
+  let ultimaFalha: any = null;
 
-    const parsed = resposta.choices[0]?.message.parsed as T;
+  for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
+    try {
+      const resposta = await (openai.beta.chat.completions.parse as any)({
+        model: modelo,
+        messages: [
+          { role: "system", content: promptSistemaAprimorado },
+          { role: "user", content: usuario },
+        ],
+        response_format: zodResponseFormat(esquemaZod as any, nomeEsquema),
+        temperature: temperatura,
+      });
 
-    if (!parsed) {
-      throw new Error(`O modelo retornou vazio para o papel ${papel}.`);
+      const parsed = resposta.choices[0]?.message.parsed as T;
+
+      if (!parsed) {
+        throw new Error(`O modelo retornou vazio para o papel ${papel}.`);
+      }
+
+      return parsed;
+    } catch (erro: any) {
+      ultimaFalha = erro;
+      console.warn(`Tentativa ${tentativa}/${maxTentativas} falhou para [${papel}]:`, erro?.message || erro);
+      if (tentativa < maxTentativas) {
+        await esperar(tentativa * 750);
+      }
     }
-
-    return parsed;
-  } catch (erro: any) {
-    console.error(`Erro ao executar chamada estruturada [${papel}]:`, erro);
-    throw new Error(`Falha no orquestrador de IA (${papel}): ${erro.message || erro}`);
   }
+
+  console.error(`Erro definitivo ao executar chamada estruturada [${papel}]:`, ultimaFalha);
+  throw new Error(`Falha no orquestrador de IA (${papel}): ${ultimaFalha?.message || ultimaFalha}`);
 }

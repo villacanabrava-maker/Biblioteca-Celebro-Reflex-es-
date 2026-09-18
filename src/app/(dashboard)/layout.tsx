@@ -51,14 +51,24 @@ export default async function DashboardLayout({
               <Search className="h-4.5 w-4.5" style={{ width: "1.125rem", height: "1.125rem" }} />
             </Link>
 
-            {/* Botão Nova Reflexão — desktop */}
+            {/* Botão Nova Reflexão — desktop (Identico ao print do usuário) */}
             <Link
               href="/reflexoes/criar"
-              className="hidden md:flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm shadow-blue-500/20 transition-all active:scale-95"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm shadow-blue-500/20 transition-all active:scale-95"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              + Nova Reflexão
+              + Nova reflexão
             </Link>
+
+            {/* Botão Sair direto (Identico ao print do usuário) */}
+            <form action={async () => { "use server"; const { fazerLogout } = await import("@/acoes/auth"); await fazerLogout(); }}>
+              <button
+                type="submit"
+                className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Sair
+              </button>
+            </form>
 
             {/* Menu do Usuário Autenticado */}
             <MenuUsuario usuario={usuario} />

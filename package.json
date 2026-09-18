@@ -7,8 +7,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test": "vitest run",
+    "check:all": "tsc --noEmit && vitest run",
     "db:migrate": "tsx scripts/run-migrations.ts",
     "db:test": "tsx scripts/test-db-connection.ts"
   },

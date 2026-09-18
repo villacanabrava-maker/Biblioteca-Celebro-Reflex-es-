@@ -81,14 +81,14 @@ export function BarraLateralDesktop() {
 
   return (
     <aside className="hidden md:flex w-64 flex-col bg-slate-900 shrink-0 shadow-xl">
-      {/* Logotipo */}
-      <Link href="/" className="flex items-center gap-3 px-5 py-5 border-b border-slate-700/60 hover:bg-slate-800/50 transition-colors">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/30">
-          <PenaIcone className="h-5 w-5 text-white" />
+      {/* Logotipo Canônico Oficial (Identico ao Print do Usuário) */}
+      <Link href="/" className="flex items-center gap-3.5 px-5 py-5 border-b border-slate-700/60 hover:bg-slate-800/50 transition-colors">
+        <div className="w-10 h-10 rounded-full border border-white/20 bg-white/5 flex items-center justify-center text-xl font-serif text-white shrink-0">
+          ◜
         </div>
-        <div>
-          <h1 className="font-bold text-white text-sm leading-tight">Cérebro Autoral</h1>
-          <p className="text-[11px] text-slate-400 font-normal">Seu acervo. Seu pensamento.</p>
+        <div className="min-w-0">
+          <h1 className="font-serif font-bold text-white text-sm leading-tight truncate">Cérebro Autoral</h1>
+          <p className="text-[10px] text-slate-400 font-sans leading-tight mt-0.5">Seu acervo. Seu pensamento. Novas reflexões.</p>
         </div>
       </Link>
 
@@ -133,14 +133,11 @@ export function BarraLateralDesktop() {
         })}
       </nav>
 
-      {/* Card Inspirador / Rodapé */}
-      <div className="mx-3 mb-4 rounded-xl bg-gradient-to-br from-blue-900/60 to-slate-800/60 border border-blue-500/20 p-4">
-        <div className="flex items-center gap-2 text-blue-300 font-semibold text-xs mb-1.5">
-          <Feather className="w-3.5 h-3.5" />
-          <span>Núcleo Autoral Ativo</span>
-        </div>
-        <p className="text-[11px] text-slate-400 leading-relaxed">
-          &ldquo;Seu pensamento merece contexto, memória e proveniência.&rdquo;
+      {/* Card Inspirador / Rodapé (Identico ao Print do Usuário) */}
+      <div className="mx-3 mb-4 rounded-2xl bg-blue-950/40 border border-blue-500/15 p-4 space-y-1">
+        <span className="text-xl font-serif text-blue-400/80 leading-none block font-bold">“</span>
+        <p className="text-xs text-slate-300/90 leading-relaxed font-serif">
+          Seu pensamento merece contexto, memória e proveniência.
         </p>
       </div>
     </aside>

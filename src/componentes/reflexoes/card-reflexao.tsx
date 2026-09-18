@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles, ArrowRight, ShieldCheck, AlertTriangle, Ban, FileText } from "lucide-react";
+import { ArrowRight, ShieldCheck, AlertTriangle, Ban, FileText } from "lucide-react";
 import type { ResumoReflexao } from "@/tipos/reflexoes";
 
 interface Props {
@@ -7,12 +7,12 @@ interface Props {
 }
 
 const CORES_ESTADO: Record<string, string> = {
-  criada: "bg-neutral-800 text-neutral-300 border-neutral-700",
+  criada: "bg-neutral-800/80 text-neutral-300 border-neutral-700",
   planejada: "bg-blue-500/10 text-blue-300 border-blue-500/30",
   em_redacao: "bg-amber-500/10 text-amber-300 border-amber-500/30",
   em_auditoria: "bg-purple-500/10 text-purple-300 border-purple-500/30",
   concluida: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
-  arquivada: "bg-neutral-800 text-neutral-400 border-neutral-700",
+  arquivada: "bg-neutral-800/80 text-neutral-400 border-neutral-700",
 };
 
 const CORES_VEREDITO: Record<string, { bg: string; text: string; icone: any }> = {
@@ -34,11 +34,11 @@ export function CardReflexao({ reflexao }: Props) {
   });
 
   return (
-    <div className="bg-neutral-900/70 border border-neutral-800 hover:border-neutral-700 rounded-2xl p-5 flex flex-col justify-between transition-all hover:bg-neutral-900/90 group space-y-4">
+    <div className="bg-neutral-900/70 border border-neutral-800 hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/5 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 hover:bg-neutral-900/95 group space-y-4">
       <div className="space-y-3">
-        {/* Badges Superiores */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+        {/* Badges Superiores Responsivas */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] px-2.5 py-0.5 rounded-full font-medium font-mono uppercase tracking-wider bg-neutral-950 border border-neutral-800 text-amber-400">
               {reflexao.formato_desejado}
             </span>
@@ -47,7 +47,7 @@ export function CardReflexao({ reflexao }: Props) {
             </span>
           </div>
 
-          <span className="text-[11px] text-neutral-500 font-mono">
+          <span className="text-[11px] text-neutral-400 font-mono">
             {dataAtualizacao}
           </span>
         </div>
@@ -63,7 +63,7 @@ export function CardReflexao({ reflexao }: Props) {
         </div>
       </div>
 
-      {/* Rodapé: Auditoria & Botão */}
+      {/* Rodapé: Auditoria & Botão de Ação */}
       <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between gap-2">
         {vereditoInfo && reflexao.ultima_pontuacao_auditoria !== null && reflexao.ultima_pontuacao_auditoria !== undefined ? (
           <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs ${vereditoInfo.bg} ${vereditoInfo.text}`}>
@@ -83,7 +83,7 @@ export function CardReflexao({ reflexao }: Props) {
 
         <Link
           href={`/reflexoes/${reflexao.entrada_id}`}
-          className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 font-medium group/link transition-colors"
+          className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-medium group/link transition-colors focus:outline-none focus:ring-1 focus:ring-amber-400/50 rounded-md px-1.5 py-0.5"
         >
           <span>Abrir Estúdio</span>
           <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover/link:translate-x-0.5" />
