@@ -72,6 +72,13 @@ describe("diff estruturado da edição autoral", () => {
     });
 
     expect(diff.estrategia).toBe("bloco");
-    expect(diff.alteracoes.length).toBeGreaterThan(0);
+    expect(diff.alteracoes).toHaveLength(1);
+    expect(diff.alteracoes[0]).toMatchObject({
+      tipo: "substituicao",
+      antes: "palavra900",
+      depois: "termo900",
+      palavras_removidas: 1,
+      palavras_adicionadas: 1,
+    });
   });
 });
