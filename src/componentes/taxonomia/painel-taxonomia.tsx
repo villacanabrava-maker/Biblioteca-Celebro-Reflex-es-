@@ -37,6 +37,7 @@ const DOMINIOS: { id: string; rotulo: string }[] = [
 export function PainelTaxonomia({ conceitosIniciais, arestasIniciais }: Props) {
   const [busca, setBusca] = useState("");
   const [dominioSelecionado, setDominioSelecionado] = useState("todos");
+  const [estadoSelecionado, setEstadoSelecionado] = useState<"todos" | "ativo" | "revisao">("todos");
   const [modoVisualizacao, setModoVisualizacao] = useState<"cards" | "grafo">("cards");
   const [modalAberto, setModalAberto] = useState(false);
 
@@ -44,6 +45,8 @@ export function PainelTaxonomia({ conceitosIniciais, arestasIniciais }: Props) {
     return conceitosIniciais.filter((conceito) => {
       const matchDominio =
         dominioSelecionado === "todos" || conceito.dominio === dominioSelecionado;
+      const matchEstado =
+        estadoSelecionado === "todos" || conceito.estado === estadoSelecionado;
       const termo = busca.toLowerCase().trim();
       const matchBusca =
         !termo ||
@@ -53,17 +56,20 @@ export function PainelTaxonomia({ conceitosIniciais, arestasIniciais }: Props) {
           sinonimo.termo.toLowerCase().includes(termo)
         );
 
-      return matchDominio && matchBusca;
+      return matchDominio && matchEstado && matchBusca;
     });
-  }, [conceitosIniciais, busca, dominioSelecionado]);
+  }, [conceitosIniciais, busca, dominioSelecionado, estadoSelecionado]);
 
   const metricas = useMemo(() => {
     return {
-      totalConceitos: conceitosIniciais.length,
-      dominiosAtivos: new Set(conceitosIniciais.map((conceito) => conceito.dominio)).size,
+      totalAtivos: conceitosIniciais.filter((conceito) => conceito.estado === "ativo").length,
+      totalRevisao: conceitosIniciais.filter((conceito) => conceito.estado === "revisao").length,
       totalConexoes: arestasIniciais.length,
       totalOcorrencias: conceitosIniciais.reduce(
-        (total, conceito) => total + (conceito.total_fragmentos || 0),
+        (total, conceito) =>
+          total +
+          (conceito.total_fragmentos || 0) +
+          (conceito.total_reflexoes || 0),
         0
       ),
     };
@@ -71,18 +77,18 @@ export function PainelTaxonomia({ conceitosIniciais, arestasIniciais }: Props) {
 
   const cards = [
     {
-      rotulo: "Conceitos",
-      valor: metricas.totalConceitos,
-      detalhe: "conceitos registrados",
+      rotulo: "Conceitos ativos",
+      valor: metricas.totalAtivos,
+      detalhe: "confirmados na Taxonomia",
       icone: BookOpen,
       classe: "bg-blue-50 text-blue-600",
     },
     {
-      rotulo: "Domínios",
-      valor: metricas.dominiosAtivos,
-      detalhe: "campos com conceitos",
-      icone: Layers,
-      classe: "bg-violet-50 text-violet-600",
+      rotulo: "Em revisão",
+      valor: metricas.totalRevisao,
+      detalhe: "sugestões aguardando decisão",
+      icone: Sparkles,
+      classe: "bg-amber-50 text-amber-600",
     },
     {
       rotulo: "Conexões",
@@ -94,7 +100,7 @@ export function PainelTaxonomia({ conceitosIniciais, arestasIniciais }: Props) {
     {
       rotulo: "Ocorrências",
       valor: metricas.totalOcorrencias,
-      detalhe: "fragmentos associados",
+      detalhe: "fragmentos + reflexões",
       icone: Sparkles,
       classe: "bg-emerald-50 text-emerald-600",
     },
@@ -140,6 +146,21 @@ export function PainelTaxonomia({ conceitosIniciais, arestasIniciais }: Props) {
               {dominio.rotulo}
             </option>
           ))}
+        </select>
+
+        <select
+          value={estadoSelecionado}
+          onChange={(evento) =>
+            setEstadoSelecionado(
+              evento.target.value as "todos" | "ativo" | "revisao"
+            )
+          }
+          aria-label="Filtrar conceitos por estado"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-blue-500 focus:outline-none"
+        >
+          <option value="todos">Todos os estados</option>
+          <option value="ativo">Confirmados</option>
+          <option value="revisao">Em revisão</option>
         </select>
 
         <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
@@ -189,9 +210,9 @@ export function PainelTaxonomia({ conceitosIniciais, arestasIniciais }: Props) {
               Nenhum conceito encontrado
             </h3>
             <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
-              {busca || dominioSelecionado !== "todos"
-                ? "Altere a busca ou o filtro de domínio."
-                : "Cadastre o primeiro conceito para começar o mapa de ideias do seu acervo."}
+              {busca || dominioSelecionado !== "todos" || estadoSelecionado !== "todos"
+                ? "Altere a busca ou os filtros."
+                : "Conceitos confirmados e sugestões automáticas aparecerão aqui com origem explícita."}
             </p>
           </div>
         ) : (
@@ -203,7 +224,19 @@ export function PainelTaxonomia({ conceitosIniciais, arestasIniciais }: Props) {
         )
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 shadow-sm">
-          <GrafoTaxonomia conceitos={conceitosFiltrados} arestas={arestasIniciais} />
+          <GrafoTaxonomia
+            conceitos={conceitosFiltrados.filter(
+              (conceito) => conceito.estado === "ativo"
+            )}
+            arestas={arestasIniciais.filter((aresta) => {
+              const ativos = new Set(
+                conceitosIniciais
+                  .filter((conceito) => conceito.estado === "ativo")
+                  .map((conceito) => conceito.id)
+              );
+              return ativos.has(aresta.origem_id) && ativos.has(aresta.destino_id);
+            })}
+          />
         </div>
       )}
 
