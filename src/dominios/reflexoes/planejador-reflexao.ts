@@ -8,7 +8,7 @@
 import { z } from "zod";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { executarChamadaEstruturada, protegerEntradaDeDados, PAPEIS_IA } from "@/ia/orquestrador";
-import type { DossieContextual, FormatoReflexao } from "@/tipos/reflexoes";
+import type { ConflitoDetectado, DossieContextual, FormatoReflexao } from "@/tipos/reflexoes";
 
 const EsquemaPlanoZod = z.object({
   tese_central: z.string().describe("Tese autoral profunda, assertiva e provocativa que o autor defenderá"),
@@ -69,7 +69,9 @@ export async function gerarPlanoReflexao({
 
   const textoExterno = reflexaoExterna || entradaDb?.reflexao_externa || provocacaoInicial;
   const textoComentario = comentarioAutor || entradaDb?.comentario_autor || "";
-  const conflitos = (entradaDb?.conflitos_detectados as any[]) || [];
+  const conflitos = (
+    (entradaDb?.conflitos_detectados as ConflitoDetectado[] | null) || []
+  ).filter((conflito) => conflito.considerado_no_plano !== false);
 
   const dossie = (entradaDb?.dossie_contexto as DossieContextual | null) || null;
 
