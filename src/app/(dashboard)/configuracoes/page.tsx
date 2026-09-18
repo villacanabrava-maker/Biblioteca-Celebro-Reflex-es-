@@ -1,24 +1,5 @@
 import type { Metadata } from "next";
-import {
-  Settings,
-  User,
-  Sliders,
-  Shield,
-  Languages,
-  Palette,
-  Cpu,
-  Mic,
-  Share2,
-  Info,
-  HelpCircle,
-  LogOut,
-  ChevronRight,
-  CheckCircle2,
-  AlertCircle,
-  Database,
-  Activity,
-  Layers,
-} from "lucide-react";
+import { User, Sliders, Shield, Languages, Palette, Cpu, Mic, Share2, Info, HelpCircle, LogOut, ChevronRight, CheckCircle2, Database, Activity } from "lucide-react";
 import { obterPerfilUsuarioAtual, obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { fazerLogout } from "@/acoes/auth";
