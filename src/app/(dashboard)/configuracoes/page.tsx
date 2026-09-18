@@ -24,8 +24,8 @@ import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { fazerLogout } from "@/acoes/auth";
 
 export const metadata: Metadata = {
-  title: "Configurações & Diagnóstico | Memória Reflexiva",
-  description: "Parâmetros de inteligência autoral, governança de dados e diagnóstico de saúde do sistema.",
+  title: "Configurações | Rflex01",
+  description: "Conta, preferências e diagnóstico do Rflex01.",
 };
 
 export const dynamic = "force-dynamic";
@@ -80,7 +80,7 @@ export default async function PaginaConfiguracoes() {
           Configurações
         </h1>
         <p className="text-xs sm:text-sm text-slate-500">
-          Personalize sua experiência, parâmetros de inteligência e segurança da sua conta.
+          Gerencie sua conta, preferências e veja o estado dos serviços essenciais.
         </p>
       </div>
 
@@ -115,7 +115,7 @@ export default async function PaginaConfiguracoes() {
               </div>
               <div>
                 <span className="font-semibold text-slate-800 block text-xs">Preferências</span>
-                <span className="text-[11px] text-slate-500">Modo epistemológico autoral ativo</span>
+                <span className="text-[11px] text-slate-500">Preferências gerais do Rflex01</span>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -128,9 +128,9 @@ export default async function PaginaConfiguracoes() {
                 <Shield className="w-4 h-4" />
               </div>
               <div>
-                <span className="font-semibold text-slate-800 block text-xs">Segurança & RLS</span>
+                <span className="font-semibold text-slate-800 block text-xs">Segurança da conta</span>
                 <span className="text-[11px] text-slate-500">
-                  Isolamento total de conta via Row-Level Security e Supabase Auth
+                  Controles de acesso e isolamento de dados do usuário
                 </span>
               </div>
             </div>
@@ -147,7 +147,7 @@ export default async function PaginaConfiguracoes() {
               </div>
               <div>
                 <span className="font-semibold text-slate-800 block text-xs">Idioma</span>
-                <span className="text-[11px] text-slate-500">Português do Brasil (Canônico)</span>
+                <span className="text-[11px] text-slate-500">Português do Brasil</span>
               </div>
             </div>
             <span className="text-xs text-slate-600 font-semibold">pt-BR</span>
@@ -161,7 +161,7 @@ export default async function PaginaConfiguracoes() {
               </div>
               <div>
                 <span className="font-semibold text-slate-800 block text-xs">Aparência</span>
-                <span className="text-[11px] text-slate-500">Light Editorial Elegante</span>
+                <span className="text-[11px] text-slate-500">Tema claro editorial</span>
               </div>
             </div>
             <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2.5 py-0.5 rounded-full">
@@ -178,7 +178,7 @@ export default async function PaginaConfiguracoes() {
         </h2>
 
         <div className="divide-y divide-slate-100 text-xs">
-          {/* Modelo de IA */}
+          {/* Inteligência artificial */}
           <div className="py-3 flex items-center justify-between hover:bg-slate-50/60 px-2 rounded-xl transition-colors">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -187,12 +187,12 @@ export default async function PaginaConfiguracoes() {
               <div>
                 <span className="font-semibold text-slate-800 block text-xs">Modelo de IA</span>
                 <span className="text-[11px] text-slate-500">
-                  OpenAI GPT-4o (Geração) • text-embedding-3-small (Embeddings)
+                  Recursos de geração e análise do acervo
                 </span>
               </div>
             </div>
             <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-              Conectado
+              Configurada
             </span>
           </div>
 
@@ -220,7 +220,7 @@ export default async function PaginaConfiguracoes() {
               </div>
               <div>
                 <span className="font-semibold text-slate-800 block text-xs">Integrações</span>
-                <span className="text-[11px] text-slate-500">Conexão com Kindle, Notion e Google Drive</span>
+                <span className="text-[11px] text-slate-500">Integrações externas opcionais</span>
               </div>
             </div>
             <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
@@ -233,9 +233,9 @@ export default async function PaginaConfiguracoes() {
       {/* 3. SEÇÃO: DIAGNÓSTICO EM TEMPO REAL & MÉTRICAS DO CÉREBRO */}
       <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-4">
         <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
-          <span>Diagnóstico e Integridade da Plataforma</span>
+          <span>Diagnóstico do sistema</span>
           <span className="flex items-center gap-1.5 text-[10px] text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 font-semibold normal-case">
-            <Activity className="w-3 h-3 animate-pulse" /> Telemetria Ativa
+            <Activity className="w-3 h-3 animate-pulse" /> Dados atuais
           </span>
         </h2>
 
@@ -263,9 +263,9 @@ export default async function PaginaConfiguracoes() {
                 <Database className="w-4 h-4" />
               </div>
               <div>
-                <span className="font-semibold text-slate-800 block text-xs">Supabase PostgreSQL 17</span>
+                <span className="font-semibold text-slate-800 block text-xs">Banco de dados</span>
                 <span className="text-[11px] text-slate-500">
-                  Schemas canônicos, RLS ativo e extensão pgvector 1536d
+                  Armazenamento e dados essenciais do Rflex01
                 </span>
               </div>
             </div>
@@ -287,9 +287,9 @@ export default async function PaginaConfiguracoes() {
                 <Cpu className="w-4 h-4" />
               </div>
               <div>
-                <span className="font-semibold text-slate-800 block text-xs">AI Orchestrator (OpenAI)</span>
+                <span className="font-semibold text-slate-800 block text-xs">Serviço de inteligência artificial</span>
                 <span className="text-[11px] text-slate-500">
-                  Modelos GPT-4o, GPT-4o-mini e text-embedding-3-small
+                  Geração, análise e vetorização do acervo
                 </span>
               </div>
             </div>
@@ -300,7 +300,7 @@ export default async function PaginaConfiguracoes() {
                   : "text-amber-700 bg-amber-50 border-amber-200"
               }`}
             >
-              {openaiConfigurada ? "Chave Ativa" : "Chave Pendente"}
+              {openaiConfigurada ? "Configurado" : "Configuração pendente"}
             </span>
           </div>
         </div>
@@ -319,13 +319,13 @@ export default async function PaginaConfiguracoes() {
                 <Info className="w-4 h-4" />
               </div>
               <div>
-                <span className="font-semibold text-slate-800 block text-xs">Memória Reflexiva</span>
+                <span className="font-semibold text-slate-800 block text-xs">Rflex01</span>
                 <span className="text-[11px] text-slate-500">
-                  Versão 2.0 • Seu acervo. Sua inteligência. Novas reflexões.
+                  Memória e inteligência autoral
                 </span>
               </div>
             </div>
-            <span className="font-mono text-slate-400 text-[11px]">v2.0.0</span>
+            <span className="text-slate-400 text-[11px]">Rflex01</span>
           </div>
 
           <div className="py-3 flex items-center justify-between px-2">
