@@ -3,33 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Sparkles,
-  ArrowRight,
-  ArrowLeft,
-  FileText,
-  UploadCloud,
-  Globe,
-  Brain,
-  ShieldAlert,
-  ListOrdered,
-  CheckCircle2,
-  BookmarkPlus,
-  Loader2,
-  AlertCircle,
-  BookOpen,
-  Edit3,
-  Check,
-  ShieldCheck,
-  Quote,
-} from "lucide-react";
-import {
-  iniciarEsteiraReflexao,
-  gerarPlanoParaEntrada,
-  acionarRedacaoReflexao,
-  incorporarReflexaoMemoria,
-  registrarRevisaoAutor,
-} from "@/acoes/reflexoes";
+import { Sparkles, ArrowRight, ArrowLeft, FileText, UploadCloud, Globe, Brain, Loader2, AlertCircle, Check } from "lucide-react";
+import { iniciarEsteiraReflexao, gerarPlanoParaEntrada, acionarRedacaoReflexao } from "@/acoes/reflexoes";
 import type {
   FormatoReflexao,
   TipoOrigemExterna,
