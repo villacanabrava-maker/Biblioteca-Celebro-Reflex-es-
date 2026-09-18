@@ -625,7 +625,7 @@ export function DetalheDocumentoComponente({
                   return (
                     <div
                       key={f.id}
-                      className="p-5 rounded-2xl bg-slate-50 border border-slate-200/90 text-xs text-slate-700 space-y-3 hover:border-blue-300 hover:bg-white transition-all shadow-xs"
+                      className="p-5 rounded-2xl bg-slate-50 border border-slate-200/90 text-sm text-slate-700 space-y-3 hover:border-blue-300 hover:bg-white transition-all shadow-xs"
                     >
                       {/* Topo do Card de Fragmento */}
                       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5">
@@ -648,7 +648,7 @@ export function DetalheDocumentoComponente({
                       </div>
 
                       {/* Texto com tipografia editorial e quebras de parágrafo */}
-                      <div className="font-serif text-slate-800 leading-relaxed text-sm whitespace-pre-wrap selection:bg-blue-100">
+                      <div className="font-serif text-slate-800 text-base sm:text-[17px] leading-7 sm:leading-8 whitespace-pre-wrap selection:bg-blue-100 max-w-[75ch]">
                         {matchIdx >= 0 ? (
                           <>
                             {texto.slice(0, matchIdx)}
