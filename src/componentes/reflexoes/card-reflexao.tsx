@@ -34,7 +34,11 @@ export function CardReflexao({ reflexao }: Props) {
   });
 
   return (
-    <div className="bg-neutral-900/70 border border-neutral-800 hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/5 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 hover:bg-neutral-900/95 group space-y-4">
+    <Link
+      href={`/reflexoes/${reflexao.entrada_id}`}
+      aria-label={`Abrir reflexão: ${reflexao.ultimo_titulo_gerado || reflexao.titulo}`}
+      className="block bg-neutral-900/70 border border-neutral-800 hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/5 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 hover:bg-neutral-900/95 group space-y-4 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+    >
       <div className="space-y-3">
         {/* Badges Superiores Responsivas */}
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -81,14 +85,11 @@ export function CardReflexao({ reflexao }: Props) {
           </div>
         )}
 
-        <Link
-          href={`/reflexoes/${reflexao.entrada_id}`}
-          className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-medium group/link transition-colors focus:outline-none focus:ring-1 focus:ring-amber-400/50 rounded-md px-1.5 py-0.5"
-        >
+        <span className="flex items-center gap-1.5 text-xs text-amber-400 group-hover:text-amber-300 font-medium transition-colors rounded-md px-1.5 py-0.5">
           <span>Abrir Estúdio</span>
-          <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover/link:translate-x-0.5" />
-        </Link>
+          <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+        </span>
       </div>
-    </div>
+    </Link>
   );
 }
