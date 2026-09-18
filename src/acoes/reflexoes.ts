@@ -617,6 +617,11 @@ export async function iniciarEsteiraReflexao({
     temaCentral: tema,
   });
 
+  const conflitosPersistidos = conflitos.map((conflito) => ({
+    ...conflito,
+    considerado_no_plano: conflito.considerado_no_plano !== false,
+  }));
+
   // 2. Salvar entrada de reflexão com o dossiê e conflitos
   const { data: entrada, error } = await admin
     .schema("reflexoes")
@@ -630,7 +635,7 @@ export async function iniciarEsteiraReflexao({
       tipo_origem_externa: tipoOrigemExterna,
       comentario_autor: comentarioAutor,
       dossie_contexto: dossie,
-      conflitos_detectados: conflitos,
+      conflitos_detectados: conflitosPersistidos,
       formato_desejado: formatoDesejado,
       estado: "criada",
     })
@@ -701,7 +706,7 @@ export async function iniciarEsteiraReflexao({
   return {
     sucesso: true,
     entradaId: entrada.id,
-    conflitos,
+    conflitos: conflitosPersistidos,
     dossie,
   };
 }
@@ -761,6 +766,65 @@ export async function atualizarDossieReflexao({
   }
 
   return { sucesso: true, totalFragmentos: fragmentosSelecionados.length };
+}
+
+/**
+ * Persiste a decisão do autor sobre quais conflitos/tensões participarão do plano.
+ * O histórico completo é preservado em conflitos_detectados; somente o sinal
+ * considerado_no_plano é alterado.
+ */
+export async function atualizarConflitosReflexao({
+  entradaId,
+  indicesConsiderados,
+}: {
+  entradaId: string;
+  indicesConsiderados: number[];
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const { data: entrada, error: erroEntrada } = await admin
+    .schema("reflexoes")
+    .from("entradas")
+    .select("conflitos_detectados")
+    .eq("id", entradaId)
+    .eq("usuario_id", usuarioId)
+    .single();
+
+  if (erroEntrada || !entrada) {
+    throw new Error("Entrada de reflexão não encontrada para atualizar os conflitos.");
+  }
+
+  const conflitosAtuais = ((entrada.conflitos_detectados as ConflitoDetectado[] | null) || []);
+  const selecionados = new Set(
+    indicesConsiderados.filter(
+      (indice) => Number.isInteger(indice) && indice >= 0 && indice < conflitosAtuais.length
+    )
+  );
+
+  const conflitosAtualizados = conflitosAtuais.map((conflito, indice) => ({
+    ...conflito,
+    considerado_no_plano: selecionados.has(indice),
+  }));
+
+  const { error: erroAtualizacao } = await admin
+    .schema("reflexoes")
+    .from("entradas")
+    .update({ conflitos_detectados: conflitosAtualizados })
+    .eq("id", entradaId)
+    .eq("usuario_id", usuarioId);
+
+  if (erroAtualizacao) {
+    throw new Error(`Falha ao atualizar conflitos da reflexão: ${erroAtualizacao.message}`);
+  }
+
+  return {
+    sucesso: true,
+    totalConflitos: conflitosAtualizados.length,
+    totalConsiderados: conflitosAtualizados.filter(
+      (conflito) => conflito.considerado_no_plano !== false
+    ).length,
+  };
 }
 
 /**
