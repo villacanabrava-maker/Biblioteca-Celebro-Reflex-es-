@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Plus, Search, Sparkles, CheckCircle2, ShieldCheck, FileText, Layers } from "lucide-react";
-import type { ResumoReflexao, FormatoReflexao } from "@/tipos/reflexoes";
+import type { ResumoReflexao } from "@/tipos/reflexoes";
 import { CardReflexao } from "./card-reflexao";
 import { ModalNovaReflexao } from "./modal-nova-reflexao";
 
