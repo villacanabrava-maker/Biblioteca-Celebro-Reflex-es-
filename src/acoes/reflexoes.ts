@@ -1,6 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import dns from "node:dns/promises";
+import net from "node:net";
+import { Readability } from "@mozilla/readability";
+import { JSDOM } from "jsdom";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
 import { detectarConflitosEMontarDossie } from "@/dominios/reflexoes/detector-conflitos";
@@ -164,6 +168,181 @@ export async function extrairFonteDocumentoTemporaria({
     totalCaracteres: resultado.totalCaracteres,
     metadados: resultado.metadadosArquivo,
   };
+}
+
+function enderecoEhPrivadoOuReservado(endereco: string): boolean {
+  const versao = net.isIP(endereco);
+
+  if (versao === 4) {
+    const partes = endereco.split(".").map(Number);
+    const [a, b] = partes;
+
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      a >= 224
+    );
+  }
+
+  if (versao === 6) {
+    const normalizado = endereco.toLowerCase();
+    return (
+      normalizado === "::" ||
+      normalizado === "::1" ||
+      normalizado.startsWith("fc") ||
+      normalizado.startsWith("fd") ||
+      /^fe[89ab]/.test(normalizado) ||
+      normalizado.startsWith("::ffff:127.") ||
+      normalizado.startsWith("::ffff:10.") ||
+      normalizado.startsWith("::ffff:192.168.") ||
+      /^::ffff:172\.(1[6-9]|2\d|3[01])\./.test(normalizado)
+    );
+  }
+
+  return false;
+}
+
+async function validarUrlExternaSegura(valor: string): Promise<URL> {
+  let url: URL;
+
+  try {
+    url = new URL(valor);
+  } catch {
+    throw new Error("Informe uma URL válida, incluindo https://");
+  }
+
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw new Error("A fonte por link precisa usar HTTP ou HTTPS.");
+  }
+
+  if (url.username || url.password) {
+    throw new Error("URLs com credenciais embutidas não são permitidas.");
+  }
+
+  if (url.port && !["80", "443"].includes(url.port)) {
+    throw new Error("A URL usa uma porta não permitida para leitura de artigos.");
+  }
+
+  const host = url.hostname.toLowerCase();
+  if (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal")
+  ) {
+    throw new Error("Endereços locais ou internos não podem ser usados como fonte.");
+  }
+
+  if (net.isIP(host)) {
+    if (enderecoEhPrivadoOuReservado(host)) {
+      throw new Error("Endereços IP privados ou reservados não podem ser usados como fonte.");
+    }
+    return url;
+  }
+
+  const resolvidos = await dns.lookup(host, { all: true, verbatim: true });
+  if (!resolvidos.length) {
+    throw new Error("Não foi possível resolver o endereço informado.");
+  }
+
+  if (resolvidos.some((registro) => enderecoEhPrivadoOuReservado(registro.address))) {
+    throw new Error("O endereço informado resolve para uma rede privada ou reservada.");
+  }
+
+  return url;
+}
+
+/**
+ * Extrai o conteúdo principal de um artigo/link público.
+ * Redirecionamentos são validados individualmente para impedir acesso a redes internas.
+ */
+export async function extrairFonteLinkTemporaria(urlInformada: string) {
+  const LIMITE_HTML_BYTES = 5 * 1024 * 1024;
+  const MAX_REDIRECIONAMENTOS = 4;
+  let atual = await validarUrlExternaSegura(urlInformada.trim());
+
+  for (let tentativa = 0; tentativa <= MAX_REDIRECIONAMENTOS; tentativa++) {
+    const resposta = await fetch(atual, {
+      method: "GET",
+      redirect: "manual",
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        Accept: "text/html,application/xhtml+xml,text/plain;q=0.8,*/*;q=0.2",
+        "User-Agent": "Rflex01-Reader/1.0 (+https://reflex-01.vercel.app)",
+      },
+    });
+
+    if (resposta.status >= 300 && resposta.status < 400) {
+      const destino = resposta.headers.get("location");
+      if (!destino) {
+        throw new Error("O link redirecionou sem informar um destino válido.");
+      }
+      if (tentativa === MAX_REDIRECIONAMENTOS) {
+        throw new Error("O link excedeu o limite seguro de redirecionamentos.");
+      }
+
+      atual = await validarUrlExternaSegura(new URL(destino, atual).toString());
+      continue;
+    }
+
+    if (!resposta.ok) {
+      throw new Error(`Não foi possível acessar o link (HTTP ${resposta.status}).`);
+    }
+
+    const tipoConteudo = (resposta.headers.get("content-type") || "").toLowerCase();
+    if (
+      tipoConteudo &&
+      !tipoConteudo.includes("text/html") &&
+      !tipoConteudo.includes("application/xhtml+xml") &&
+      !tipoConteudo.includes("text/plain")
+    ) {
+      throw new Error("O link não aponta para uma página textual compatível.");
+    }
+
+    const tamanhoDeclarado = Number(resposta.headers.get("content-length") || "0");
+    if (tamanhoDeclarado > LIMITE_HTML_BYTES) {
+      throw new Error("A página é grande demais para ser usada diretamente como fonte.");
+    }
+
+    const bytes = await resposta.arrayBuffer();
+    if (bytes.byteLength > LIMITE_HTML_BYTES) {
+      throw new Error("A página excedeu o limite de 5 MB para extração.");
+    }
+
+    const html = Buffer.from(bytes).toString("utf-8");
+    const dom = new JSDOM(html, { url: atual.toString() });
+    const artigo = new Readability(dom.window.document).parse();
+
+    const texto =
+      artigo?.textContent
+        ?.replace(/\u00a0/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim() || "";
+
+    if (!texto || texto.length < 80) {
+      throw new Error("Não foi possível identificar conteúdo textual suficiente nessa página.");
+    }
+
+    return {
+      urlFinal: atual.toString(),
+      titulo: artigo?.title?.trim() || dom.window.document.title?.trim() || undefined,
+      autor: artigo?.byline?.trim() || undefined,
+      siteName: artigo?.siteName?.trim() || undefined,
+      resumo: artigo?.excerpt?.trim() || undefined,
+      texto,
+      totalCaracteres: texto.length,
+      totalPalavras: texto.split(/\s+/).filter(Boolean).length,
+    };
+  }
+
+  throw new Error("Não foi possível concluir a leitura do link.");
 }
 
 async function registrarFonteCanonica({
