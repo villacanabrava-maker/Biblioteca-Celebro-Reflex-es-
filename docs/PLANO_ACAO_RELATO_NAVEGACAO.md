@@ -54,13 +54,21 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 - Migration `0027_grants_propostas_atualizacao` aplicada e verificada.
 - O acesso direto de `authenticated` permaneceu revogado.
 
+## Segurança do catálogo canônico do Cérebro
+
+- Migration `0028_dimensoes_canonicas_readonly` aplicada e verificada.
+- As 18 dimensões permanecem globais e imutáveis para clientes.
+- `authenticated` possui somente SELECT.
+- `anon` não possui acesso.
+- `service_role` mantém escrita administrativa para backend/migrations.
+- Views do Cérebro permanecem com `security_invoker=true`.
+
 ## Ordem de execução a partir daqui
 
-1. Fechar decisão segura para o catálogo global `cerebro_autoral.dimensoes` (RLS/read-only).
-2. Habilitar proteção contra senhas vazadas no Supabase Auth.
-3. QA transversal: E2E autenticado, acessibilidade, responsividade e regressão visual.
-4. Performance e observabilidade baseadas em medições reais.
-5. Proteção formal da branch `main`.
+1. Habilitar proteção contra senhas vazadas no Supabase Auth.
+2. QA transversal: E2E autenticado, acessibilidade, responsividade e regressão visual.
+3. Performance e observabilidade baseadas em medições reais.
+4. Proteção formal da branch `main`.
 
 ## Guardrails
 
