@@ -121,10 +121,11 @@ export function ModalAdicionarConceito({ aberto, aoFechar, aoSucesso }: Props) {
 
         <form onSubmit={lidarSubmissao} className="space-y-4">
           <div>
-            <label className="block text-xs uppercase tracking-wider text-neutral-400 font-medium mb-1.5">
+            <label htmlFor="taxonomia-termo" className="block text-xs uppercase tracking-wider text-neutral-400 font-medium mb-1.5">
               Termo Preferencial (Canônico) *
             </label>
             <input
+              id="taxonomia-termo"
               type="text"
               required
               value={termoPreferencial}
@@ -135,10 +136,11 @@ export function ModalAdicionarConceito({ aberto, aoFechar, aoSucesso }: Props) {
           </div>
 
           <div>
-            <label className="block text-xs uppercase tracking-wider text-neutral-400 font-medium mb-1.5">
+            <label htmlFor="taxonomia-dominio" className="block text-xs uppercase tracking-wider text-neutral-400 font-medium mb-1.5">
               Domínio Ontológico *
             </label>
             <select
+              id="taxonomia-dominio"
               value={dominio}
               onChange={(e) => setDominio(e.target.value as DominioTaxonomico)}
               className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-amber-500/60"
@@ -152,10 +154,11 @@ export function ModalAdicionarConceito({ aberto, aoFechar, aoSucesso }: Props) {
           </div>
 
           <div>
-            <label className="block text-xs uppercase tracking-wider text-neutral-400 font-medium mb-1.5">
+            <label htmlFor="taxonomia-definicao" className="block text-xs uppercase tracking-wider text-neutral-400 font-medium mb-1.5">
               Definição Conceitual *
             </label>
             <textarea
+              id="taxonomia-definicao"
               required
               rows={3}
               value={definicao}
@@ -166,10 +169,11 @@ export function ModalAdicionarConceito({ aberto, aoFechar, aoSucesso }: Props) {
           </div>
 
           <div>
-            <label className="block text-xs uppercase tracking-wider text-neutral-400 font-medium mb-1.5">
+            <label htmlFor="taxonomia-sinonimos" className="block text-xs uppercase tracking-wider text-neutral-400 font-medium mb-1.5">
               Sinônimos e Variações Lexicais (separados por vírgula)
             </label>
             <input
+              id="taxonomia-sinonimos"
               type="text"
               value={sinonimosTexto}
               onChange={(e) => setSinonimosTexto(e.target.value)}
