@@ -85,7 +85,7 @@ export function VisualizadorExtracaoLivro({ dados }: Props) {
 
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-medium">
-                {obra?.autoria === "autoral" ? "Núcleo Autoral" : "Referência Externa"}
+                {obra?.natureza === "autoral" ? "Núcleo Autoral" : "Referência Externa"}
               </span>
               <span className="text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium capitalize">
                 {documento.estado_publicacao}
