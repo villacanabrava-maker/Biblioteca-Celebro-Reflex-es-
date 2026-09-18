@@ -11,6 +11,14 @@ ALTER TABLE taxonomia.conceitos
   ADD CONSTRAINT conceitos_estado_check
   CHECK (estado IN ('ativo', 'obsoleto', 'revisao', 'rejeitado'));
 
+-- Relações automáticas também exigem revisão humana.
+ALTER TABLE taxonomia.relacoes
+  ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT 'ativo'
+  CHECK (estado IN ('ativo', 'revisao', 'rejeitado'));
+
+CREATE INDEX IF NOT EXISTS idx_taxonomia_relacoes_estado
+  ON taxonomia.relacoes(estado);
+
 -- 2. Vinculo entre conceitos e versoes finais de Reflexoes.
 CREATE TABLE IF NOT EXISTS taxonomia.conceitos_reflexoes (
   id UUID PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
@@ -120,6 +128,40 @@ CREATE POLICY "Usuario consulta suas analises taxonomicas"
   USING ((select auth.uid()) = usuario_id);
 
 -- Escrita das analises permanece exclusiva do backend service_role.
+
+-- Grafo enriquecido com origem/estado da relação para separar propostas de arestas canônicas.
+CREATE OR REPLACE VIEW aplicacao.v_taxonomia_grafo AS
+SELECT
+  r.id AS relacao_id,
+  r.tipo_relacao,
+  r.confianca,
+  co.id AS origem_id,
+  co.termo_preferencial AS origem_termo,
+  co.dominio AS origem_dominio,
+  cd.id AS destino_id,
+  cd.termo_preferencial AS destino_termo,
+  cd.dominio AS destino_dominio,
+  co.usuario_id,
+  r.origem,
+  r.estado
+FROM taxonomia.relacoes r
+JOIN taxonomia.conceitos co
+  ON co.id = r.conceito_origem_id
+JOIN taxonomia.conceitos cd
+  ON cd.id = r.conceito_destino_id
+ AND cd.usuario_id = co.usuario_id;
+
+ALTER VIEW aplicacao.v_taxonomia_grafo
+  SET (security_invoker = true);
+
+CREATE OR REPLACE VIEW public.v_taxonomia_grafo AS
+SELECT * FROM aplicacao.v_taxonomia_grafo;
+
+ALTER VIEW public.v_taxonomia_grafo
+  SET (security_invoker = true);
+
+REVOKE ALL ON public.v_taxonomia_grafo FROM anon, authenticated;
+GRANT SELECT ON public.v_taxonomia_grafo TO authenticated, service_role;
 
 -- 4. View enriquecida: preservar colunas existentes e acrescentar ocorrencias em Reflexoes.
 CREATE OR REPLACE VIEW aplicacao.v_taxonomia_conceitos AS
