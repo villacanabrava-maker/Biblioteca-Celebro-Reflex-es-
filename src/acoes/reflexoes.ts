@@ -7,6 +7,7 @@ import { detectarConflitosEMontarDossie } from "@/dominios/reflexoes/detector-co
 import { gerarPlanoReflexao } from "@/dominios/reflexoes/planejador-reflexao";
 import { redigirReflexao } from "@/dominios/reflexoes/redator-reflexao";
 import { auditarVersaoReflexao } from "@/dominios/auditoria/auditor-independente";
+import { extrairTextoDeBuffer } from "@/dominios/processamento/extrator-texto";
 import type {
   ResumoReflexao,
   EntradaReflexao,
@@ -17,6 +18,7 @@ import type {
   TipoOrigemExterna,
   ConflitoDetectado,
   DossieContextual,
+  FonteReflexaoPreparada,
 } from "@/tipos/reflexoes";
 import type { RelatorioAuditoria } from "@/tipos/auditoria";
 
@@ -121,6 +123,93 @@ export async function obterReflexaoCompleta(entradaId: string): Promise<{
 }
 
 /**
+ * Extrai uma fonte documental já enviada ao bucket privado de Reflexões.
+ * O caminho precisa pertencer ao próprio usuário autenticado.
+ */
+export async function extrairFonteDocumentoTemporaria({
+  storageCaminho,
+  arquivoNomeOriginal,
+  arquivoMimeType,
+}: {
+  storageCaminho: string;
+  arquivoNomeOriginal: string;
+  arquivoMimeType: string;
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  if (!storageCaminho.startsWith(`${usuarioId}/`)) {
+    throw new Error("Fonte documental inválida para o usuário autenticado.");
+  }
+
+  const { data, error } = await admin.storage
+    .from("fontes-reflexoes")
+    .download(storageCaminho);
+
+  if (error || !data) {
+    throw new Error(`Não foi possível ler o documento enviado: ${error?.message || "arquivo indisponível"}`);
+  }
+
+  const buffer = Buffer.from(await data.arrayBuffer());
+  const resultado = await extrairTextoDeBuffer(buffer, arquivoMimeType, arquivoNomeOriginal);
+
+  if (!resultado.textoCompleto.trim()) {
+    throw new Error("O documento foi enviado, mas nenhum texto legível pôde ser extraído.");
+  }
+
+  return {
+    texto: resultado.textoCompleto,
+    totalPaginas: resultado.totalPaginas,
+    totalPalavras: resultado.totalPalavras,
+    totalCaracteres: resultado.totalCaracteres,
+    metadados: resultado.metadadosArquivo,
+  };
+}
+
+async function registrarFonteCanonica({
+  entradaId,
+  usuarioId,
+  fonte,
+}: {
+  entradaId: string;
+  usuarioId: string;
+  fonte: FonteReflexaoPreparada;
+}) {
+  const admin = criarClienteAdmin();
+
+  const { data, error } = await admin
+    .schema("reflexoes")
+    .from("fontes_entrada")
+    .insert({
+      entrada_id: entradaId,
+      usuario_id: usuarioId,
+      tipo_fonte: fonte.tipo,
+      titulo: fonte.titulo?.trim() || null,
+      autor_nome: fonte.autorNome?.trim() || null,
+      url_origem: fonte.urlOrigem?.trim() || null,
+      obra_id: fonte.obraId || null,
+      storage_bucket: fonte.storageBucket || null,
+      storage_caminho: fonte.storageCaminho || null,
+      arquivo_nome_original: fonte.arquivoNomeOriginal || null,
+      arquivo_mime_type: fonte.arquivoMimeType || null,
+      arquivo_tamanho_bytes: fonte.arquivoTamanhoBytes ?? null,
+      hash_sha256: fonte.hashSha256 || null,
+      conteudo_extraido: fonte.conteudoExtraido,
+      conteudo_confirmado: fonte.conteudoConfirmado?.trim() || null,
+      metadados: fonte.metadados || {},
+      estado: "pronta",
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Falha ao registrar a fonte da reflexão: ${error?.message || "erro desconhecido"}`);
+  }
+
+  return data.id as string;
+}
+
+/**
  * Inicia a esteira metodológica de reflexão:
  * 1. Salva estímulo externo e comentário do autor.
  * 2. Consulta memórias, regras e detecta tensões dialéticas e oportunidades conceituais.
@@ -132,6 +221,7 @@ export async function iniciarEsteiraReflexao({
   temaCentral,
   titulo,
   formatoDesejado = "ensaio",
+  fonte,
 }: {
   reflexaoExterna: string;
   tipoOrigemExterna?: TipoOrigemExterna;
@@ -139,6 +229,7 @@ export async function iniciarEsteiraReflexao({
   temaCentral?: string;
   titulo?: string;
   formatoDesejado?: FormatoReflexao;
+  fonte?: FonteReflexaoPreparada;
 }): Promise<{
   sucesso: boolean;
   entradaId: string;
@@ -181,6 +272,40 @@ export async function iniciarEsteiraReflexao({
 
   if (error || !entrada) {
     throw new Error(`Falha ao iniciar esteira de reflexão: ${error?.message}`);
+  }
+
+  const fonteCanonica: FonteReflexaoPreparada = fonte || {
+    tipo:
+      tipoOrigemExterna === "documento"
+        ? "documento"
+        : tipoOrigemExterna === "audio_transcricao"
+        ? "audio"
+        : tipoOrigemExterna === "artigo"
+        ? "link"
+        : "texto",
+    conteudoExtraido: reflexaoExterna,
+    conteudoConfirmado: reflexaoExterna,
+  };
+
+  try {
+    await registrarFonteCanonica({
+      entradaId: entrada.id,
+      usuarioId,
+      fonte: {
+        ...fonteCanonica,
+        conteudoConfirmado:
+          fonteCanonica.conteudoConfirmado?.trim() || reflexaoExterna.trim(),
+      },
+    });
+  } catch (erroFonte) {
+    await admin
+      .schema("reflexoes")
+      .from("entradas")
+      .delete()
+      .eq("id", entrada.id)
+      .eq("usuario_id", usuarioId);
+
+    throw erroFonte;
   }
 
   try {
