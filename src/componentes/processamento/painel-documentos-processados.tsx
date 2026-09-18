@@ -2,26 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import {
-  FileCheck2,
-  BookOpen,
-  Sparkles,
-  Layers,
-  ArrowRight,
-  Search,
-  Filter,
-  LayoutGrid,
-  List,
-  ChevronRight,
-  Clock,
-  Zap,
-  CheckCircle2,
-  ExternalLink,
-  Quote,
-  Brain,
-  Hash,
-  Database,
-} from "lucide-react";
+import { FileCheck2, BookOpen, Sparkles, Layers, ArrowRight, Search, Filter, LayoutGrid, List, Quote, Database } from "lucide-react";
 import type { DocumentoProcessadoResumo } from "@/acoes/processamento";
 import { clsx } from "clsx";
 
