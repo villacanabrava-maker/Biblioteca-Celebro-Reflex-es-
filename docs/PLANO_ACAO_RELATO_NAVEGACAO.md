@@ -35,13 +35,13 @@ A implementação `89bdf1f3fc859d3039daa060b808e09a3a38867d` consolidou integrid
 | Comentário por áudio | Concluído | Áudio e transcrição preservados. |
 | Tema central no formulário | Concluído | Derivado internamente; não é exigido do usuário. |
 | Memórias / “Incluir todas” | Concluído | Curadoria individual + seleção em massa. |
-| Conflitos | Aberto | Ainda entram todos no plano; falta considerar/ignorar mantendo histórico. |
+| Conflitos | Concluído nesta branch | O autor pode considerar/ignorar tensões no plano; o histórico completo permanece salvo. |
 | Ordem Auditoria → Texto | Concluído | Estúdio prioriza auditoria antes da edição final. |
 | Edição da reflexão | Concluído parcialmente | IA e edição humana são versões distintas; falta diff estruturado. |
 | Aprendizado autoral | Aberto | Falta transformar diferenças de edição em sinais/regras verificáveis. |
 | Aprovação soberana | Concluído | Bloco de aprovação ganhou destaque e conclui a reflexão. |
 | Pós-aprovação | Concluído | Redireciona para Minhas Reflexões. |
-| Card de Reflexão | Aberto | Ainda só o link “Abrir Estúdio” navega; card inteiro deve abrir. |
+| Card de Reflexão | Concluído nesta branch | Toda a superfície do card navega para o Estúdio, com foco acessível. |
 | Cérebro / métricas | Concluído | View/resumo corrigidos para refletir dados reais. |
 | Taxonomia automática | Aberto | UI ainda depende de cadastro manual; conceitos/relações continuam sem motor automático. |
 | Segurança Taxonomia/RLS | Aberto controlado | Não habilitar RLS cegamente; desenhar políticas coerentes antes da migration. |
