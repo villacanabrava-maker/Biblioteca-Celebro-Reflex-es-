@@ -1,19 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  ChevronDown,
-  Sparkles,
-  Loader2,
-  ShieldCheck,
-  Ban,
-  CheckCircle2,
-  BookOpen,
-  Cpu,
-  Layers,
-  ArrowRight,
-  Flame,
-} from "lucide-react";
+import { ChevronDown, Sparkles, Loader2, ShieldCheck, Ban, CheckCircle2, Cpu } from "lucide-react";
 import type { DimensaoCerebro, CaracteristicaCerebro, RegraCerebro, PlanoCanonico } from "@/tipos/cerebro";
 import { acionarAnaliseDimensao } from "@/acoes/cerebro";
 
