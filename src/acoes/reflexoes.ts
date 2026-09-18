@@ -1155,6 +1155,37 @@ export async function salvarEdicaoAutorReflexao({
 }
 
 /**
+ * Analisa uma versão editada pelo autor e gera/reutiliza propostas de aprendizado.
+ * Pode ser acionada novamente sem criar outra versão do texto.
+ */
+export async function analisarAprendizadoEdicaoReflexao({
+  entradaId,
+  versaoEditadaId,
+}: {
+  entradaId: string;
+  versaoEditadaId: string;
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+
+  const resultado = await gerarPropostasAprendizadoDaEdicao({
+    entradaId,
+    versaoEditadaId,
+    usuarioId,
+  });
+
+  try {
+    revalidatePath(`/reflexoes/${entradaId}`);
+    revalidatePath("/cerebro");
+  } catch {}
+
+  return {
+    sucesso: true,
+    reutilizadas: resultado.reutilizadas,
+    totalPropostas: resultado.totalPropostas,
+  };
+}
+
+/**
  * Salva as notas de revisão e o parecer final do autor sobre uma versão gerada.
  */
 export async function registrarRevisaoAutor({
