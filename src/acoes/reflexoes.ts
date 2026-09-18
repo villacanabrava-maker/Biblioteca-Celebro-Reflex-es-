@@ -480,7 +480,7 @@ export async function incorporarReflexaoComoObra({
  */
 export async function verificarCitacoesRedacao({
   entradaId,
-  versaoId,
+  versaoId: _versaoId,
   redacaoTexto,
 }: {
   entradaId: string;
