@@ -311,6 +311,19 @@ export function DetalheDocumentoComponente({
             </div>
           )}
 
+          {/* Atalho para Documentos Processados (se já processado) */}
+          {estaProcessado && (
+            <div className="pt-1">
+              <Link
+                href={`/documentos-processados/${obra.versao_id || obra.id}`}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-md shadow-slate-900/20 transition-all active:scale-95"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Inspecionar Materiais Extraídos & Sínteses &rarr;</span>
+              </Link>
+            </div>
+          )}
+
           {processamentoConcluido && (
             <div className="pt-1">
               <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-semibold bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">

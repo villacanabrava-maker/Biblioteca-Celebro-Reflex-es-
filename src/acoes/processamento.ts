@@ -12,6 +12,266 @@ import type {
   ExecucaoProcessamento,
   EtapaExecucao,
 } from "@/tipos/processamento";
+import type { ObraDetalhada } from "@/tipos/biblioteca";
+
+export interface DocumentoProcessadoResumo {
+  id: string;
+  versao_obra_id: string;
+  usuario_id: string;
+  titulo_processado: string;
+  total_secoes: number;
+  total_fragmentos: number;
+  total_palavras: number;
+  total_tokens_estimado: number;
+  estado_publicacao: string;
+  publicado_em: string;
+  criado_em: string;
+  atualizado_em: string;
+  // Campos da obra vinculada
+  obra_id: string;
+  obra_titulo: string;
+  obra_tipo: string;
+  autoria: string;
+  papel_cerebro: string;
+  autor_nome?: string;
+}
+
+export interface ExtracaoCompletaDocumento {
+  documento: DocumentoProcessado;
+  obra: ObraDetalhada | null;
+  secoes: {
+    id: string;
+    secao_pai_id: string | null;
+    nivel: number;
+    ordem: number;
+    titulo: string;
+    tipo_secao: string;
+    resumo_secao: string | null;
+    total_fragmentos?: number;
+  }[];
+  sinteses: {
+    id: string;
+    secao_id: string | null;
+    tipo_sintese: string;
+    conteudo: string;
+    tese_principal?: string;
+    conceitos_chave: string[];
+    argumentos_principais: string[];
+  }[];
+  fragmentos: {
+    id: string;
+    secao_id: string | null;
+    ordem: number;
+    conteudo: string;
+    total_palavras: number;
+    total_caracteres: number;
+    total_tokens_estimado: number;
+    pagina_inicio: number | null;
+    pagina_fim: number | null;
+    posicao_inicio_char: number | null;
+    posicao_fim_char: number | null;
+  }[];
+  conceitosVinculados: {
+    conceito_id: string;
+    conceito_nome: string;
+    relevancia: number;
+    fragmento_id: string;
+  }[];
+  estatisticas: {
+    totalSecoes: number;
+    totalFragmentos: number;
+    totalPalavras: number;
+    totalTokens: number;
+    totalSinteses: number;
+    totalConceitos: number;
+  };
+}
+
+/**
+ * Obtém a lista de todos os documentos processados do usuário.
+ */
+export async function obterListaDocumentosProcessados(): Promise<DocumentoProcessadoResumo[]> {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const { data, error } = await admin
+    .from("v_documentos_processados")
+    .select(`
+      *,
+      versoes_obras:versao_obra_id (
+        obra_id,
+        obras:obra_id (
+          id,
+          titulo,
+          tipo,
+          autoria,
+          papel_cerebro,
+          autor_nome
+        )
+      )
+    `)
+    .eq("usuario_id", usuarioId)
+    .order("criado_em", { ascending: false });
+
+  if (error) {
+    console.error("Erro ao listar documentos processados:", error);
+    return [];
+  }
+
+  return (data || []).map((doc: any) => {
+    const obra = doc.versoes_obras?.obras;
+    return {
+      id: doc.id,
+      versao_obra_id: doc.versao_obra_id,
+      usuario_id: doc.usuario_id,
+      titulo_processado: doc.titulo_processado,
+      total_secoes: doc.total_secoes || 0,
+      total_fragmentos: doc.total_fragmentos || 0,
+      total_palavras: doc.total_palavras || 0,
+      total_tokens_estimado: doc.total_tokens_estimado || 0,
+      estado_publicacao: doc.estado_publicacao || "ativo",
+      publicado_em: doc.publicado_em || doc.criado_em,
+      criado_em: doc.criado_em,
+      atualizado_em: doc.atualizado_em,
+      obra_id: obra?.id || "",
+      obra_titulo: obra?.titulo || doc.titulo_processado,
+      obra_tipo: obra?.tipo || "livro",
+      autoria: obra?.autoria || "autoral",
+      papel_cerebro: obra?.papel_cerebro || "nucleo_autoral",
+      autor_nome: obra?.autor_nome || "Você",
+    };
+  });
+}
+
+/**
+ * Obtém os materiais extraídos completos de um livro/documento processado
+ * (Árvore de seções, sínteses, fragmentos, conceitos e evidências).
+ */
+export async function obterExtracaoCompletaDocumento(
+  documentoIdOuVersaoId: string
+): Promise<ExtracaoCompletaDocumento | null> {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  // 1. Busca o Documento Processado
+  const { data: doc } = await admin
+    .schema("processamento")
+    .from("documentos_processados")
+    .select("*")
+    .or(`id.eq.${documentoIdOuVersaoId},versao_obra_id.eq.${documentoIdOuVersaoId}`)
+    .eq("usuario_id", usuarioId)
+    .maybeSingle();
+
+  if (!doc) {
+    return null;
+  }
+
+  // 2. Busca Obra vinculada
+  const { data: versaoObra } = await admin
+    .schema("biblioteca")
+    .from("versoes_obras")
+    .select("*, obras:obra_id(*)")
+    .eq("id", doc.versao_obra_id)
+    .single();
+
+  const obra = (versaoObra?.obras as any) || null;
+
+  // 3. Busca Seções
+  const { data: secoes } = await admin
+    .schema("processamento")
+    .from("secoes")
+    .select("*")
+    .eq("documento_processado_id", doc.id)
+    .eq("usuario_id", usuarioId)
+    .order("ordem", { ascending: true });
+
+  // 4. Busca Sínteses
+  const { data: sinteses } = await admin
+    .schema("processamento")
+    .from("sinteses_secoes")
+    .select("*")
+    .eq("documento_processado_id", doc.id)
+    .eq("usuario_id", usuarioId)
+    .order("criado_em", { ascending: true });
+
+  // 5. Busca Fragmentos Textuais
+  const { data: fragmentos } = await admin
+    .schema("processamento")
+    .from("fragmentos")
+    .select("*")
+    .eq("documento_processado_id", doc.id)
+    .eq("usuario_id", usuarioId)
+    .order("ordem", { ascending: true });
+
+  // 6. Busca Conceitos Vinculados aos Fragmentos
+  const fragmentosIds = (fragmentos || []).map((f: any) => f.id);
+  let conceitosVinculados: any[] = [];
+
+  if (fragmentosIds.length > 0) {
+    const { data: conceitosData } = await admin
+      .schema("taxonomia")
+      .from("conceitos_fragmentos")
+      .select("*, conceitos:conceito_id(nome)")
+      .in("fragmento_id", fragmentosIds.slice(0, 100))
+      .eq("usuario_id", usuarioId);
+
+    conceitosVinculados = (conceitosData || []).map((c: any) => ({
+      conceito_id: c.conceito_id,
+      conceito_nome: c.conceitos?.nome || "Conceito",
+      relevancia: Number(c.relevancia) || 0.85,
+      fragmento_id: c.fragmento_id,
+    }));
+  }
+
+  const listaSecoes = secoes || [];
+  const listaSinteses = sinteses || [];
+  const listaFragmentos = fragmentos || [];
+
+  return {
+    documento: doc as DocumentoProcessado,
+    obra: obra as ObraDetalhada,
+    secoes: listaSecoes.map((s: any) => ({
+      id: s.id,
+      secao_pai_id: s.secao_pai_id,
+      nivel: s.nivel,
+      ordem: s.ordem,
+      titulo: s.titulo,
+      tipo_secao: s.tipo_secao,
+      resumo_secao: s.resumo_secao,
+    })),
+    sinteses: listaSinteses.map((st: any) => ({
+      id: st.id,
+      secao_id: st.secao_id,
+      tipo_sintese: st.tipo_sintese,
+      conteudo: st.conteudo,
+      tese_principal: st.tese_principal,
+      conceitos_chave: st.conceitos_chave || [],
+      argumentos_principais: st.argumentos_principais || [],
+    })),
+    fragmentos: listaFragmentos.map((f: any) => ({
+      id: f.id,
+      secao_id: f.secao_id,
+      ordem: f.ordem,
+      conteudo: f.conteudo,
+      total_palavras: f.total_palavras || 0,
+      total_caracteres: f.total_caracteres || 0,
+      total_tokens_estimado: f.total_tokens_estimado || 0,
+      pagina_inicio: f.pagina_inicio,
+      pagina_fim: f.pagina_fim,
+      posicao_inicio_char: f.posicao_inicio_char,
+      posicao_fim_char: f.posicao_fim_char,
+    })),
+    conceitosVinculados,
+    estatisticas: {
+      totalSecoes: listaSecoes.length,
+      totalFragmentos: listaFragmentos.length,
+      totalPalavras: doc.total_palavras || listaFragmentos.reduce((acc: number, f: any) => acc + (f.total_palavras || 0), 0),
+      totalTokens: doc.total_tokens_estimado || 0,
+      totalSinteses: listaSinteses.length,
+      totalConceitos: conceitosVinculados.length,
+    },
+  };
+}
 
 /**
  * Inicia a execução do pipeline de processamento documental para uma obra.
@@ -27,6 +287,7 @@ export async function iniciarProcessamentoObra(versaoObraId: string) {
 
     try {
       revalidatePath("/biblioteca");
+      revalidatePath("/documentos-processados");
       revalidatePath("/");
       revalidatePath("/cerebro");
     } catch {
