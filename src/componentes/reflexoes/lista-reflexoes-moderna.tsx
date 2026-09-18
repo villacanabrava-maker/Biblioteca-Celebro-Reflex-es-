@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Plus,
@@ -29,6 +30,7 @@ const ABAS_STATUS = [
 ];
 
 export function ListaReflexoesModerna({ reflexoesIniciais }: Props) {
+  const router = useRouter();
   const [busca, setBusca] = useState("");
   const [abaAtiva, setAbaAtiva] = useState("todas");
 
@@ -137,7 +139,19 @@ export function ListaReflexoesModerna({ reflexoesIniciais }: Props) {
                 {/* Linha de status colorida */}
                 <div className={`h-0.5 w-full ${isAprovada ? "bg-emerald-500" : isRascunho ? "bg-slate-300" : "bg-amber-400"}`} />
 
-                <div className="p-4 flex items-start gap-4">
+                <div
+                  className="p-4 flex items-start gap-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500/40"
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`Abrir reflexão ${tituloExibido}`}
+                  onClick={() => router.push(`/reflexoes/${item.entrada_id}`)}
+                  onKeyDown={(evento) => {
+                    if (evento.target === evento.currentTarget && (evento.key === "Enter" || evento.key === " ")) {
+                      evento.preventDefault();
+                      router.push(`/reflexoes/${item.entrada_id}`);
+                    }
+                  }}
+                >
                   {/* Capa */}
                   <div
                     className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br ${gradiente} p-2 flex flex-col justify-end text-white shadow-sm shrink-0 relative overflow-hidden`}
@@ -152,6 +166,7 @@ export function ListaReflexoesModerna({ reflexoesIniciais }: Props) {
                   <div className="flex-1 min-w-0">
                     <Link
                       href={`/reflexoes/${item.entrada_id}`}
+                      onClick={(evento) => evento.stopPropagation()}
                       className="block font-bold text-slate-900 text-sm sm:text-base hover:text-blue-600 transition-colors truncate"
                     >
                       {tituloExibido}
@@ -203,6 +218,7 @@ export function ListaReflexoesModerna({ reflexoesIniciais }: Props) {
                   <div className="flex flex-col items-end gap-2 shrink-0">
                     <Link
                       href={`/reflexoes/${item.entrada_id}`}
+                      onClick={(evento) => evento.stopPropagation()}
                       className="p-1.5 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                       title="Ver reflexão"
                     >
@@ -232,13 +248,13 @@ export function ListaReflexoesModerna({ reflexoesIniciais }: Props) {
                     </Link>
                   )}
                   {isAprovada && (
-                    <button
-                      onClick={() => alert("Incorporação ao Cérebro — funcionalidade em breve.")}
+                    <Link
+                      href={`/reflexoes/${item.entrada_id}`}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
                     >
                       <BookmarkCheck className="w-3.5 h-3.5" />
-                      Incorporar ao Cérebro
-                    </button>
+                      Abrir para incorporar à Memória
+                    </Link>
                   )}
 
                   <span className="text-slate-300">|</span>
