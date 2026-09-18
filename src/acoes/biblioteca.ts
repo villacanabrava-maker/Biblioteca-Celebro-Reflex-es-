@@ -5,6 +5,7 @@ import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
 import { cadastrarObraSchema, type CadastrarObraInput } from "@/lib/validacoes/biblioteca";
 import type { ObraDetalhada, EstatisticasBiblioteca } from "@/tipos/biblioteca";
+import { transcreverAudioBuffer } from "@/dominios/audio/transcritor";
 
 export interface FiltrosObras {
   tipo?: string;
@@ -140,6 +141,159 @@ export async function cadastrarObra(dadosBrutos: CadastrarObraInput) {
 }
 
 /**
+ * Transcreve um áudio previamente enviado ao bucket privado da Biblioteca.
+ * O objeto original permanece preservado e será ligado à obra após o cadastro.
+ */
+export async function transcreverAudioBibliotecaTemporario({
+  storageCaminho,
+  arquivoNomeOriginal,
+  arquivoMimeType,
+}: {
+  storageCaminho: string;
+  arquivoNomeOriginal: string;
+  arquivoMimeType: string;
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  if (!storageCaminho.startsWith(`${usuarioId}/`)) {
+    throw new Error("Áudio inválido para o usuário autenticado.");
+  }
+
+  const { data, error } = await admin.storage
+    .from("originais-biblioteca")
+    .download(storageCaminho);
+
+  if (error || !data) {
+    throw new Error(`Não foi possível ler o áudio enviado: ${error?.message || "arquivo indisponível"}`);
+  }
+
+  const buffer = Buffer.from(await data.arrayBuffer());
+
+  return transcreverAudioBuffer({
+    buffer,
+    nomeArquivo: arquivoNomeOriginal,
+    mimeType: arquivoMimeType || "audio/webm",
+    prompt:
+      "Transcreva fielmente esta gravação destinada à Biblioteca do autor. Preserve nomes próprios, termos conceituais, hesitações relevantes e pontuação natural. Não resuma e não acrescente conteúdo.",
+  });
+}
+
+/**
+ * Registra a fonte original de uma obra já cadastrada.
+ * Usado para preservar áudio original enquanto a versão processável é textual.
+ */
+export async function registrarFonteOriginalObra({
+  obraId,
+  versaoObraId,
+  tipoFonte,
+  storageCaminho,
+  arquivoNomeOriginal,
+  arquivoMimeType,
+  arquivoTamanhoBytes,
+  hashSha256,
+  conteudoExtraido,
+  conteudoConfirmado,
+  metadados = {},
+}: {
+  obraId: string;
+  versaoObraId?: string | null;
+  tipoFonte: "arquivo" | "audio" | "texto" | "link";
+  storageCaminho?: string | null;
+  arquivoNomeOriginal?: string | null;
+  arquivoMimeType?: string | null;
+  arquivoTamanhoBytes?: number | null;
+  hashSha256?: string | null;
+  conteudoExtraido?: string | null;
+  conteudoConfirmado?: string | null;
+  metadados?: Record<string, unknown>;
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  if (storageCaminho && !storageCaminho.startsWith(`${usuarioId}/`)) {
+    throw new Error("Caminho da fonte original inválido.");
+  }
+
+  const { data: obra, error: erroObra } = await admin
+    .schema("biblioteca")
+    .from("obras")
+    .select("id")
+    .eq("id", obraId)
+    .eq("usuario_id", usuarioId)
+    .maybeSingle();
+
+  if (erroObra || !obra) {
+    throw new Error("Obra não encontrada para registrar a fonte original.");
+  }
+
+  if (versaoObraId) {
+    const { data: versao, error: erroVersao } = await admin
+      .schema("biblioteca")
+      .from("versoes_obras")
+      .select("id")
+      .eq("id", versaoObraId)
+      .eq("obra_id", obraId)
+      .eq("usuario_id", usuarioId)
+      .maybeSingle();
+
+    if (erroVersao || !versao) {
+      throw new Error("Versão da obra inválida para a fonte original.");
+    }
+  }
+
+  const { data, error } = await admin
+    .schema("biblioteca")
+    .from("fontes_obras")
+    .insert({
+      obra_id: obraId,
+      versao_obra_id: versaoObraId || null,
+      usuario_id: usuarioId,
+      tipo_fonte: tipoFonte,
+      storage_bucket: storageCaminho ? "originais-biblioteca" : null,
+      storage_caminho: storageCaminho || null,
+      arquivo_nome_original: arquivoNomeOriginal || null,
+      arquivo_mime_type: arquivoMimeType || null,
+      arquivo_tamanho_bytes: arquivoTamanhoBytes ?? null,
+      hash_sha256: hashSha256 || null,
+      conteudo_extraido: conteudoExtraido || null,
+      conteudo_confirmado: conteudoConfirmado || null,
+      metadados,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Falha ao registrar a fonte original: ${error?.message || "erro desconhecido"}`);
+  }
+
+  return { sucesso: true, fonteId: data.id as string };
+}
+
+/**
+ * Remove objetos temporários da Biblioteca pertencentes ao usuário autenticado.
+ * É uma operação compensatória para fluxos interrompidos antes do cadastro final.
+ */
+export async function removerArquivosTemporariosBiblioteca(caminhos: string[]) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const seguros = Array.from(new Set(caminhos))
+    .filter(Boolean)
+    .filter((caminho) => caminho.startsWith(`${usuarioId}/`));
+
+  if (!seguros.length) return { sucesso: true };
+
+  const { error } = await admin.storage.from("originais-biblioteca").remove(seguros);
+  if (error) {
+    console.warn("Falha ao remover arquivos temporários da Biblioteca:", error.message);
+    return { sucesso: false, erro: error.message };
+  }
+
+  return { sucesso: true };
+}
+
+/**
  * Exclui uma obra e seus arquivos do storage.
  */
 export async function excluirObra(obraId: string) {
@@ -147,19 +301,33 @@ export async function excluirObra(obraId: string) {
   const admin = criarClienteAdmin();
 
   // 1. Obter versões para limpar os arquivos do storage
-  const { data: versoes } = await admin
-    .schema("biblioteca")
-    .from("versoes_obras")
-    .select("arquivo_caminho")
-    .eq("obra_id", obraId)
-    .eq("usuario_id", usuarioId);
+  const [{ data: versoes }, { data: fontes }] = await Promise.all([
+    admin
+      .schema("biblioteca")
+      .from("versoes_obras")
+      .select("arquivo_caminho")
+      .eq("obra_id", obraId)
+      .eq("usuario_id", usuarioId),
+    admin
+      .schema("biblioteca")
+      .from("fontes_obras")
+      .select("storage_caminho")
+      .eq("obra_id", obraId)
+      .eq("usuario_id", usuarioId),
+  ]);
 
-  if (versoes && versoes.length > 0) {
-    const caminhos = versoes.map((v) => v.arquivo_caminho);
-    await admin.storage.from("originais-biblioteca").remove(caminhos);
+  const caminhos = Array.from(
+    new Set([
+      ...(versoes || []).map((v) => v.arquivo_caminho).filter(Boolean),
+      ...(fontes || []).map((f) => f.storage_caminho).filter(Boolean),
+    ])
+  );
+
+  if (caminhos.length > 0) {
+    await admin.storage.from("originais-biblioteca").remove(caminhos as string[]);
   }
 
-  // 2. Excluir registro no banco (deleção em cascata remove versões e processamento)
+  // 2. Excluir registro no banco (deleção em cascata remove versões, fontes e processamento)
   const { error } = await admin
     .schema("biblioteca")
     .from("obras")
