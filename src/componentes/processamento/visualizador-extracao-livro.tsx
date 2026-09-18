@@ -254,14 +254,14 @@ export function VisualizadorExtracaoLivro({ dados }: Props) {
                     {isExpandida && (
                       <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
                         {secao.resumo_secao && (
-                          <div className="bg-white p-3.5 rounded-xl border border-slate-200 text-xs text-slate-700 leading-relaxed">
+                          <div className="bg-white p-4 rounded-xl border border-slate-200 text-sm text-slate-700 leading-6">
                             <span className="font-bold text-slate-900 block mb-1">Resumo da Seção:</span>
                             {secao.resumo_secao}
                           </div>
                         )}
 
                         {sintese && (
-                          <div className="bg-amber-50/70 border border-amber-200/80 p-3.5 rounded-xl text-xs space-y-2">
+                          <div className="bg-amber-50/70 border border-amber-200/80 p-4 rounded-xl text-sm space-y-2.5">
                             <span className="font-bold text-amber-900 block flex items-center gap-1.5">
                               <Sparkles className="w-3.5 h-3.5 text-amber-600" />
                               Síntese Cognitiva da IA:
@@ -347,7 +347,7 @@ export function VisualizadorExtracaoLivro({ dados }: Props) {
                         </h4>
                       )}
 
-                      <p className="text-xs text-slate-600 leading-relaxed">
+                      <p className="text-sm text-slate-600 leading-6">
                         {st.conteudo}
                       </p>
                     </div>
