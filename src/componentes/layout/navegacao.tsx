@@ -44,6 +44,10 @@ const gruposNavegacaoDesktop = [
 ];
 
 function itemAtivo(pathname: string, href: string) {
+  if (href === "/reflexoes" && pathname.startsWith("/reflexoes/criar")) {
+    return false;
+  }
+
   return pathname === href || (href !== "/" && pathname.startsWith(href));
 }
 
@@ -112,6 +116,7 @@ export function BarraLateralDesktop() {
       <div className="px-4 pb-3 pt-5">
         <Link
           href="/reflexoes/criar"
+          aria-current={pathname.startsWith("/reflexoes/criar") ? "page" : undefined}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-500/20 transition-all hover:bg-blue-500 active:scale-95"
         >
           <Sparkles className="h-4 w-4" />
