@@ -4,21 +4,27 @@ import { cookies } from "next/headers";
 export async function criarClienteServidor() {
   const cookieStore = await cookies();
 
-  const supabaseUrl =
+  const supabaseUrl = (
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.SUPABASE_URL ||
-    "https://cqavdefyelarhyjqmahi.supabase.co";
+    ""
+  ).trim();
 
-  const supabaseAnonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    (process.env as any)["PRÓXIMA_CHAVE_ANÔNIMA_SUPABASE_PÚBLICA"] ||
-    (process.env as any)["PROXIMA_CHAVE_ANONIMA_SUPABASE_PUBLICA"] ||
-    process.env.SUPABASE_ANON_KEY ||
+  const supabasePublicKey = (
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.SUPABASE_PUBLISHABLE_KEY ||
-    "sb_publishable_eLnVnSrdoECL5j2D2QG5sw_7mgYdYbO";
+    process.env.SUPABASE_ANON_KEY ||
+    ""
+  ).trim();
 
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
+  if (!supabaseUrl || !supabasePublicKey) {
+    throw new Error(
+      "Configuração pública do Supabase ausente no servidor: defina a URL e a publishable key por variáveis de ambiente."
+    );
+  }
+
+  return createServerClient(supabaseUrl, supabasePublicKey, {
     cookies: {
       get(name: string) {
         return cookieStore.get(name)?.value;
