@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Sparkles, Loader2, AlertCircle } from "lucide-react";
 import { criarNovaReflexao } from "@/acoes/reflexoes";
+import { useDialogModalAcessivel } from "@/componentes/comum/use-dialog-modal-acessivel";
 import type { FormatoReflexao } from "@/tipos/reflexoes";
 
 interface Props {
@@ -32,6 +33,11 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
 
   const [planejando, setPlanejando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const dialogRef = useDialogModalAcessivel({
+    aberto,
+    aoFechar,
+    bloqueado: planejando,
+  });
 
   if (!aberto) return null;
 
@@ -68,7 +74,14 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden p-6 space-y-6 my-8">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-reflexao-titulo"
+        tabIndex={-1}
+        className="relative w-full max-w-2xl bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden p-6 space-y-6 my-8"
+      >
         {/* Cabeçalho */}
         <div className="flex items-start justify-between border-b border-neutral-800 pb-4">
           <div className="flex items-center gap-3">
@@ -76,7 +89,12 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-serif text-xl font-medium text-neutral-100">
+              <h2
+                id="modal-reflexao-titulo"
+                data-dialog-initial-focus
+                tabIndex={-1}
+                className="font-serif text-xl font-medium text-neutral-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-400"
+              >
                 Nova Reflexão Autoral
               </h2>
               <p className="text-xs text-neutral-400">
@@ -88,6 +106,7 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
             type="button"
             onClick={aoFechar}
             disabled={planejando}
+            aria-label="Fechar modal"
             className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -95,7 +114,7 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
         </div>
 
         {erro && (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2.5 text-xs text-rose-300">
+          <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2.5 text-xs text-rose-300">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{erro}</span>
           </div>
