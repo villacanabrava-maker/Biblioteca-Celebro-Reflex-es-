@@ -11,6 +11,7 @@ import {
   transcreverAudioBibliotecaTemporario,
 } from "@/acoes/biblioteca";
 import { GravadorAudio } from "@/componentes/comum/gravador-audio";
+import { useDialogModalAcessivel } from "@/componentes/comum/use-dialog-modal-acessivel";
 import type { TipoObra, ObraDetalhada } from "@/tipos/biblioteca";
 import type { SugestaoTagTaxonomia } from "@/tipos/taxonomia";
 
@@ -123,6 +124,11 @@ export function ModalAdicionarConteudo({
   const [etapa, setEtapa] = useState<EtapaUpload>("formulario");
   const [progressoEnvio, setProgressoEnvio] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
+  const dialogRef = useDialogModalAcessivel({
+    aberto,
+    aoFechar: fecharModalComLimpeza,
+    bloqueado: etapa !== "formulario" || processandoAudio,
+  });
 
   if (!aberto) return null;
 
@@ -532,7 +538,14 @@ export function ModalAdicionarConteudo({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-200">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-biblioteca-titulo"
+        tabIndex={-1}
+        className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-200"
+      >
         {/* Cabeçalho */}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -540,7 +553,12 @@ export function ModalAdicionarConteudo({
               <UploadCloud className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">
+              <h2
+                id="modal-biblioteca-titulo"
+                data-dialog-initial-focus
+                tabIndex={-1}
+                className="text-lg font-bold text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-500"
+              >
                 Adicionar conteúdo à Biblioteca
               </h2>
               <p className="text-xs text-slate-500">
@@ -607,7 +625,7 @@ export function ModalAdicionarConteudo({
         <form onSubmit={submeterFormulario} className="p-6 space-y-5">
           {/* Mensagem de Erro */}
           {erro && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-700 text-xs">
+            <div role="alert" className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-700 text-xs">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
               <span>{erro}</span>
             </div>
