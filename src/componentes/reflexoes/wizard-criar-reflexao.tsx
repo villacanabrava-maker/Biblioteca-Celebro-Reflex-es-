@@ -13,6 +13,7 @@ import {
   extrairFonteLinkTemporaria,
   prepararFonteBibliotecaTemporaria,
   transcreverFonteAudioTemporaria,
+  removerFontesTemporariasReflexao,
 } from "@/acoes/reflexoes";
 import { GravadorAudio } from "@/componentes/comum/gravador-audio";
 import {
@@ -126,7 +127,19 @@ export function WizardCriarReflexao() {
     );
   }
 
+  async function descartarFonteTemporaria(fonte: FonteReflexaoPreparada | null) {
+    if (entradaId || !fonte?.storageCaminho) return;
+
+    try {
+      await removerFontesTemporariasReflexao([fonte.storageCaminho]);
+    } catch (erroLimpeza) {
+      console.error("Falha ao remover fonte temporária de Reflexões:", erroLimpeza);
+    }
+  }
+
   async function prepararDocumentoComoFonte(file: File) {
+    await descartarFonteTemporaria(fontePreparada);
+
     const limiteBytes = 50 * 1024 * 1024;
     const extensao = file.name.split(".").pop()?.toLowerCase();
     const extensoesPermitidas = new Set(["pdf", "docx", "txt", "md"]);
@@ -141,6 +154,8 @@ export function WizardCriarReflexao() {
       return;
     }
 
+    let caminhoUpload: string | null = null;
+
     try {
       setProcessandoFonte(true);
       setErro(null);
@@ -152,6 +167,7 @@ export function WizardCriarReflexao() {
       const timestamp = Date.now();
       const nomeSanitizado = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const caminho = `${auth.usuarioId}/${timestamp}/documento/${nomeSanitizado}`;
+      caminhoUpload = caminho;
 
       await new Promise<void>((resolve, reject) => {
         iniciarUploadTus({
@@ -196,6 +212,14 @@ export function WizardCriarReflexao() {
         },
       });
     } catch (err: unknown) {
+      if (caminhoUpload) {
+        try {
+          await removerFontesTemporariasReflexao([caminhoUpload]);
+        } catch (erroLimpeza) {
+          console.error("Falha ao compensar upload documental temporário:", erroLimpeza);
+        }
+      }
+
       const mensagem = err instanceof Error ? err.message : "Falha ao preparar o documento.";
       console.error("Erro ao preparar fonte documental:", err);
       setErro(mensagem);
