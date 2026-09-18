@@ -9,6 +9,7 @@ import type {
   CaracteristicaCerebro,
   RegraCerebro,
   ResumoCerebro,
+  PropostaAtualizacaoCerebro,
 } from "@/tipos/cerebro";
 
 /**
@@ -166,4 +167,87 @@ export async function acionarAnaliseDimensao(dimensaoId: string) {
   }
 
   return resultado;
+}
+
+/**
+ * Lista propostas de aprendizado derivadas de edições autorais.
+ * Elas permanecem separadas das regras formais até a decisão do autor.
+ */
+export async function obterPropostasAtualizacaoCerebro(): Promise<PropostaAtualizacaoCerebro[]> {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const { data, error } = await admin
+    .schema("cerebro_autoral")
+    .from("propostas_atualizacao")
+    .select("*")
+    .eq("usuario_id", usuarioId)
+    .order("criado_em", { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error("Erro ao listar propostas de atualização do Cérebro:", error);
+    return [];
+  }
+
+  return (data as PropostaAtualizacaoCerebro[]) || [];
+}
+
+/**
+ * Registra a decisão soberana do autor sobre uma proposta.
+ * Confirmar torna o aprendizado elegível para dossiês futuros;
+ * rejeitar preserva o histórico sem influenciar novas reflexões.
+ */
+export async function decidirPropostaAtualizacaoCerebro({
+  propostaId,
+  decisao,
+  notasAutor,
+}: {
+  propostaId: string;
+  decisao: "confirmada" | "rejeitada";
+  notasAutor?: string;
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const { data: proposta, error: erroBusca } = await admin
+    .schema("cerebro_autoral")
+    .from("propostas_atualizacao")
+    .select("id, estado_decisao")
+    .eq("id", propostaId)
+    .eq("usuario_id", usuarioId)
+    .single();
+
+  if (erroBusca || !proposta) {
+    throw new Error("Proposta de aprendizado não encontrada.");
+  }
+
+  if (proposta.estado_decisao !== "pendente") {
+    throw new Error("Esta proposta já recebeu uma decisão e foi preservada no histórico.");
+  }
+
+  const { error: erroAtualizacao } = await admin
+    .schema("cerebro_autoral")
+    .from("propostas_atualizacao")
+    .update({
+      estado_decisao: decisao,
+      decidido_em: new Date().toISOString(),
+      notas_autor: notasAutor?.trim() || null,
+    })
+    .eq("id", propostaId)
+    .eq("usuario_id", usuarioId)
+    .eq("estado_decisao", "pendente");
+
+  if (erroAtualizacao) {
+    throw new Error(`Falha ao registrar decisão sobre o aprendizado: ${erroAtualizacao.message}`);
+  }
+
+  try {
+    revalidatePath("/cerebro");
+    revalidatePath("/reflexoes");
+  } catch {
+    // Ignorado fora do ciclo de requisição HTTP.
+  }
+
+  return { sucesso: true, estado: decisao };
 }
