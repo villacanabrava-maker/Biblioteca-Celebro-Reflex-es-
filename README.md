@@ -1,12 +1,14 @@
-# Memória Reflexiva — Cérebro Autoral
+# Rflex01
+
+**Memória Reflexiva — Cérebro Autoral**
 
 > *"Seu acervo. Sua inteligência. Novas reflexões."*
 
-Plataforma pessoal de inteligência autoral que aprende, a partir das obras do autor, sua metodologia de pensamento, interpretação, associação, argumentação, escrita e revisão, permitindo gerar novas reflexões personalizadas com integridade, proveniência e separação rigorosa entre autoria e referências externas.
+**Rflex01** é uma plataforma pessoal de inteligência autoral que aprende, a partir das obras do autor, sua metodologia de pensamento, interpretação, associação, argumentação, escrita e revisão, permitindo gerar novas reflexões personalizadas com integridade, proveniência e separação rigorosa entre autoria e referências externas.
 
 ---
 
-## 🌐 Deploys Oficiais de Produção (Vercel)
+## 🌐 Projeto canônico Rflex01
 
 - **Domínio Principal**: [https://reflex-01.vercel.app](https://reflex-01.vercel.app)
 - **Domínio de Release (Branch Main)**: [https://reflex-01-git-main-naninne.vercel.app](https://reflex-01-git-main-naninne.vercel.app)
@@ -14,7 +16,7 @@ Plataforma pessoal de inteligência autoral que aprende, a partir das obras do a
 
 ---
 
-## 📦 Repositório Oficial Canônico
+## 📦 Repositório GitHub atual
 
 - **GitHub Oficial**: [https://github.com/villacanabrava-maker/Biblioteca-Celebro-Reflex-es-.git](https://github.com/villacanabrava-maker/Biblioteca-Celebro-Reflex-es-.git)
 
@@ -70,3 +72,18 @@ npm test
 npm run dev
 ```
 Acesse [http://localhost:3000](http://localhost:3000).
+
+
+---
+
+## 🏷️ Padronização de nome
+
+O nome técnico oficial do projeto é **Rflex01**.
+
+Para manter todos os serviços alinhados, usar:
+- **GitHub repository:** `Rflex01`
+- **Vercel project:** `Rflex01`
+- **Supabase project display name:** `Rflex01`
+- **npm/package name:** `rflex01`
+
+A identidade descritiva do produto continua sendo **Memória Reflexiva — Cérebro Autoral**.
