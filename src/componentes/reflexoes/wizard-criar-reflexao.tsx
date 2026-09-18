@@ -1374,10 +1374,10 @@ export function WizardCriarReflexao() {
 
           <div className="space-y-3">
             {conflitos.length === 0 ? (
-              <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/70 space-y-2 text-sm text-amber-900">
-                <span className="font-bold">Atrito Dialético Inicial:</span>
-                <p className="text-slate-700">
-                  O estímulo externo propõe conclusões superficiais imediatas, gerando oportunidade para fundamentar a posição autoral com densidade e perspectiva histórica.
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-sm">
+                <span className="font-bold text-slate-800">Nenhuma tensão explícita identificada</span>
+                <p className="text-slate-600">
+                  O sistema não detectou um conflito suficientemente sustentado para apresentar. Você pode seguir para o plano sem adicionar tensões artificiais.
                 </p>
               </div>
             ) : (
