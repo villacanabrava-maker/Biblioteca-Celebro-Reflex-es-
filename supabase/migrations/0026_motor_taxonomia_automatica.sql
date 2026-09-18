@@ -169,6 +169,8 @@ ALTER VIEW public.v_taxonomia_conceitos
 REVOKE ALL ON public.v_taxonomia_conceitos FROM anon, authenticated;
 GRANT SELECT ON public.v_taxonomia_conceitos TO authenticated, service_role;
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON taxonomia.conceitos_reflexoes TO authenticated;
+GRANT SELECT ON taxonomia.analises TO authenticated;
 GRANT ALL ON taxonomia.conceitos_reflexoes TO service_role;
 GRANT ALL ON taxonomia.analises TO service_role;
 
