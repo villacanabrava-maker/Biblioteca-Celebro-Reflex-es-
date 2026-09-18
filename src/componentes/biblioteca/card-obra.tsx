@@ -60,7 +60,7 @@ function formatarRotuloTipo(tipo: TipoObra): string {
 }
 
 function formatarBytes(bytes: number | null): string {
-  if (!bytes || bytes <= 0) return "1.2 MB";
+  if (!bytes || bytes <= 0) return "Tamanho não informado";
   const unidades = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${unidades[i]}`;
@@ -108,7 +108,7 @@ export function CardObra({
     }
   }
 
-  const paginasEstimadas = obra.total_paginas || Math.max(1, Math.round((obra.arquivo_tamanho_bytes || 50000) / 2500));
+  const totalPaginas = obra.total_paginas > 0 ? obra.total_paginas : null;
 
   // Cores de capa dinâmicas para gerar estilo livro
   const coresCapa = [
@@ -144,7 +144,7 @@ export function CardObra({
             {obra.titulo}
           </p>
           <div className="flex items-center justify-between text-[8px] opacity-75">
-            <span>{obra.ano_publicacao || "2026"}</span>
+            <span>{obra.ano_publicacao || "Ano não informado"}</span>
             <BookOpen className="w-2.5 h-2.5" />
           </div>
         </Link>
@@ -181,9 +181,13 @@ export function CardObra({
           )}
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400 mt-1.5">
-            <span>{obra.ano_publicacao || "2026"}</span>
-            <span>•</span>
-            <span>{paginasEstimadas} págs</span>
+            <span>{obra.ano_publicacao || "Ano não informado"}</span>
+            {totalPaginas !== null && (
+              <>
+                <span>•</span>
+                <span>{totalPaginas} págs</span>
+              </>
+            )}
             <span>•</span>
             <span>{formatarBytes(obra.arquivo_tamanho_bytes)}</span>
           </div>

@@ -107,7 +107,7 @@ export async function obterResumoCerebro(): Promise<ResumoCerebro> {
       total_anti_regras: 0,
       total_nucleo_autoral: 0,
       total_influencias_externas: 0,
-      confianca_media_geral: 0.9,
+      confianca_media_geral: 0,
     };
   }
 

@@ -10,9 +10,7 @@ import {
   CheckCircle2,
   Clock,
   ArrowRight,
-  MoreVertical,
   Inbox,
-  FileText,
   BookmarkCheck,
 } from "lucide-react";
 import type { ResumoReflexao } from "@/tipos/reflexoes";
@@ -34,79 +32,7 @@ export function ListaReflexoesModerna({ reflexoesIniciais }: Props) {
   const [busca, setBusca] = useState("");
   const [abaAtiva, setAbaAtiva] = useState("todas");
 
-  // Dados com fallbacks demonstrativos de alta fidelidade
-  const reflexoesCompletas = useMemo(() => {
-    if (reflexoesIniciais.length > 0) {
-      return reflexoesIniciais;
-    }
-    return [
-      {
-        entrada_id: "demo-1",
-        usuario_id: "demo",
-        titulo: "Sobre o valor da espera",
-        tema_central: "Esperança",
-        estado_entrada: "concluida",
-        formato_desejado: "ensaio",
-        criado_em: "2026-05-12T14:30:00Z",
-        atualizado_em: "2026-05-12T15:00:00Z",
-        total_versoes: 2,
-        ultimo_titulo_gerado: "Sobre o valor da espera",
-        ultima_pontuacao_auditoria: 0.96,
-      },
-      {
-        entrada_id: "demo-2",
-        usuario_id: "demo",
-        titulo: "O silêncio que constrói",
-        tema_central: "Silêncio",
-        estado_entrada: "em_auditoria",
-        formato_desejado: "ensaio",
-        criado_em: "2026-05-08T10:15:00Z",
-        atualizado_em: "2026-05-08T11:00:00Z",
-        total_versoes: 1,
-        ultimo_titulo_gerado: "O silêncio que constrói",
-        ultima_pontuacao_auditoria: 0.88,
-      },
-      {
-        entrada_id: "demo-3",
-        usuario_id: "demo",
-        titulo: "Quando o caos ensina",
-        tema_central: "Aprendizado",
-        estado_entrada: "concluida",
-        formato_desejado: "carta",
-        criado_em: "2026-05-02T16:45:00Z",
-        atualizado_em: "2026-05-02T17:20:00Z",
-        total_versoes: 3,
-        ultimo_titulo_gerado: "Quando o caos ensina",
-        ultima_pontuacao_auditoria: 0.94,
-      },
-      {
-        entrada_id: "demo-4",
-        usuario_id: "demo",
-        titulo: "A força da vulnerabilidade",
-        tema_central: "Identidade",
-        estado_entrada: "concluida",
-        formato_desejado: "ensaio",
-        criado_em: "2026-04-25T09:00:00Z",
-        atualizado_em: "2026-04-25T10:30:00Z",
-        total_versoes: 2,
-        ultimo_titulo_gerado: "A força da vulnerabilidade",
-        ultima_pontuacao_auditoria: 0.99,
-      },
-      {
-        entrada_id: "demo-5",
-        usuario_id: "demo",
-        titulo: "O que realmente importa",
-        tema_central: "Propósito",
-        estado_entrada: "concluida",
-        formato_desejado: "ensaio",
-        criado_em: "2026-04-18T18:20:00Z",
-        atualizado_em: "2026-04-18T19:00:00Z",
-        total_versoes: 1,
-        ultimo_titulo_gerado: "O que realmente importa",
-        ultima_pontuacao_auditoria: 0.95,
-      },
-    ] as ResumoReflexao[];
-  }, [reflexoesIniciais]);
+  const reflexoesCompletas = reflexoesIniciais;
 
   const reflexoesFiltradas = useMemo(() => {
     return reflexoesCompletas.filter((r) => {
@@ -191,7 +117,7 @@ export function ListaReflexoesModerna({ reflexoesIniciais }: Props) {
           </div>
           <h3 className="font-bold text-slate-800 text-sm">Nenhuma reflexão encontrada</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            Clique no botão acima para criar sua primeira reflexão através da esteira de 7 etapas.
+            Crie sua primeira reflexão para começar a desenvolver novas ideias a partir do seu acervo.
           </p>
         </div>
       ) : (
