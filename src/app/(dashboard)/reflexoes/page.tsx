@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { Sparkles } from "lucide-react";
+
 import { obterResumoReflexoes } from "@/acoes/reflexoes";
 import { ListaReflexoesModerna } from "@/componentes/reflexoes/lista-reflexoes-moderna";
 
