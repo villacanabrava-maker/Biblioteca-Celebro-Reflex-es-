@@ -265,7 +265,7 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
                           Nenhuma característica mapeada ainda para esta dimensão.
                         </p>
                         <p className="text-[11px] text-neutral-500 mt-1">
-                          Clique no botão "Mapear Dimensão com IA" acima para extrair o padrão autoral a partir dos fragmentos.
+                          Clique no botão “Mapear Dimensão com IA” acima para extrair o padrão autoral a partir dos fragmentos.
                         </p>
                       </div>
                     ) : (
@@ -324,7 +324,7 @@ export function AcordeaoDimensoes({ dimensoes, caracteristicas, regras }: Props)
                                     Fórmula de Pensamento:
                                   </span>
                                   <p className="text-neutral-200 italic font-serif">
-                                    "{carac.formula_metodologica}"
+                                    “{carac.formula_metodologica}”
                                   </p>
                                 </div>
                               )}
