@@ -9,7 +9,7 @@
 import { z } from "zod";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { executarChamadaEstruturada, protegerEntradaDeDados, PAPEIS_IA } from "@/ia/orquestrador";
-import type { VereditoAuditoria } from "@/tipos/auditoria";
+
 
 const EsquemaAuditoriaZod = z.object({
   veredito: z.enum(["aprovado", "ressalvas", "rejeitado"]).describe("Veredito final do auditor"),
