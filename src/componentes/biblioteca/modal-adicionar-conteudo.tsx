@@ -887,12 +887,13 @@ export function ModalAdicionarConteudo({
           {/* Classificação Canônica de Fontes (Dois Eixos - Documento Mestre v2.0) */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3.5">
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
+              <p id="classificacao-fonte-label" className="block text-xs font-bold text-slate-800 mb-1">
                 Classificação da Autoria da Fonte
-              </label>
-              <div className="grid grid-cols-2 gap-2 mt-1">
+              </p>
+              <div role="group" aria-labelledby="classificacao-fonte-label" className="grid grid-cols-2 gap-2 mt-1">
                 <button
                   type="button"
+                  aria-pressed={papelFonte === "autoral"}
                   onClick={() => {
                     setPapelFonte("autoral");
                     setParticipacaoCerebro("nucleo_autoral");
@@ -910,6 +911,7 @@ export function ModalAdicionarConteudo({
                 </button>
                 <button
                   type="button"
+                  aria-pressed={papelFonte === "externa"}
                   onClick={() => {
                     setPapelFonte("externa");
                     setParticipacaoCerebro("referencia");
@@ -930,13 +932,14 @@ export function ModalAdicionarConteudo({
 
             {/* Participação no Cérebro Autoral */}
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
+              <p id="participacao-cerebro-label" className="block text-xs font-bold text-slate-800 mb-1">
                 Participação no Cérebro Autoral
-              </label>
+              </p>
               {papelFonte === "autoral" ? (
-                <div className="grid grid-cols-2 gap-2">
+                <div role="group" aria-labelledby="participacao-cerebro-label" className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
+                    aria-pressed={participacaoCerebro === "nucleo_autoral"}
                     onClick={() => setParticipacaoCerebro("nucleo_autoral")}
                     className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
                       participacaoCerebro === "nucleo_autoral"
@@ -951,6 +954,7 @@ export function ModalAdicionarConteudo({
                   </button>
                   <button
                     type="button"
+                    aria-pressed={participacaoCerebro === "excluida"}
                     onClick={() => setParticipacaoCerebro("excluida")}
                     className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
                       participacaoCerebro === "excluida"
@@ -966,9 +970,10 @@ export function ModalAdicionarConteudo({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div role="group" aria-labelledby="participacao-cerebro-label" className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <button
                       type="button"
+                      aria-pressed={participacaoCerebro === "referencia"}
                       onClick={() => setParticipacaoCerebro("referencia")}
                       className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
                         participacaoCerebro === "referencia"
@@ -983,6 +988,7 @@ export function ModalAdicionarConteudo({
                     </button>
                     <button
                       type="button"
+                      aria-pressed={participacaoCerebro === "influencia_deliberada"}
                       onClick={() => setParticipacaoCerebro("influencia_deliberada")}
                       className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
                         participacaoCerebro === "influencia_deliberada"
@@ -997,6 +1003,7 @@ export function ModalAdicionarConteudo({
                     </button>
                     <button
                       type="button"
+                      aria-pressed={participacaoCerebro === "excluida"}
                       onClick={() => setParticipacaoCerebro("excluida")}
                       className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
                         participacaoCerebro === "excluida"
@@ -1023,6 +1030,7 @@ export function ModalAdicionarConteudo({
                             <button
                               key={grau}
                               type="button"
+                              aria-pressed={intensidadeInfluencia === grau}
                               onClick={() => setIntensidadeInfluencia(grau)}
                               className={`px-2 py-0.5 rounded capitalize ${
                                 intensidadeInfluencia === grau
@@ -1052,6 +1060,7 @@ export function ModalAdicionarConteudo({
                             <button
                               key={dim.id}
                               type="button"
+                              aria-pressed={ativa}
                               onClick={() => {
                                 if (ativa) {
                                   setEscoposInfluencia(
