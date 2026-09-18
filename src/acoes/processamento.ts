@@ -148,7 +148,7 @@ export async function obterListaDocumentosProcessados(): Promise<DocumentoProces
           obra_tipo: obra?.tipo || "livro",
           autoria: obra?.natureza || "autoral",
           papel_cerebro: obra?.participa_cerebro ? "nucleo_autoral" : "referencia_externa",
-          autor_nome: obra?.autor_nome || "Você",
+          autor_nome: obra?.autor_nome || "Autor não informado",
         });
       }
       return resultado;
@@ -162,10 +162,11 @@ export async function obterListaDocumentosProcessados(): Promise<DocumentoProces
           versao_obra_id: obra.versao_id || obra.id,
           usuario_id: obra.usuario_id || usuarioId,
           titulo_processado: obra.titulo,
-          total_secoes: obra.total_paginas ? Math.max(1, Math.round(obra.total_paginas / 15)) : 3,
-          total_fragmentos: obra.total_paginas ? obra.total_paginas * 4 : 12,
-          total_palavras: obra.total_palavras_estimado || 0,
-          total_tokens_estimado: Math.round((obra.total_palavras_estimado || 0) * 1.3),
+          // Sem registro consolidado de processamento, não inferir métricas.
+          total_secoes: 0,
+          total_fragmentos: 0,
+          total_palavras: 0,
+          total_tokens_estimado: 0,
           estado_publicacao: "ativo",
           publicado_em: obra.atualizado_em || obra.criado_em,
           criado_em: obra.criado_em,
@@ -175,7 +176,7 @@ export async function obterListaDocumentosProcessados(): Promise<DocumentoProces
           obra_tipo: obra.tipo || "livro",
           autoria: obra.natureza || "autoral",
           papel_cerebro: obra.participa_cerebro ? "nucleo_autoral" : "referencia_externa",
-          autor_nome: obra.autor_nome || "Você",
+          autor_nome: obra.autor_nome || "Autor não informado",
         });
       }
     });
