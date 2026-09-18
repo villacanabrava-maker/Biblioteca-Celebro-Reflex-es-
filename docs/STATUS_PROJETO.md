@@ -89,7 +89,8 @@ Concluído:
 
 Migrations aplicadas:
 - `0025_taxonomia_isolamento_rls`;
-- `0026_motor_taxonomia_automatica`.
+- `0026_motor_taxonomia_automatica`;
+- `0027_grants_propostas_atualizacao` (corrige permissão backend da fila de aprendizado autoral).
 
 ### Cérebro Autoral
 
@@ -153,6 +154,7 @@ Dados reais observados:
 
 ### Resolvido
 
+- `cerebro_autoral.propostas_atualizacao`: migration `0027_grants_propostas_atualizacao` aplicada; `service_role` recuperou SELECT/INSERT/UPDATE/DELETE e `authenticated` permanece sem acesso direto.
 - Taxonomia deixou de ter RLS desabilitado.
 - Ownership e políticas foram aplicados antes da automação.
 - Views taxonômicas usam `security_invoker`.
