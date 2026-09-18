@@ -3,6 +3,10 @@ import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { extrairTextoDeBuffer } from "./extrator-texto";
 import { executarChunkingSemantico } from "./chunker-semantico";
 import { gerarEmbeddingsEmLote } from "./gerador-embeddings";
+import {
+  gerarSintesesHierarquicas,
+  type SecaoParaSintese,
+} from "./gerador-sinteses";
 
 export interface OpcoesPipeline {
   versaoObraId: string;
@@ -15,6 +19,7 @@ export interface ResultadoPipeline {
   documentoProcessadoId: string;
   totalSecoes: number;
   totalFragmentos: number;
+  totalSinteses: number;
   totalTokens: number;
   custoEstimadoUsd: number;
 }
@@ -45,6 +50,55 @@ export async function executarPipelineProcessamento({
 
   if (errVersao || !versao) {
     throw new Error(`Versão da obra não encontrada: ${errVersao?.message || "ID inválido"}`);
+  }
+
+  // Uma versão já concluída é tratada de forma idempotente: não recriamos
+  // seções, fragmentos, vetores ou sínteses apenas porque a ação foi chamada novamente.
+  if (versao.estado_processamento === "processado") {
+    const { data: documentoExistente } = await admin
+      .schema("processamento")
+      .from("documentos_processados")
+      .select("*")
+      .eq("versao_obra_id", versaoObraId)
+      .eq("usuario_id", usuarioId)
+      .eq("estado_publicacao", "ativo")
+      .maybeSingle();
+
+    if (documentoExistente) {
+      const [
+        { count: totalSintesesExistentes },
+        { data: execucaoAnterior },
+      ] = await Promise.all([
+        admin
+          .schema("processamento")
+          .from("unidades_conhecimento")
+          .select("id", { count: "exact", head: true })
+          .eq("versao_obra_id", versaoObraId)
+          .eq("usuario_id", usuarioId)
+          .eq("tipo_unidade", "sintese"),
+        admin
+          .schema("processamento")
+          .from("execucoes")
+          .select("id, total_tokens, custo_estimado_usd")
+          .eq("versao_obra_id", versaoObraId)
+          .eq("usuario_id", usuarioId)
+          .eq("estado", "concluido")
+          .order("concluido_em", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      return {
+        sucesso: true,
+        execucaoId: execucaoAnterior?.id || "",
+        documentoProcessadoId: documentoExistente.id,
+        totalSecoes: documentoExistente.total_secoes || 0,
+        totalFragmentos: documentoExistente.total_fragmentos || 0,
+        totalSinteses: totalSintesesExistentes || 0,
+        totalTokens: Number(execucaoAnterior?.total_tokens || 0),
+        custoEstimadoUsd: Number(execucaoAnterior?.custo_estimado_usd || 0),
+      };
+    }
   }
 
   // 2. Obter perfil de embedding ativo
@@ -95,7 +149,7 @@ export async function executarPipelineProcessamento({
     .insert({
       versao_obra_id: versaoObraId,
       usuario_id: usuarioId,
-      pipeline_versao: "v1.0",
+      pipeline_versao: "v1.1",
       estado: "em_execucao",
       correlacao_id: correlacaoId,
     })
@@ -116,6 +170,7 @@ export async function executarPipelineProcessamento({
   let totalTokensGlobal = 0;
   let totalSecoesCriadas = 0;
   let totalFragmentosCriados = 0;
+  let totalSintesesCriadas = 0;
 
   try {
     // ------------------------------------------------------------------------
@@ -257,12 +312,31 @@ export async function executarPipelineProcessamento({
       throw new Error(`Erro ao registrar documento processado: ${errDocProc?.message}`);
     }
 
+    // Unidade raiz do documento para proveniência de sínteses globais.
+    const { data: unidadeDocumento, error: errUnidadeDocumento } = await admin
+      .schema("processamento")
+      .from("unidades_conhecimento")
+      .insert({
+        usuario_id: usuarioId,
+        obra_id: versao.obra_id,
+        versao_obra_id: versaoObraId,
+        tipo_unidade: "documento",
+      })
+      .select()
+      .single();
+
+    if (errUnidadeDocumento || !unidadeDocumento) {
+      throw new Error(
+        `Erro ao criar unidade raiz do documento: ${errUnidadeDocumento?.message || "registro ausente"}`
+      );
+    }
+
     // 3.2 Inserir Seções com Unidade de Conhecimento
     const mapaSecoesId = new Map<number, string>();
 
     for (const secao of estrutura.secoes) {
       // Cria a Unidade de Conhecimento raiz
-      const { data: unidadeSecao } = await admin
+      const { data: unidadeSecao, error: errUnidadeSecao } = await admin
         .schema("processamento")
         .from("unidades_conhecimento")
         .insert({
@@ -274,32 +348,53 @@ export async function executarPipelineProcessamento({
         .select()
         .single();
 
-      if (unidadeSecao) {
-        await admin
-          .schema("processamento")
-          .from("secoes")
-          .insert({
-            id: unidadeSecao.id,
-            documento_processado_id: docProc.id,
-            usuario_id: usuarioId,
-            nivel: secao.nivel,
-            ordem: secao.ordem,
-            titulo: secao.titulo,
-            tipo_secao: secao.tipoSecao,
-          });
-
-        mapaSecoesId.set(secao.ordem, unidadeSecao.id);
-        totalSecoesCriadas++;
+      if (errUnidadeSecao || !unidadeSecao) {
+        throw new Error(
+          `Erro ao criar unidade da seção "${secao.titulo}": ${errUnidadeSecao?.message || "registro ausente"}`
+        );
       }
+
+      const { error: errSecao } = await admin
+        .schema("processamento")
+        .from("secoes")
+        .insert({
+          id: unidadeSecao.id,
+          documento_processado_id: docProc.id,
+          usuario_id: usuarioId,
+          nivel: secao.nivel,
+          ordem: secao.ordem,
+          titulo: secao.titulo,
+          tipo_secao: secao.tipoSecao,
+        });
+
+      if (errSecao) {
+        throw new Error(
+          `Erro ao persistir seção "${secao.titulo}": ${errSecao.message}`
+        );
+      }
+
+      mapaSecoesId.set(secao.ordem, unidadeSecao.id);
+      totalSecoesCriadas++;
     }
 
     // 3.3 Inserir Fragmentos com Unidade de Conhecimento
-    const fragmentosCriados: { id: string; conteudo: string }[] = [];
+    const fragmentosCriados: {
+      id: string;
+      secaoId: string;
+      ordem: number;
+      conteudo: string;
+    }[] = [];
 
     for (const frag of estrutura.fragmentos) {
       const secaoId = mapaSecoesId.get(frag.ordemSecao) || null;
 
-      const { data: unidadeFrag } = await admin
+      if (!secaoId) {
+        throw new Error(
+          `Fragmento ${frag.ordem} não possui seção persistida de origem.`
+        );
+      }
+
+      const { data: unidadeFrag, error: errUnidadeFrag } = await admin
         .schema("processamento")
         .from("unidades_conhecimento")
         .insert({
@@ -311,27 +406,42 @@ export async function executarPipelineProcessamento({
         .select()
         .single();
 
-      if (unidadeFrag) {
-        await admin
-          .schema("processamento")
-          .from("fragmentos")
-          .insert({
-            id: unidadeFrag.id,
-            documento_processado_id: docProc.id,
-            secao_id: secaoId,
-            usuario_id: usuarioId,
-            ordem: frag.ordem,
-            conteudo: frag.conteudo,
-            total_palavras: frag.totalPalavras,
-            total_caracteres: frag.totalCaracteres,
-            total_tokens_estimado: frag.totalTokensEstimado,
-            posicao_inicio_char: frag.posicaoInicioChar,
-            posicao_fim_char: frag.posicaoFimChar,
-          });
-
-        fragmentosCriados.push({ id: unidadeFrag.id, conteudo: frag.conteudo });
-        totalFragmentosCriados++;
+      if (errUnidadeFrag || !unidadeFrag) {
+        throw new Error(
+          `Erro ao criar unidade do fragmento ${frag.ordem}: ${errUnidadeFrag?.message || "registro ausente"}`
+        );
       }
+
+      const { error: errFragmento } = await admin
+        .schema("processamento")
+        .from("fragmentos")
+        .insert({
+          id: unidadeFrag.id,
+          documento_processado_id: docProc.id,
+          secao_id: secaoId,
+          usuario_id: usuarioId,
+          ordem: frag.ordem,
+          conteudo: frag.conteudo,
+          total_palavras: frag.totalPalavras,
+          total_caracteres: frag.totalCaracteres,
+          total_tokens_estimado: frag.totalTokensEstimado,
+          posicao_inicio_char: frag.posicaoInicioChar,
+          posicao_fim_char: frag.posicaoFimChar,
+        });
+
+      if (errFragmento) {
+        throw new Error(
+          `Erro ao persistir fragmento ${frag.ordem}: ${errFragmento.message}`
+        );
+      }
+
+      fragmentosCriados.push({
+        id: unidadeFrag.id,
+        secaoId,
+        ordem: frag.ordem,
+        conteudo: frag.conteudo,
+      });
+      totalFragmentosCriados++;
     }
 
     // ------------------------------------------------------------------------
@@ -368,7 +478,7 @@ export async function executarPipelineProcessamento({
     for (let i = 0; i < fragmentosCriados.length; i++) {
       const vetor = resultadoEmbeddings.vetores[i];
       if (vetor) {
-        await admin
+        const { error: errVetor } = await admin
           .schema("processamento")
           .from("vetores")
           .insert({
@@ -377,6 +487,12 @@ export async function executarPipelineProcessamento({
             perfil_embedding_id: perfilEmbedding.id,
             embedding: vetor as any,
           });
+
+        if (errVetor) {
+          throw new Error(
+            `Erro ao persistir vetor do fragmento ${fragmentosCriados[i].ordem}: ${errVetor.message}`
+          );
+        }
       }
     }
 
@@ -397,7 +513,115 @@ export async function executarPipelineProcessamento({
     }
 
     // ------------------------------------------------------------------------
-    // ETAPA 5: PUBLICAÇÃO ATÔMICA
+    // ETAPA 5: SÍNTESES COGNITIVAS HIERÁRQUICAS
+    // ------------------------------------------------------------------------
+    const chaveEtapaSinteses = calcularChaveIdempotencia([
+      versaoObraId,
+      "sinteses_cognitivas",
+      versao.hash_sha256,
+      "v1",
+      execucao.id,
+    ]);
+
+    const inicioSinteses = Date.now();
+    const { data: etapaSinteses } = await admin
+      .schema("processamento")
+      .from("etapas_execucao")
+      .insert({
+        execucao_id: execucao.id,
+        nome_etapa: "sinteses_cognitivas",
+        estado: "em_execucao",
+        chave_idempotencia: chaveEtapaSinteses,
+      })
+      .select()
+      .single();
+
+    const secoesParaSintese: SecaoParaSintese[] = estrutura.secoes
+      .map((secao) => {
+        const secaoId = mapaSecoesId.get(secao.ordem);
+        if (!secaoId) return null;
+
+        return {
+          id: secaoId,
+          titulo: secao.titulo,
+          ordem: secao.ordem,
+          fragmentos: fragmentosCriados
+            .filter((fragmento) => fragmento.secaoId === secaoId)
+            .map((fragmento) => ({
+              id: fragmento.id,
+              secaoId,
+              ordem: fragmento.ordem,
+              conteudo: fragmento.conteudo,
+            })),
+        };
+      })
+      .filter((secao): secao is SecaoParaSintese => Boolean(secao));
+
+    const resultadoSinteses = await gerarSintesesHierarquicas({
+      tituloDocumento: versao.obra.titulo,
+      unidadeDocumentoId: unidadeDocumento.id,
+      secoes: secoesParaSintese,
+    });
+
+    for (const sintese of resultadoSinteses.sinteses) {
+      const { data: unidadeSintese, error: errUnidadeSintese } = await admin
+        .schema("processamento")
+        .from("unidades_conhecimento")
+        .insert({
+          usuario_id: usuarioId,
+          obra_id: versao.obra_id,
+          versao_obra_id: versaoObraId,
+          tipo_unidade: "sintese",
+        })
+        .select()
+        .single();
+
+      if (errUnidadeSintese || !unidadeSintese) {
+        throw new Error(
+          `Erro ao criar unidade de síntese: ${errUnidadeSintese?.message || "registro ausente"}`
+        );
+      }
+
+      const { error: errSintese } = await admin
+        .schema("processamento")
+        .from("sinteses")
+        .insert({
+          id: unidadeSintese.id,
+          unidade_origem_id: sintese.unidadeOrigemId,
+          usuario_id: usuarioId,
+          nivel_abstracao: sintese.nivelAbstracao,
+          conteudo_sintese: sintese.conteudoSintese,
+          pontos_chave: sintese.pontosChave,
+        });
+
+      if (errSintese) {
+        throw new Error(
+          `Erro ao persistir síntese ${sintese.nivelAbstracao}: ${errSintese.message}`
+        );
+      }
+
+      totalSintesesCriadas++;
+    }
+
+    if (etapaSinteses) {
+      await admin
+        .schema("processamento")
+        .from("etapas_execucao")
+        .update({
+          estado: "concluido",
+          duracao_ms: Date.now() - inicioSinteses,
+          resultado: {
+            totalSinteses: totalSintesesCriadas,
+            totalSecoesSintetizadas: resultadoSinteses.totalSecoesSintetizadas,
+            totalChamadasIA: resultadoSinteses.totalChamadasIA,
+          },
+          concluido_em: new Date().toISOString(),
+        })
+        .eq("id", etapaSinteses.id);
+    }
+
+    // ------------------------------------------------------------------------
+    // ETAPA 6: PUBLICAÇÃO ATÔMICA
     // ------------------------------------------------------------------------
     // Custo estimado para text-embedding-3-small ($0.02 / 1M tokens)
     const custoEstimadoUsd = (totalTokensGlobal / 1_000_000) * 0.02;
@@ -440,6 +664,7 @@ export async function executarPipelineProcessamento({
       documentoProcessadoId: docProc.id,
       totalSecoes: totalSecoesCriadas,
       totalFragmentos: totalFragmentosCriados,
+      totalSinteses: totalSintesesCriadas,
       totalTokens: totalTokensGlobal,
       custoEstimadoUsd,
     };

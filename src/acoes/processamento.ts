@@ -273,26 +273,68 @@ export async function obterExtracaoCompletaDocumento(
       listaElementos = elementosData || [];
     }
 
-    // 6. Busca Sínteses
+    // 6. Busca Sínteses estritamente vinculadas à versão deste documento.
+    // A tabela sinteses não possui documento_processado_id; o vínculo canônico
+    // ocorre pelas unidades de conhecimento da mesma versao_obra_id.
     let listaSinteses: any[] = [];
     try {
-      const { data: sintesesData } = await admin
+      const { data: unidadesSintese, error: erroUnidadesSintese } = await admin
         .schema("processamento")
-        .from("sinteses")
-        .select("*")
-        .eq("usuario_id", usuarioId);
+        .from("unidades_conhecimento")
+        .select("id")
+        .eq("versao_obra_id", versaoId)
+        .eq("usuario_id", usuarioId)
+        .eq("tipo_unidade", "sintese");
 
-      listaSinteses = (sintesesData || []).map((s: any) => ({
-        id: s.id,
-        secao_id: null,
-        tipo_sintese: s.nivel_abstracao || "executivo",
-        conteudo: s.conteudo_sintese || "",
-        tese_principal: s.pontos_chave?.[0] || undefined,
-        conceitos_chave: Array.isArray(s.pontos_chave) ? s.pontos_chave : [],
-        argumentos_principais: [],
-      }));
-    } catch {
-      // Ignora se a tabela de sínteses estiver vazia
+      if (erroUnidadesSintese) {
+        throw erroUnidadesSintese;
+      }
+
+      const sintesesIds = (unidadesSintese || []).map((unidade: any) => unidade.id);
+
+      if (sintesesIds.length > 0) {
+        const { data: sintesesData, error: erroSinteses } = await admin
+          .schema("processamento")
+          .from("sinteses")
+          .select("*")
+          .in("id", sintesesIds)
+          .eq("usuario_id", usuarioId)
+          .order("criado_em", { ascending: true });
+
+        if (erroSinteses) {
+          throw erroSinteses;
+        }
+
+        listaSinteses = (sintesesData || []).map((s: any) => {
+          const pontos = s.pontos_chave;
+          const pontosEstruturados =
+            pontos && !Array.isArray(pontos) && typeof pontos === "object"
+              ? pontos
+              : null;
+
+          return {
+            id: s.id,
+            secao_id: s.nivel_abstracao === "secao" ? s.unidade_origem_id : null,
+            tipo_sintese: s.nivel_abstracao || "executivo",
+            conteudo: s.conteudo_sintese || "",
+            tese_principal:
+              pontosEstruturados?.tese_principal ||
+              (Array.isArray(pontos) ? pontos[0] : undefined),
+            conceitos_chave: Array.isArray(pontosEstruturados?.conceitos_chave)
+              ? pontosEstruturados.conceitos_chave
+              : Array.isArray(pontos)
+              ? pontos
+              : [],
+            argumentos_principais: Array.isArray(
+              pontosEstruturados?.argumentos_principais
+            )
+              ? pontosEstruturados.argumentos_principais
+              : [],
+          };
+        });
+      }
+    } catch (erroSinteses) {
+      console.warn("Aviso ao carregar sínteses do documento:", erroSinteses);
     }
 
     // 7. Busca Conceitos Vinculados

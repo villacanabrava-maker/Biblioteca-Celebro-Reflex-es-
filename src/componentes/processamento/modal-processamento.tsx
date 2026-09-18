@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Cpu, CheckCircle2, AlertCircle, Loader2, Layers, Zap, BookOpen, Brain, FileText, ArrowRight } from "lucide-react";
+import { X, Cpu, CheckCircle2, AlertCircle, Loader2, Layers, Zap, BookOpen, Brain, FileText, ArrowRight, Sparkles } from "lucide-react";
 import { iniciarProcessamentoObra } from "@/acoes/processamento";
 import type { ObraDetalhada } from "@/tipos/biblioteca";
 
@@ -12,7 +12,7 @@ interface Props {
   aoConcluir: (obraId: string) => void;
 }
 
-type EtapaStatus = "esperando" | "em_andamento" | "concluido" | "erro";
+type EtapaStatus = "esperando" | "concluido";
 
 interface EtapaVisual {
   id: number;
@@ -25,12 +25,10 @@ interface EtapaVisual {
 export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props) {
   const [processando, setProcessando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [etapaAtiva, setEtapaAtiva] = useState(1);
-  const [progressoPercentual, setProgressoPercentual] = useState(0);
-
   const [resultado, setResultado] = useState<{
     totalSecoes: number;
     totalFragmentos: number;
+    totalSinteses: number;
     totalTokens: number;
     custoEstimadoUsd: number;
   } | null>(null);
@@ -60,14 +58,21 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
     {
       id: 4,
       titulo: "4. Vetorização HNSW (Embeddings 1536d)",
-      subtitulo: "Geração de representações matemáticas de alta fidelidade via OpenAI",
+      subtitulo: "Indexação vetorial dos fragmentos para recuperação híbrida",
       icone: Zap,
       status: "esperando",
     },
     {
       id: 5,
-      titulo: "5. Integração com o Cérebro Autoral",
-      subtitulo: "Indexação para busca híbrida, teses recorrentes e reflexões assistidas",
+      titulo: "5. Sínteses Cognitivas Hierárquicas",
+      subtitulo: "Sínteses por seção, síntese executiva e tese central somente quando sustentada",
+      icone: Sparkles,
+      status: "esperando",
+    },
+    {
+      id: 6,
+      titulo: "6. Publicação & Integração",
+      subtitulo: "Ativação do documento processado e disponibilização para o Cérebro Autoral",
       icone: Brain,
       status: "esperando",
     },
@@ -86,39 +91,13 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
       setProcessando(true);
       setErro(null);
       setResultado(null);
-      setProgressoPercentual(10);
+      setEtapas((prev) =>
+        prev.map((etapa) => ({ ...etapa, status: "esperando" }))
+      );
 
-      // Simulação progressiva de feedback visual das etapas
-      atualizarEtapa(1, "em_andamento");
-      setEtapaAtiva(1);
-
-      const timer1 = setTimeout(() => {
-        atualizarEtapa(1, "concluido");
-        atualizarEtapa(2, "em_andamento");
-        setEtapaAtiva(2);
-        setProgressoPercentual(35);
-      }, 1200);
-
-      const timer2 = setTimeout(() => {
-        atualizarEtapa(2, "concluido");
-        atualizarEtapa(3, "em_andamento");
-        setEtapaAtiva(3);
-        setProgressoPercentual(60);
-      }, 2600);
-
-      const timer3 = setTimeout(() => {
-        atualizarEtapa(3, "concluido");
-        atualizarEtapa(4, "em_andamento");
-        setEtapaAtiva(4);
-        setProgressoPercentual(85);
-      }, 4200);
-
-      // Chamada real da Server Action do Pipeline
+      // A Server Action é síncrona neste fluxo. Não simulamos percentuais nem
+      // marcamos etapas intermediárias sem confirmação do backend.
       const res = await iniciarProcessamentoObra(versaoId);
-
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
 
       if (!res.sucesso) {
         throw new Error(res.erro || "Falha desconhecida no pipeline.");
@@ -128,9 +107,6 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
       setEtapas((prev) =>
         prev.map((e) => ({ ...e, status: "concluido" }))
       );
-      setEtapaAtiva(5);
-      setProgressoPercentual(100);
-
       if (res.resultado) {
         setResultado(res.resultado);
       }
@@ -138,20 +114,10 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
     } catch (err: any) {
       console.error("Erro ao processar obra:", err);
       setErro(err.message || "Erro inesperado durante o processamento.");
-      setEtapas((prev) =>
-        prev.map((e) =>
-          e.id === etapaAtiva ? { ...e, status: "erro" } : e
-        )
-      );
+
     } finally {
       setProcessando(false);
     }
-  }
-
-  function atualizarEtapa(id: number, status: EtapaStatus) {
-    setEtapas((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, status } : e))
-    );
   }
 
   return (
@@ -210,64 +176,45 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
           </span>
         </div>
 
-        {/* Barra de Progresso Geral */}
+        {/* Estado real do processamento: sem percentuais simulados. */}
         {processando && (
-          <div className="space-y-1.5 animate-in fade-in">
-            <div className="flex items-center justify-between text-xs text-slate-600">
-              <span className="font-semibold flex items-center gap-1.5">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                Processando conteúdo do livro...
-              </span>
-              <span className="font-bold text-blue-600 font-mono">{progressoPercentual}%</span>
-            </div>
-            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${progressoPercentual}%` }}
-              />
-            </div>
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-xs text-blue-800 animate-in fade-in">
+            <span className="font-semibold flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+              Processamento em andamento no servidor. As etapas serão marcadas como concluídas somente após confirmação real do pipeline.
+            </span>
           </div>
         )}
 
-        {/* As 5 Etapas Visuais da Metodologia */}
+        {/* Etapas declaradas da metodologia; o status intermediário não é simulado. */}
         <div className="space-y-2.5">
           <h4 className="text-xs uppercase tracking-wider text-slate-500 font-bold px-0.5">
-            Metodologia de Processamento em 5 Fases
+            Metodologia de Processamento em 6 Fases
           </h4>
           <div className="space-y-2">
             {etapas.map((et) => {
               const Icone = et.icone;
-              const isAndamento = et.status === "em_andamento";
               const isConcluido = et.status === "concluido";
-              const isErro = et.status === "erro";
 
               return (
                 <div
                   key={et.id}
                   className={`flex items-start gap-3 p-3 rounded-2xl border transition-all ${
-                    isAndamento
-                      ? "bg-blue-50/70 border-blue-300 shadow-xs"
-                      : isConcluido
+                    isConcluido
                       ? "bg-emerald-50/50 border-emerald-200"
-                      : isErro
-                      ? "bg-rose-50 border-rose-200"
-                      : "bg-white border-slate-200/70 opacity-70"
+                      : "bg-white border-slate-200/70"
                   }`}
                 >
                   <div
                     className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                      isAndamento
-                        ? "bg-blue-600 text-white"
-                        : isConcluido
+                      isConcluido
                         ? "bg-emerald-500 text-white"
-                        : isErro
-                        ? "bg-rose-500 text-white"
+                        : processando
+                        ? "bg-blue-50 text-blue-600"
                         : "bg-slate-100 text-slate-400"
                     }`}
                   >
-                    {isAndamento ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : isConcluido ? (
+                    {isConcluido ? (
                       <CheckCircle2 className="w-3.5 h-3.5" />
                     ) : (
                       <Icone className="w-3.5 h-3.5" />
@@ -277,11 +224,7 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
                   <div className="flex-1 min-w-0">
                     <p
                       className={`text-xs font-bold leading-tight ${
-                        isAndamento
-                          ? "text-blue-900"
-                          : isConcluido
-                          ? "text-emerald-900"
-                          : "text-slate-800"
+                        isConcluido ? "text-emerald-900" : "text-slate-800"
                       }`}
                     >
                       {et.titulo}
@@ -321,7 +264,7 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
               Livro totalmente processado e integrado ao Cérebro!
             </div>
             
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
               <div className="p-2.5 bg-white border border-emerald-100 rounded-xl text-center">
                 <span className="text-[10px] text-slate-400 uppercase font-semibold block">Capítulos/Seções</span>
                 <span className="text-base font-extrabold text-slate-800">{resultado.totalSecoes}</span>
@@ -333,12 +276,17 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
               </div>
 
               <div className="p-2.5 bg-white border border-emerald-100 rounded-xl text-center">
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Sínteses Cognitivas</span>
+                <span className="text-base font-extrabold text-slate-800">{resultado.totalSinteses}</span>
+              </div>
+
+              <div className="p-2.5 bg-white border border-emerald-100 rounded-xl text-center">
                 <span className="text-[10px] text-slate-400 uppercase font-semibold block">Tokens Vetorizados</span>
                 <span className="text-base font-extrabold text-slate-800">{resultado.totalTokens}</span>
               </div>
 
               <div className="p-2.5 bg-white border border-emerald-100 rounded-xl text-center">
-                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Custo Estimado</span>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Custo de Embeddings</span>
                 <span className="text-base font-extrabold text-slate-800 font-mono">${resultado.custoEstimadoUsd.toFixed(5)}</span>
               </div>
             </div>
