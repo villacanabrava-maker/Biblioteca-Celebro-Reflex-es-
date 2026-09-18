@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Sparkles, Loader2, AlertCircle } from "lucide-react";
 import { criarNovaReflexao } from "@/acoes/reflexoes";
+import { useDialogModalAcessivel } from "@/componentes/comum/use-dialog-modal-acessivel";
 import type { FormatoReflexao } from "@/tipos/reflexoes";
 
 interface Props {
@@ -32,6 +33,11 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
 
   const [planejando, setPlanejando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const dialogRef = useDialogModalAcessivel({
+    aberto,
+    aoFechar,
+    bloqueado: planejando,
+  });
 
   if (!aberto) return null;
 
@@ -67,8 +73,15 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden p-6 space-y-6 my-8">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-reflexao-titulo"
+        tabIndex={-1}
+        className="relative w-full max-w-2xl bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden p-6 space-y-6 my-8"
+      >
         {/* Cabeçalho */}
         <div className="flex items-start justify-between border-b border-neutral-800 pb-4">
           <div className="flex items-center gap-3">
@@ -76,7 +89,12 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-serif text-xl font-medium text-neutral-100">
+              <h2
+                id="modal-reflexao-titulo"
+                data-dialog-initial-focus
+                tabIndex={-1}
+                className="font-serif text-xl font-medium text-neutral-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-400"
+              >
                 Nova Reflexão Autoral
               </h2>
               <p className="text-xs text-neutral-400">
@@ -88,6 +106,7 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
             type="button"
             onClick={aoFechar}
             disabled={planejando}
+            aria-label="Fechar modal"
             className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -95,7 +114,7 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
         </div>
 
         {erro && (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2.5 text-xs text-rose-300">
+          <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2.5 text-xs text-rose-300">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{erro}</span>
           </div>
@@ -104,10 +123,11 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           {/* Título Provisório */}
           <div className="space-y-1.5">
-            <label className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
+            <label htmlFor="reflexao-titulo" className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
               Título de Trabalho *
             </label>
             <input
+              id="reflexao-titulo"
               type="text"
               required
               value={titulo}
@@ -120,10 +140,11 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Tema Central */}
             <div className="space-y-1.5">
-              <label className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
+              <label htmlFor="reflexao-tema" className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
                 Tema Central *
               </label>
               <input
+                id="reflexao-tema"
                 type="text"
                 required
                 value={temaCentral}
@@ -135,10 +156,11 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
 
             {/* Formato Desejado */}
             <div className="space-y-1.5">
-              <label className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
+              <label htmlFor="reflexao-formato" className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
                 Formato Desejado
               </label>
               <select
+                id="reflexao-formato"
                 value={formatoDesejado}
                 onChange={(e) => setFormatoDesejado(e.target.value as FormatoReflexao)}
                 className="w-full px-3.5 py-2.5 bg-neutral-950 border border-neutral-800 rounded-xl text-neutral-200 focus:outline-none focus:border-amber-500 transition-colors capitalize"
@@ -154,10 +176,11 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
 
           {/* Provocação Inicial / Centelha */}
           <div className="space-y-1.5">
-            <label className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
+            <label htmlFor="reflexao-provocacao" className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
               Provocação Inicial (O Inquietamento do Autor) *
             </label>
             <textarea
+              id="reflexao-provocacao"
               required
               rows={4}
               value={provocacaoInicial}
@@ -170,10 +193,11 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Objetivo Comunicativo */}
             <div className="space-y-1.5">
-              <label className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
+              <label htmlFor="reflexao-objetivo" className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
                 Objetivo Comunicativo (Opcional)
               </label>
               <input
+                id="reflexao-objetivo"
                 type="text"
                 value={objetivoComunicativo}
                 onChange={(e) => setObjetivoComunicativo(e.target.value)}
@@ -184,10 +208,11 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
 
             {/* Público-Alvo */}
             <div className="space-y-1.5">
-              <label className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
+              <label htmlFor="reflexao-publico" className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
                 Público-Alvo (Opcional)
               </label>
               <input
+                id="reflexao-publico"
                 type="text"
                 value={publicoAlvo}
                 onChange={(e) => setPublicoAlvo(e.target.value)}
@@ -199,10 +224,11 @@ export function ModalNovaReflexao({ aberto, aoFechar }: Props) {
 
           {/* Restrições Específicas */}
           <div className="space-y-1.5">
-            <label className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
+            <label htmlFor="reflexao-restricoes" className="block text-neutral-300 font-medium font-mono uppercase tracking-wider text-[11px]">
               Restrições Específicas ou Vetos (Opcional)
             </label>
             <input
+              id="reflexao-restricoes"
               type="text"
               value={restricoesEspecificas}
               onChange={(e) => setRestricoesEspecificas(e.target.value)}

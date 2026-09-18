@@ -11,6 +11,7 @@ import {
   transcreverAudioBibliotecaTemporario,
 } from "@/acoes/biblioteca";
 import { GravadorAudio } from "@/componentes/comum/gravador-audio";
+import { useDialogModalAcessivel } from "@/componentes/comum/use-dialog-modal-acessivel";
 import type { TipoObra, ObraDetalhada } from "@/tipos/biblioteca";
 import type { SugestaoTagTaxonomia } from "@/tipos/taxonomia";
 
@@ -123,6 +124,11 @@ export function ModalAdicionarConteudo({
   const [etapa, setEtapa] = useState<EtapaUpload>("formulario");
   const [progressoEnvio, setProgressoEnvio] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
+  const dialogRef = useDialogModalAcessivel({
+    aberto,
+    aoFechar: fecharModalComLimpeza,
+    bloqueado: etapa !== "formulario" || processandoAudio,
+  });
 
   if (!aberto) return null;
 
@@ -531,8 +537,15 @@ export function ModalAdicionarConteudo({
   const emProcesso = etapa !== "formulario";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-biblioteca-titulo"
+        tabIndex={-1}
+        className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-200"
+      >
         {/* Cabeçalho */}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -540,7 +553,12 @@ export function ModalAdicionarConteudo({
               <UploadCloud className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">
+              <h2
+                id="modal-biblioteca-titulo"
+                data-dialog-initial-focus
+                tabIndex={-1}
+                className="text-lg font-bold text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-500"
+              >
                 Adicionar conteúdo à Biblioteca
               </h2>
               <p className="text-xs text-slate-500">
@@ -561,10 +579,10 @@ export function ModalAdicionarConteudo({
 
         {/* Grade com os 6 Tipos de Conteúdo */}
         <div className="p-6 bg-slate-50 border-b border-slate-100">
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">
+          <p id="biblioteca-modo-label" className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">
             Como deseja adicionar?
-          </label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          </p>
+          <div role="group" aria-labelledby="biblioteca-modo-label" className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
             {opcoesTipo.map((op) => {
               const selecionado = modo === op.id;
               const Icone = op.icone;
@@ -574,6 +592,7 @@ export function ModalAdicionarConteudo({
                   type="button"
                   onClick={() => selecionarModo(op.id)}
                   disabled={emProcesso}
+                  aria-pressed={selecionado}
                   className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all ${
                     selecionado
                       ? "bg-white border-blue-600 shadow-sm ring-2 ring-blue-600/10"
@@ -607,7 +626,7 @@ export function ModalAdicionarConteudo({
         <form onSubmit={submeterFormulario} className="p-6 space-y-5">
           {/* Mensagem de Erro */}
           {erro && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-700 text-xs">
+            <div role="alert" className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-700 text-xs">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
               <span>{erro}</span>
             </div>
@@ -616,10 +635,11 @@ export function ModalAdicionarConteudo({
           {/* Área de Seleção de Arquivo (Quando modo == arquivo ou lote) */}
           {modo === "arquivo" ? (
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label htmlFor="biblioteca-arquivo" className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Arquivo do Documento (PDF, DOCX, TXT, EPUB) *
               </label>
               <input
+                id="biblioteca-arquivo"
                 ref={inputArquivoRef}
                 type="file"
                 accept=".pdf,.epub,.docx,.txt,.md"
@@ -633,6 +653,15 @@ export function ModalAdicionarConteudo({
                   onDragLeave={lidarDragLeave}
                   onDrop={lidarDrop}
                   onClick={() => inputArquivoRef.current?.click()}
+                  onKeyDown={(evento) => {
+                    if (evento.key === "Enter" || evento.key === " ") {
+                      evento.preventDefault();
+                      inputArquivoRef.current?.click();
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Selecionar arquivo do documento"
                   className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
                     arrastando
                       ? "border-blue-600 bg-blue-50"
@@ -694,10 +723,11 @@ export function ModalAdicionarConteudo({
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label htmlFor="biblioteca-transcricao" className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Transcrição revisável *
                 </label>
                 <textarea
+                  id="biblioteca-transcricao"
                   value={conteudoTexto}
                   onChange={(e) => setConteudoTexto(e.target.value)}
                   placeholder="A transcrição da gravação aparecerá aqui para revisão."
@@ -713,10 +743,11 @@ export function ModalAdicionarConteudo({
           ) : (
             /* Área de Texto Direto */
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label htmlFor="biblioteca-conteudo" className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Conteúdo do Texto / Relato / Carta *
               </label>
               <textarea
+                id="biblioteca-conteudo"
                 value={conteudoTexto}
                 onChange={(e) => setConteudoTexto(e.target.value)}
                 placeholder="Escreva ou cole aqui as reflexões, relatos ou cartas do seu acervo..."
@@ -729,10 +760,11 @@ export function ModalAdicionarConteudo({
           {/* Dados do Documento */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="biblioteca-titulo" className="block text-xs font-semibold text-slate-700 mb-1">
                 Título do Documento *
               </label>
               <input
+                id="biblioteca-titulo"
                 type="text"
                 value={titulo}
                 onChange={(e) => setTitulo(e.target.value)}
@@ -743,10 +775,11 @@ export function ModalAdicionarConteudo({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="biblioteca-subtitulo" className="block text-xs font-semibold text-slate-700 mb-1">
                 Subtítulo ou Assunto
               </label>
               <input
+                id="biblioteca-subtitulo"
                 type="text"
                 value={subtitulo}
                 onChange={(e) => setSubtitulo(e.target.value)}
@@ -756,10 +789,11 @@ export function ModalAdicionarConteudo({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="biblioteca-autor" className="block text-xs font-semibold text-slate-700 mb-1">
                 Nome do Autor
               </label>
               <input
+                id="biblioteca-autor"
                 type="text"
                 value={autorNome}
                 onChange={(e) => setAutorNome(e.target.value)}
@@ -769,10 +803,11 @@ export function ModalAdicionarConteudo({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="biblioteca-ano" className="block text-xs font-semibold text-slate-700 mb-1">
                 Ano de Publicação / Criação
               </label>
               <input
+                id="biblioteca-ano"
                 type="number"
                 value={anoPublicacao || ""}
                 onChange={(e) => setAnoPublicacao(e.target.value ? Number(e.target.value) : undefined)}
@@ -784,10 +819,11 @@ export function ModalAdicionarConteudo({
 
           <div className="space-y-2.5">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="biblioteca-tags" className="block text-xs font-semibold text-slate-700 mb-1">
                 Tags e temas relacionados
               </label>
               <input
+                id="biblioteca-tags"
                 type="text"
                 value={tagsTexto}
                 onChange={(e) => setTagsTexto(e.target.value)}
@@ -851,12 +887,13 @@ export function ModalAdicionarConteudo({
           {/* Classificação Canônica de Fontes (Dois Eixos - Documento Mestre v2.0) */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3.5">
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
+              <p id="classificacao-fonte-label" className="block text-xs font-bold text-slate-800 mb-1">
                 Classificação da Autoria da Fonte
-              </label>
-              <div className="grid grid-cols-2 gap-2 mt-1">
+              </p>
+              <div role="group" aria-labelledby="classificacao-fonte-label" className="grid grid-cols-2 gap-2 mt-1">
                 <button
                   type="button"
+                  aria-pressed={papelFonte === "autoral"}
                   onClick={() => {
                     setPapelFonte("autoral");
                     setParticipacaoCerebro("nucleo_autoral");
@@ -874,6 +911,7 @@ export function ModalAdicionarConteudo({
                 </button>
                 <button
                   type="button"
+                  aria-pressed={papelFonte === "externa"}
                   onClick={() => {
                     setPapelFonte("externa");
                     setParticipacaoCerebro("referencia");
@@ -894,13 +932,14 @@ export function ModalAdicionarConteudo({
 
             {/* Participação no Cérebro Autoral */}
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
+              <p id="participacao-cerebro-label" className="block text-xs font-bold text-slate-800 mb-1">
                 Participação no Cérebro Autoral
-              </label>
+              </p>
               {papelFonte === "autoral" ? (
-                <div className="grid grid-cols-2 gap-2">
+                <div role="group" aria-labelledby="participacao-cerebro-label" className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
+                    aria-pressed={participacaoCerebro === "nucleo_autoral"}
                     onClick={() => setParticipacaoCerebro("nucleo_autoral")}
                     className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
                       participacaoCerebro === "nucleo_autoral"
@@ -915,6 +954,7 @@ export function ModalAdicionarConteudo({
                   </button>
                   <button
                     type="button"
+                    aria-pressed={participacaoCerebro === "excluida"}
                     onClick={() => setParticipacaoCerebro("excluida")}
                     className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
                       participacaoCerebro === "excluida"
@@ -930,9 +970,10 @@ export function ModalAdicionarConteudo({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div role="group" aria-labelledby="participacao-cerebro-label" className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <button
                       type="button"
+                      aria-pressed={participacaoCerebro === "referencia"}
                       onClick={() => setParticipacaoCerebro("referencia")}
                       className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
                         participacaoCerebro === "referencia"
@@ -947,6 +988,7 @@ export function ModalAdicionarConteudo({
                     </button>
                     <button
                       type="button"
+                      aria-pressed={participacaoCerebro === "influencia_deliberada"}
                       onClick={() => setParticipacaoCerebro("influencia_deliberada")}
                       className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
                         participacaoCerebro === "influencia_deliberada"
@@ -961,6 +1003,7 @@ export function ModalAdicionarConteudo({
                     </button>
                     <button
                       type="button"
+                      aria-pressed={participacaoCerebro === "excluida"}
                       onClick={() => setParticipacaoCerebro("excluida")}
                       className={`px-3 py-2 rounded-xl text-xs border text-left transition-all ${
                         participacaoCerebro === "excluida"
@@ -987,6 +1030,7 @@ export function ModalAdicionarConteudo({
                             <button
                               key={grau}
                               type="button"
+                              aria-pressed={intensidadeInfluencia === grau}
                               onClick={() => setIntensidadeInfluencia(grau)}
                               className={`px-2 py-0.5 rounded capitalize ${
                                 intensidadeInfluencia === grau
@@ -1016,6 +1060,7 @@ export function ModalAdicionarConteudo({
                             <button
                               key={dim.id}
                               type="button"
+                              aria-pressed={ativa}
                               onClick={() => {
                                 if (ativa) {
                                   setEscoposInfluencia(

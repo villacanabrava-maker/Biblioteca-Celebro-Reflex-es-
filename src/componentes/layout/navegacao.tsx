@@ -44,6 +44,10 @@ const gruposNavegacaoDesktop = [
 ];
 
 function itemAtivo(pathname: string, href: string) {
+  if (href === "/reflexoes" && pathname.startsWith("/reflexoes/criar")) {
+    return false;
+  }
+
   return pathname === href || (href !== "/" && pathname.startsWith(href));
 }
 
@@ -61,7 +65,8 @@ export function BarraInferiorMobile() {
             <Link
               key={item.href}
               href={item.href}
-              className="flex -mt-5 flex-col items-center justify-center transition-transform active:scale-95"
+              aria-current={ativo ? "page" : undefined}
+              className="flex -mt-5 flex-col items-center justify-center rounded-xl transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/30 ring-4 ring-slate-950">
                 <Icone className="h-6 w-6 stroke-[2.2px]" />
@@ -75,8 +80,9 @@ export function BarraInferiorMobile() {
           <Link
             key={item.href}
             href={item.href}
+            aria-current={ativo ? "page" : undefined}
             className={clsx(
-              "flex flex-col items-center justify-center gap-1 px-2 py-1 transition-colors",
+              "flex flex-col items-center justify-center gap-1 rounded-lg px-2 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
               ativo ? "font-semibold text-blue-400" : "text-slate-400 hover:text-slate-200"
             )}
           >
@@ -110,6 +116,7 @@ export function BarraLateralDesktop() {
       <div className="px-4 pb-3 pt-5">
         <Link
           href="/reflexoes/criar"
+          aria-current={pathname.startsWith("/reflexoes/criar") ? "page" : undefined}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-500/20 transition-all hover:bg-blue-500 active:scale-95"
         >
           <Sparkles className="h-4 w-4" />
@@ -132,8 +139,9 @@ export function BarraLateralDesktop() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    aria-current={ativo ? "page" : undefined}
                     className={clsx(
-                      "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
+                      "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
                       ativo
                         ? "bg-blue-600/15 font-semibold text-blue-400"
                         : "text-slate-400 hover:bg-slate-900 hover:text-slate-100"
@@ -157,8 +165,9 @@ export function BarraLateralDesktop() {
       <div className="border-t border-slate-800 p-3">
         <Link
           href="/configuracoes"
+          aria-current={itemAtivo(pathname, "/configuracoes") ? "page" : undefined}
           className={clsx(
-            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
             itemAtivo(pathname, "/configuracoes")
               ? "bg-blue-600/15 text-blue-400"
               : "text-slate-400 hover:bg-slate-900 hover:text-slate-100"

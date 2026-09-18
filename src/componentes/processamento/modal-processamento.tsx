@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, Cpu, CheckCircle2, AlertCircle, Loader2, Layers, Zap, BookOpen, Brain, FileText, ArrowRight, Sparkles } from "lucide-react";
 import { iniciarProcessamentoObra } from "@/acoes/processamento";
+import { useDialogModalAcessivel } from "@/componentes/comum/use-dialog-modal-acessivel";
 import type { ObraDetalhada } from "@/tipos/biblioteca";
 
 interface Props {
@@ -34,6 +35,12 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
     totalTokens: number;
     custoEstimadoUsd: number;
   } | null>(null);
+
+  const dialogRef = useDialogModalAcessivel({
+    aberto: aberto && Boolean(obra),
+    aoFechar,
+    bloqueado: processando,
+  });
 
   const [etapas, setEtapas] = useState<EtapaVisual[]>([
     {
@@ -135,8 +142,15 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden p-6 sm:p-8 space-y-6">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-processamento-titulo"
+        tabIndex={-1}
+        className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden p-6 sm:p-8 space-y-6"
+      >
         
         {/* Cabeçalho */}
         <div className="flex items-start justify-between">
@@ -145,7 +159,12 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
               <Cpu className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-serif text-lg sm:text-xl font-bold text-slate-900 leading-tight">
+              <h3
+                id="modal-processamento-titulo"
+                data-dialog-initial-focus
+                tabIndex={-1}
+                className="font-serif text-lg sm:text-xl font-bold text-slate-900 leading-tight focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-500"
+              >
                 Processamento Cognitivo do Livro
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -277,7 +296,7 @@ export function ModalProcessamento({ obra, aberto, aoFechar, aoConcluir }: Props
 
         {/* Mensagem de Erro */}
         {erro && (
-          <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800 text-xs animate-in fade-in">
+          <div role="alert" className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800 text-xs animate-in fade-in">
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
             <div>
               <p className="font-bold">Ocorreu uma falha no processamento</p>
