@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookOpen, Feather, Mail, Compass, FileText, Layers, Sparkles, Download, Trash2, MoreVertical, CheckCircle2, Clock, Loader2, Cpu, Eye, Zap } from "lucide-react";
+import { BookOpen, Feather, Mail, Compass, FileText, Layers, Sparkles, Download, Trash2, MoreVertical, CheckCircle2, Clock, Loader2, Cpu, Eye, Zap, Tag } from "lucide-react";
 import type { ObraDetalhada, TipoObra } from "@/tipos/biblioteca";
 import { obterUrlDownloadOriginal, excluirObra } from "@/acoes/biblioteca";
 
@@ -110,6 +110,13 @@ export function CardObra({
   const estaProcessado = obra.estado_processamento === "processado";
   const estaProcessando = obra.estado_processamento === "em_processamento" || obra.estado_processamento === "reprocessando";
   const estaPendente = !estaProcessado && !estaProcessando;
+  const tagsObra = Array.isArray(obra.metadados?.tags)
+    ? obra.metadados.tags.filter(
+        (tag): tag is string => typeof tag === "string" && tag.trim().length > 0
+      )
+    : [];
+  const tagsVisiveis = tagsObra.slice(0, 3);
+  const totalTagsOcultas = Math.max(0, tagsObra.length - tagsVisiveis.length);
 
   return (
     <div className="group relative bg-white border border-slate-200 hover:border-blue-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col">
@@ -195,6 +202,25 @@ export function CardObra({
             <span>•</span>
             <span>{formatarBytes(obra.arquivo_tamanho_bytes)}</span>
           </div>
+
+          {tagsVisiveis.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <Tag className="h-3 w-3 text-slate-400" />
+              {tagsVisiveis.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600"
+                >
+                  {tag}
+                </span>
+              ))}
+              {totalTagsOcultas > 0 && (
+                <span className="text-[10px] font-medium text-slate-400">
+                  +{totalTagsOcultas}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Badge de Estado */}
           <div className="mt-2.5">
