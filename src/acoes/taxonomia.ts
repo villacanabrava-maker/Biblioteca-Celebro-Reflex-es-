@@ -220,6 +220,21 @@ export async function cadastrarConceito({
     throw new Error(`Falha ao cadastrar termos do conceito: ${errTermos.message}`);
   }
 
+  let totalRelacoesPropostas = 0;
+  let avisoRelacoes: string | null = null;
+
+  try {
+    const relacoes = await gerarRelacoesParaConceitoConfirmado({
+      conceitoId: conceito.id,
+      usuarioId,
+    });
+    totalRelacoesPropostas = relacoes.totalPropostas;
+  } catch (erroRelacoes: unknown) {
+    console.error("Conceito cadastrado; geração de relações falhou:", erroRelacoes);
+    avisoRelacoes =
+      "O conceito foi salvo, mas as relações sugeridas não puderam ser geradas agora.";
+  }
+
   try {
     revalidatePath("/taxonomia");
     revalidatePath("/cerebro");
@@ -227,7 +242,12 @@ export async function cadastrarConceito({
     // Ignorado fora de requisição HTTP
   }
 
-  return { sucesso: true, conceito };
+  return {
+    sucesso: true,
+    conceito,
+    totalRelacoesPropostas,
+    avisoRelacoes,
+  };
 }
 
 
