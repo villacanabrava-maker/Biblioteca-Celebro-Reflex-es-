@@ -399,46 +399,58 @@ async function persistirCandidatos({
 
     const evidencias = agruparEvidenciasPorFonte(candidato);
 
-    for (const [fonteId, evidencia] of evidencias) {
-      const trechoContextual = evidencia.trechos.slice(0, 3).join("\n…\n");
+    try {
+      for (const [fonteId, evidencia] of evidencias) {
+        const trechoContextual = evidencia.trechos.slice(0, 3).join("\n…\n");
 
-      if (tipoOrigem === "documento") {
-        const { error } = await admin
-          .schema("taxonomia")
-          .from("conceitos_fragmentos")
-          .upsert(
-            {
-              conceito_id: conceito.id,
-              fragmento_id: fonteId,
-              usuario_id: usuarioId,
-              relevancia: evidencia.relevancia,
-              trecho_contextual: trechoContextual,
-            },
-            { onConflict: "conceito_id,fragmento_id" }
-          );
+        if (tipoOrigem === "documento") {
+          const { error } = await admin
+            .schema("taxonomia")
+            .from("conceitos_fragmentos")
+            .upsert(
+              {
+                conceito_id: conceito.id,
+                fragmento_id: fonteId,
+                usuario_id: usuarioId,
+                relevancia: evidencia.relevancia,
+                trecho_contextual: trechoContextual,
+              },
+              { onConflict: "conceito_id,fragmento_id" }
+            );
 
-        if (error) {
-          throw new Error(`Falha ao vincular conceito ao fragmento: ${error.message}`);
-        }
-      } else if (versaoReflexaoId && fonteId === versaoReflexaoId) {
-        const { error } = await admin
-          .schema("taxonomia")
-          .from("conceitos_reflexoes")
-          .upsert(
-            {
-              conceito_id: conceito.id,
-              versao_reflexao_id: versaoReflexaoId,
-              usuario_id: usuarioId,
-              relevancia: evidencia.relevancia,
-              trecho_contextual: trechoContextual,
-            },
-            { onConflict: "conceito_id,versao_reflexao_id" }
-          );
+          if (error) {
+            throw new Error(`Falha ao vincular conceito ao fragmento: ${error.message}`);
+          }
+        } else if (versaoReflexaoId && fonteId === versaoReflexaoId) {
+          const { error } = await admin
+            .schema("taxonomia")
+            .from("conceitos_reflexoes")
+            .upsert(
+              {
+                conceito_id: conceito.id,
+                versao_reflexao_id: versaoReflexaoId,
+                usuario_id: usuarioId,
+                relevancia: evidencia.relevancia,
+                trecho_contextual: trechoContextual,
+              },
+              { onConflict: "conceito_id,versao_reflexao_id" }
+            );
 
-        if (error) {
-          throw new Error(`Falha ao vincular conceito à reflexão: ${error.message}`);
+          if (error) {
+            throw new Error(`Falha ao vincular conceito à reflexão: ${error.message}`);
+          }
         }
       }
+    } catch (erro) {
+      if (conceito.criado) {
+        await admin
+          .schema("taxonomia")
+          .from("conceitos")
+          .delete()
+          .eq("id", conceito.id)
+          .eq("usuario_id", usuarioId);
+      }
+      throw erro;
     }
   }
 
