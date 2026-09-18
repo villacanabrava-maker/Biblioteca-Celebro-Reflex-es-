@@ -14,6 +14,7 @@ import { GravadorAudio } from "@/componentes/comum/gravador-audio";
 import { useDialogModalAcessivel } from "@/componentes/comum/use-dialog-modal-acessivel";
 import type { TipoObra, ObraDetalhada } from "@/tipos/biblioteca";
 import type { SugestaoTagTaxonomia } from "@/tipos/taxonomia";
+import { LIMITE_ARQUIVO_BIBLIOTECA_BYTES } from "@/lib/validacoes/biblioteca";
 
 interface Props {
   aberto: boolean;
@@ -219,6 +220,13 @@ export function ModalAdicionarConteudo({
   }
 
   function inferirMetadadosDoArquivo(file: File) {
+    if (file.size > LIMITE_ARQUIVO_BIBLIOTECA_BYTES) {
+      setArquivo(null);
+      setErro("O arquivo excede o limite de 50 MB da Biblioteca.");
+      return;
+    }
+
+    setErro(null);
     setArquivo(file);
     const nomeBase = file.name.replace(/\.[^/.]+$/, "");
     const tituloSugerido = nomeBase
@@ -675,7 +683,7 @@ export function ModalAdicionarConteudo({
                     Arraste o arquivo aqui ou clique para selecionar
                   </p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    PDF, DOCX, TXT, EPUB ou Markdown.
+                    PDF, DOCX, TXT, EPUB ou Markdown. Limite de 50 MB.
                   </p>
                 </div>
               ) : (
