@@ -11,8 +11,10 @@ import {
   Sparkles,
   BookOpen,
   ArrowRight,
+  RefreshCw,
 } from "lucide-react";
 import { registrarRevisaoAutor, incorporarReflexaoMemoria } from "@/acoes/reflexoes";
+import { analisarTaxonomiaReflexao } from "@/acoes/taxonomia";
 
 interface Props {
   versaoId?: string;
@@ -36,6 +38,7 @@ export function PainelRevisaoAutor({
   const [aprovado, setAprovado] = useState(estadoEntrada === "concluida" || incorporado);
   const [salvando, setSalvando] = useState(false);
   const [incorporando, setIncorporando] = useState(false);
+  const [analisandoTaxonomia, setAnalisandoTaxonomia] = useState(false);
   const [obraIdGerada, setObraIdGerada] = useState<string | null>(obraIncorporadaId || null);
   const [foiIncorporado, setFoiIncorporado] = useState(incorporado);
   const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
@@ -62,7 +65,7 @@ export function PainelRevisaoAutor({
       setErro(null);
       setMensagemSucesso(null);
 
-      await registrarRevisaoAutor({
+      const resultadoRevisao = await registrarRevisaoAutor({
         versaoId,
         entradaId,
         comentarioGeral: comentario,
@@ -71,7 +74,9 @@ export function PainelRevisaoAutor({
 
       setMensagemSucesso(
         aprovado
-          ? "Reflexão aprovada com sucesso! O texto foi chancelado no seu histórico de reflexões."
+          ? resultadoRevisao.avisoTaxonomia
+            ? `Reflexão aprovada. ${resultadoRevisao.avisoTaxonomia}`
+            : `Reflexão aprovada. ${resultadoRevisao.totalConceitosTaxonomia} conceito(s) foram associados ou propostos para revisão na Taxonomia.`
           : "Notas de revisão salvas com sucesso."
       );
       aoSalvar?.();
@@ -84,6 +89,31 @@ export function PainelRevisaoAutor({
       setErro(err.message || "Erro inesperado ao salvar revisão.");
     } finally {
       setSalvando(false);
+    }
+  };
+
+  const handleTaxonomia = async () => {
+    if (!versaoId) return;
+
+    try {
+      setAnalisandoTaxonomia(true);
+      setErro(null);
+      const resultado = await analisarTaxonomiaReflexao({
+        versaoReflexaoId: versaoId,
+        forcar: true,
+      });
+      setMensagemSucesso(
+        `Taxonomia reanalisada: ${resultado.totalConceitosPropostos} proposta(s) nova(s) e ${resultado.totalConceitosReutilizados} conceito(s) reutilizado(s).`
+      );
+      router.refresh();
+    } catch (err: unknown) {
+      setErro(
+        err instanceof Error
+          ? err.message
+          : "Erro ao reanalisar a Taxonomia da reflexão."
+      );
+    } finally {
+      setAnalisandoTaxonomia(false);
     }
   };
 
@@ -128,12 +158,30 @@ export function PainelRevisaoAutor({
           </div>
         </div>
 
-        {foiIncorporado && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            Incorporado à Memória
-          </span>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {(estadoEntrada === "concluida" || aprovado) && (
+            <button
+              type="button"
+              disabled={analisandoTaxonomia || salvando}
+              onClick={() => void handleTaxonomia()}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+            >
+              {analisandoTaxonomia ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Reanalisar Taxonomia
+            </button>
+          )}
+
+          {foiIncorporado && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              Incorporado à Memória
+            </span>
+          )}
+        </div>
       </div>
 
       {mensagemSucesso && (
