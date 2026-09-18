@@ -277,8 +277,13 @@ export function EstudioReflexao({ entrada, plano, versoes }: Props) {
       {abaAtiva === "texto" && (
         <LeitorVersaoReflexao
           versoes={versoes}
+          entradaId={entrada.id}
           versaoSelecionadaId={versaoSelecionadaId}
           aoMudarVersao={(id) => setVersaoSelecionadaId(id)}
+          aoSalvarEdicao={(id) => {
+            setVersaoSelecionadaId(id);
+            router.refresh();
+          }}
         />
       )}
 
