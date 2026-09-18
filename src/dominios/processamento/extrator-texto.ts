@@ -1,8 +1,6 @@
 import zlib from "zlib";
-
-// Importação resiliente de módulo CJS no ecossistema Next.js
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse");
+import { CanvasFactory } from "pdf-parse/worker";
+import { PDFParse } from "pdf-parse";
 
 export interface ResultadoExtracaoTexto {
   textoCompleto: string;
@@ -128,17 +126,24 @@ export async function extrairTextoDeBuffer(
   const ehDocx = nome.endsWith(".docx") || mime.includes("wordprocessingml") || (ehZipReal && !ehPdfReal);
 
   if (ehPdfReal) {
+    const parser = new PDFParse({ data: buffer, CanvasFactory });
+
     try {
-      const dadosPdf = await pdfParse(buffer);
-      textoBruto = dadosPdf.text;
-      totalPaginas = dadosPdf.numpages || 1;
+      const [dadosTexto, dadosInfo] = await Promise.all([
+        parser.getText(),
+        parser.getInfo(),
+      ]);
+
+      textoBruto = dadosTexto.text;
+      totalPaginas = dadosInfo.total || 1;
       metadados = {
-        versaoPdf: dadosPdf.version,
-        info: dadosPdf.info,
+        info: dadosInfo.infoData || {},
       };
     } catch (err: any) {
-      console.warn("Falha ao analisar PDF binário, tentando extração textual:", err.message);
-      textoBruto = buffer.toString("utf-8");
+      console.warn("Falha ao analisar PDF binário:", err.message);
+      throw new Error(`Não foi possível extrair o texto do PDF: ${err.message}`);
+    } finally {
+      await parser.destroy();
     }
   } else if (ehDocx) {
     try {
