@@ -65,8 +65,22 @@ export function ListaObras({
           const coincideSubtitulo = obra.subtitulo?.toLowerCase().includes(termo);
           const coincideAutor = obra.autor_nome.toLowerCase().includes(termo);
           const coincideDescricao = obra.descricao?.toLowerCase().includes(termo);
+          const tagsObra = Array.isArray(obra.metadados?.tags)
+            ? obra.metadados.tags.filter(
+                (tag): tag is string => typeof tag === "string"
+              )
+            : [];
+          const coincideTag = tagsObra.some((tag) =>
+            tag.toLowerCase().includes(termo)
+          );
 
-          if (!coincideTitulo && !coincideSubtitulo && !coincideAutor && !coincideDescricao) {
+          if (
+            !coincideTitulo &&
+            !coincideSubtitulo &&
+            !coincideAutor &&
+            !coincideDescricao &&
+            !coincideTag
+          ) {
             return false;
           }
         }
