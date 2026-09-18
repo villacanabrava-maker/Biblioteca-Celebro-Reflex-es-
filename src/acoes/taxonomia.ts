@@ -5,6 +5,10 @@ import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
 
 import type { ConceitoTaxonomico, ArestaGrafoTaxonomia } from "@/tipos/taxonomia";
+import {
+  taxonomizarDocumentoProcessado,
+  taxonomizarReflexaoAprovada,
+} from "@/dominios/taxonomia/aplicador-taxonomia";
 
 /**
  * Obtém todos os conceitos canônicos com sinônimos e total de ocorrências.
@@ -17,6 +21,7 @@ export async function obterConceitos(filtroDominio?: string): Promise<ConceitoTa
     .from("v_taxonomia_conceitos")
     .select("*")
     .eq("usuario_id", usuarioId)
+    .in("estado", ["ativo", "revisao"])
     .order("total_fragmentos", { ascending: false });
 
   if (filtroDominio && filtroDominio !== "todos") {
@@ -199,4 +204,111 @@ export async function cadastrarConceito({
   }
 
   return { sucesso: true, conceito };
+}
+
+
+/**
+ * Executa ou reutiliza a análise taxonômica de um documento processado.
+ * O documento continua válido mesmo se esta análise falhar em outro fluxo.
+ */
+export async function analisarTaxonomiaDocumento({
+  documentoProcessadoId,
+  forcar = false,
+}: {
+  documentoProcessadoId: string;
+  forcar?: boolean;
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const resultado = await taxonomizarDocumentoProcessado({
+    documentoProcessadoId,
+    usuarioId,
+    forcar,
+  });
+
+  try {
+    revalidatePath(`/documentos-processados/${documentoProcessadoId}`);
+    revalidatePath("/taxonomia");
+  } catch {}
+
+  return resultado;
+}
+
+/**
+ * Executa ou reutiliza a análise taxonômica de uma reflexão já aprovada.
+ */
+export async function analisarTaxonomiaReflexao({
+  versaoReflexaoId,
+  forcar = false,
+}: {
+  versaoReflexaoId: string;
+  forcar?: boolean;
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const resultado = await taxonomizarReflexaoAprovada({
+    versaoReflexaoId,
+    usuarioId,
+    forcar,
+  });
+
+  try {
+    revalidatePath("/taxonomia");
+    revalidatePath("/reflexoes");
+  } catch {}
+
+  return resultado;
+}
+
+/**
+ * Decisão soberana sobre um conceito proposto pela IA.
+ * Rejeitar preserva o registro/evidências, mas impede reutilização automática.
+ */
+export async function decidirConceitoSugerido({
+  conceitoId,
+  decisao,
+}: {
+  conceitoId: string;
+  decisao: "confirmar" | "rejeitar";
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const { data: conceito, error: erroBusca } = await admin
+    .schema("taxonomia")
+    .from("conceitos")
+    .select("id, estado, origem")
+    .eq("id", conceitoId)
+    .eq("usuario_id", usuarioId)
+    .single();
+
+  if (erroBusca || !conceito) {
+    throw new Error("Conceito sugerido não encontrado.");
+  }
+
+  if (conceito.origem !== "ia") {
+    throw new Error("Somente conceitos propostos pela IA usam este fluxo de decisão.");
+  }
+
+  if (conceito.estado !== "revisao") {
+    throw new Error("Este conceito já recebeu uma decisão.");
+  }
+
+  const novoEstado = decisao === "confirmar" ? "ativo" : "rejeitado";
+  const { error: erroAtualizacao } = await admin
+    .schema("taxonomia")
+    .from("conceitos")
+    .update({ estado: novoEstado })
+    .eq("id", conceitoId)
+    .eq("usuario_id", usuarioId)
+    .eq("estado", "revisao");
+
+  if (erroAtualizacao) {
+    throw new Error(`Falha ao registrar decisão do conceito: ${erroAtualizacao.message}`);
+  }
+
+  try {
+    revalidatePath("/taxonomia");
+    revalidatePath("/biblioteca");
+  } catch {}
+
+  return { sucesso: true, estado: novoEstado };
 }
