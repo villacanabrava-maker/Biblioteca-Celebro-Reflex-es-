@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ShieldCheck, Ban, Sliders, Search, AlertTriangle, Sparkles } from "lucide-react";
-import type { RegraCerebro, TipoRegra } from "@/tipos/cerebro";
+import { ShieldCheck, Ban, Sliders, Search } from "lucide-react";
+import type { RegraCerebro } from "@/tipos/cerebro";
 
 interface Props {
   regras: RegraCerebro[];
