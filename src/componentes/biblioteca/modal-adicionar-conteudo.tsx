@@ -415,6 +415,25 @@ export function ModalAdicionarConteudo({
           ? opcaoSelecionada.tipoObra
           : "livro";
 
+      const tagsLivres = tagsTexto
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+
+      const tagsConsolidadas = Array.from(
+        new Map(
+          [...tagsLivres, ...tagsTaxonomiaSelecionadas.map((tag) => tag.termo)]
+            .map((tag) => [
+              tag
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toLowerCase()
+                .trim(),
+              tag,
+            ])
+        ).values()
+      );
+
       const resultado = await cadastrarObra({
         titulo: titulo.trim(),
         subtitulo: subtitulo.trim() || undefined,
@@ -442,19 +461,8 @@ export function ModalAdicionarConteudo({
         arquivo_mime_type: arquivoParaUpload.type || "text/plain",
         hash_sha256: hashSha256,
         metadados: {
-          tags: Array.from(
-            new Set([
-              ...tagsTexto
-                .split(",")
-                .map((tag) => tag.trim())
-                .filter(Boolean),
-              ...tagsTaxonomiaSelecionadas.map((tag) => tag.termo),
-            ])
-          ),
-          tags_livres: tagsTexto
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean),
+          tags: tagsConsolidadas,
+          tags_livres: tagsLivres,
           tags_taxonomia: tagsTaxonomiaSelecionadas.map((tag) => ({
             conceito_id: tag.id,
             codigo: tag.codigo,
