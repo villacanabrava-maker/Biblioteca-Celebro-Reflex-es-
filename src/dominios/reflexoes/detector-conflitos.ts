@@ -9,6 +9,7 @@
 import { z } from "zod";
 import { criarClienteAdmin } from "@/infraestrutura/supabase/cliente-admin";
 import { executarChamadaEstruturada, protegerEntradaDeDados, PAPEIS_IA } from "@/ia/orquestrador";
+import { gerarEmbeddingConsulta } from "@/dominios/processamento/gerador-embeddings";
 import type { ConflitoDetectado, DossieContextual } from "@/tipos/reflexoes";
 
 const EsquemaDeteccaoConflitosZod = z.object({
@@ -41,13 +42,44 @@ export async function detectarConflitosEMontarDossie({
 }> {
   const admin = criarClienteAdmin();
 
-  // 1. Recuperar memórias da Biblioteca (obras autorais processadas)
-  const { data: fragmentos } = await admin
-    .from("v_fragmentos_detalhados")
-    .select("id, conteudo, obra_titulo")
-    .eq("usuario_id", usuarioId)
-    .eq("obra_natureza", "autoral")
-    .limit(10);
+  // 1. Recuperar memórias autorais realmente relacionadas à reflexão.
+  // O tema orienta a busca textual; o conteúdo completo orienta a similaridade semântica.
+  const consultaSemantica = [temaCentral, reflexaoExterna, comentarioAutor]
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, 12000);
+
+  let fragmentos: Array<{
+    fragmento_id: string;
+    obra_titulo: string | null;
+    conteudo: string;
+    score_similaridade: number | string | null;
+  }> = [];
+
+  try {
+    const vetorConsulta = await gerarEmbeddingConsulta(consultaSemantica);
+
+    const { data, error: erroBusca } = await admin.rpc("buscar_fragmentos_hibrido", {
+      p_usuario_id: usuarioId,
+      p_termo_busca: temaCentral,
+      p_vetor: vetorConsulta,
+      p_limite: 10,
+      p_peso_vetorial: 0.75,
+      p_peso_textual: 0.25,
+      p_apenas_autorais: true,
+    });
+
+    if (erroBusca) {
+      console.warn("Falha na recuperação híbrida do dossiê; seguindo sem memórias relacionadas.", erroBusca.message);
+    } else {
+      fragmentos = (data || []) as typeof fragmentos;
+    }
+  } catch (erro: any) {
+    console.warn(
+      "Falha ao preparar a busca semântica do dossiê; seguindo sem memórias relacionadas.",
+      erro?.message || erro
+    );
+  }
 
   // 2. Recuperar conceitos da Taxonomia
   const { data: conceitos } = await admin
@@ -112,9 +144,13 @@ Mapeie as tensões dialéticas e conceitos recomendados para fundamentar a nova 
 
   const dossie: DossieContextual = {
     fragmentos_selecionados: (fragmentos || []).map((f) => ({
-      id: f.id,
+      id: f.fragmento_id,
       conteudo: f.conteudo,
       obra_titulo: f.obra_titulo || "Obra Autoral",
+      aderencia:
+        f.score_similaridade === null || f.score_similaridade === undefined
+          ? undefined
+          : Number(f.score_similaridade),
     })),
     conceitos_chave: (conceitos || []).map((c) => ({
       termo: c.termo_preferencial,
