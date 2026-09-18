@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BookOpen, Feather, Mail, Compass, FileText, Layers, Sparkles, Download, Trash2, MoreVertical, CheckCircle2, Clock, Loader2, Cpu, Eye, Zap } from "lucide-react";
 import type { ObraDetalhada, TipoObra } from "@/tipos/biblioteca";
 import { obterUrlDownloadOriginal, excluirObra } from "@/acoes/biblioteca";
@@ -53,6 +54,7 @@ export function CardObra({
   aoIniciarProcessamento,
   aoVerFragmentos,
 }: Props) {
+  const router = useRouter();
   const [menuAberto, setMenuAberto] = useState(false);
   const [baixando, setBaixando] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
@@ -61,7 +63,11 @@ export function CardObra({
     if (!obra.arquivo_caminho) return;
     try {
       setBaixando(true);
-      const url = await obterUrlDownloadOriginal(obra.arquivo_caminho);
+      const url = await obterUrlDownloadOriginal(
+        obra.arquivo_caminho,
+        obra.titulo,
+        obra.arquivo_nome_original
+      );
       window.open(url, "_blank");
     } catch {
       alert("Erro ao gerar link de download do arquivo.");
@@ -110,10 +116,23 @@ export function CardObra({
       {/* Linha Superior Colorida por Status */}
       <div className={`h-1 w-full ${estaProcessado ? "bg-emerald-500" : estaProcessando ? "bg-blue-500" : "bg-amber-400"}`} />
 
-      <div className="p-4 flex items-start gap-4 flex-1">
+      <div
+        className="p-4 flex items-start gap-4 flex-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500/40"
+        role="link"
+        tabIndex={0}
+        aria-label={`Abrir ${obra.titulo}`}
+        onClick={() => router.push(`/biblioteca/${obra.id}`)}
+        onKeyDown={(evento) => {
+          if (evento.target === evento.currentTarget && (evento.key === "Enter" || evento.key === " ")) {
+            evento.preventDefault();
+            router.push(`/biblioteca/${obra.id}`);
+          }
+        }}
+      >
         {/* Miniatura / Capa Estilizada do Livro */}
         <Link
           href={`/biblioteca/${obra.id}`}
+          onClick={(evento) => evento.stopPropagation()}
           className={`w-16 h-22 sm:w-20 sm:h-28 rounded-xl bg-gradient-to-br ${gradienteCapa} p-2 flex flex-col justify-between text-white shadow-md shrink-0 relative overflow-hidden hover:scale-[1.03] transition-transform`}
           style={{ minHeight: "7rem" }}
         >
@@ -149,7 +168,11 @@ export function CardObra({
             )}
           </div>
 
-          <Link href={`/biblioteca/${obra.id}`} className="block hover:text-blue-600 transition-colors">
+          <Link
+            href={`/biblioteca/${obra.id}`}
+            onClick={(evento) => evento.stopPropagation()}
+            className="block hover:text-blue-600 transition-colors"
+          >
             <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug truncate group-hover:text-blue-600">
               {obra.titulo}
             </h3>
@@ -195,7 +218,7 @@ export function CardObra({
         </div>
 
         {/* Menu de Ações (Três Pontinhos) */}
-        <div className="relative shrink-0">
+        <div className="relative shrink-0" onClick={(evento) => evento.stopPropagation()}>
           <button
             onClick={() => setMenuAberto(!menuAberto)}
             aria-label="Ações da obra"

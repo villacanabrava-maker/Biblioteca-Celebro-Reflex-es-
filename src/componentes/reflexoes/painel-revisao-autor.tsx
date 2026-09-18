@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   UserCheck,
   CheckCircle2,
@@ -30,6 +31,7 @@ export function PainelRevisaoAutor({
   obraIncorporadaId,
   aoSalvar,
 }: Props) {
+  const router = useRouter();
   const [comentario, setComentario] = useState("");
   const [aprovado, setAprovado] = useState(estadoEntrada === "concluida" || incorporado);
   const [salvando, setSalvando] = useState(false);
@@ -73,6 +75,10 @@ export function PainelRevisaoAutor({
           : "Notas de revisão salvas com sucesso."
       );
       aoSalvar?.();
+      if (aprovado) {
+        router.push("/reflexoes");
+        router.refresh();
+      }
     } catch (err: any) {
       console.error("Erro ao salvar revisão:", err);
       setErro(err.message || "Erro inesperado ao salvar revisão.");
@@ -222,16 +228,23 @@ export function PainelRevisaoAutor({
           />
         </div>
 
-        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+        <div className={`flex items-start gap-3 p-4 rounded-2xl border transition-colors ${
+          aprovado ? "bg-emerald-50 border-emerald-300" : "bg-slate-50 border-slate-200"
+        }`}>
           <input
             type="checkbox"
             id="chk-aprovado"
             checked={aprovado}
             onChange={(e) => setAprovado(e.target.checked)}
-            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+            className="mt-0.5 w-5 h-5 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
           />
-          <label htmlFor="chk-aprovado" className="text-xs font-semibold text-slate-800 cursor-pointer">
-            Declarar esta reflexão formalmente aprovada pelo autor
+          <label htmlFor="chk-aprovado" className="cursor-pointer">
+            <span className="block text-sm font-bold text-slate-900">
+              Declarar esta reflexão formalmente aprovada pelo autor
+            </span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
+              A aprovação registra a decisão soberana do autor e conclui esta reflexão.
+            </span>
           </label>
         </div>
 
