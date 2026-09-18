@@ -26,10 +26,10 @@ import type { DocumentoProcessadoResumo } from "@/acoes/processamento";
 import { clsx } from "clsx";
 
 interface Props {
-  documentos: DocumentoProcessadoResumo[];
+  documentos?: DocumentoProcessadoResumo[];
 }
 
-export function PainelDocumentosProcessados({ documentos }: Props) {
+export function PainelDocumentosProcessados({ documentos = [] }: Props) {
   const [busca, setBusca] = useState("");
   const [filtroAutoria, setFiltroAutoria] = useState<string>("todos");
   const [filtroTipo, setFiltroTipo] = useState<string>("todos");

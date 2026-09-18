@@ -27,7 +27,6 @@ export interface DocumentoProcessadoResumo {
   publicado_em: string;
   criado_em: string;
   atualizado_em: string;
-  // Campos da obra vinculada
   obra_id: string;
   obra_titulo: string;
   obra_tipo: string;
@@ -88,59 +87,108 @@ export interface ExtracaoCompletaDocumento {
 }
 
 /**
- * Obtém a lista de todos os documentos processados do usuário.
+ * Obtém a lista de todos os documentos processados do usuário de forma ultra resiliente.
  */
 export async function obterListaDocumentosProcessados(): Promise<DocumentoProcessadoResumo[]> {
-  const usuarioId = await obterUsuarioAtualId();
-  const admin = criarClienteAdmin();
+  try {
+    const usuarioId = await obterUsuarioAtualId();
+    const admin = criarClienteAdmin();
 
-  const { data, error } = await admin
-    .from("v_documentos_processados")
-    .select(`
-      *,
-      versoes_obras:versao_obra_id (
-        obra_id,
-        obras:obra_id (
-          id,
-          titulo,
-          tipo,
-          autoria,
-          papel_cerebro,
-          autor_nome
-        )
-      )
-    `)
-    .eq("usuario_id", usuarioId)
-    .order("criado_em", { ascending: false });
+    // 1. Tenta consulta via view aplicacao.v_documentos_processados
+    const { data: viewData, error: viewError } = await admin
+      .from("v_documentos_processados")
+      .select("*")
+      .eq("usuario_id", usuarioId)
+      .order("criado_em", { ascending: false });
 
-  if (error) {
-    console.error("Erro ao listar documentos processados:", error);
+    if (!viewError && viewData && viewData.length > 0) {
+      return viewData.map((doc: any) => ({
+        id: doc.id,
+        versao_obra_id: doc.versao_obra_id,
+        usuario_id: doc.usuario_id,
+        titulo_processado: doc.titulo_processado,
+        total_secoes: doc.total_secoes || 0,
+        total_fragmentos: doc.total_fragmentos || 0,
+        total_palavras: doc.total_palavras || 0,
+        total_tokens_estimado: doc.total_tokens_estimado || 0,
+        estado_publicacao: doc.estado_publicacao || "ativo",
+        publicado_em: doc.publicado_em || doc.criado_em,
+        criado_em: doc.criado_em,
+        atualizado_em: doc.atualizado_em,
+        obra_id: doc.obra_id || "",
+        obra_titulo: doc.obra_titulo || doc.titulo_processado,
+        obra_tipo: doc.obra_tipo || "livro",
+        autoria: doc.obra_natureza || "autoral",
+        papel_cerebro: doc.participa_cerebro ? "nucleo_autoral" : "referencia_externa",
+        autor_nome: doc.autor_nome || "Você",
+      }));
+    }
+
+    // 2. Fallback direto para tabela base processamento.documentos_processados
+    const { data: docsBase, error: docsError } = await admin
+      .schema("processamento")
+      .from("documentos_processados")
+      .select("*")
+      .eq("usuario_id", usuarioId)
+      .order("criado_em", { ascending: false });
+
+    if (docsError || !docsBase) {
+      console.warn("Nenhum documento processado encontrado na tabela base:", docsError?.message);
+      return [];
+    }
+
+    // Busca metadados das versões e obras
+    const resultado: DocumentoProcessadoResumo[] = [];
+
+    for (const doc of docsBase) {
+      let obraInfo: any = null;
+      if (doc.versao_obra_id) {
+        const { data: versao } = await admin
+          .schema("biblioteca")
+          .from("versoes_obras")
+          .select("obra_id")
+          .eq("id", doc.versao_obra_id)
+          .maybeSingle();
+
+        if (versao?.obra_id) {
+          const { data: obra } = await admin
+            .schema("biblioteca")
+            .from("obras")
+            .select("id, titulo, tipo, natureza, autor_nome, participa_cerebro")
+            .eq("id", versao.obra_id)
+            .maybeSingle();
+
+          obraInfo = obra;
+        }
+      }
+
+      resultado.push({
+        id: doc.id,
+        versao_obra_id: doc.versao_obra_id,
+        usuario_id: doc.usuario_id,
+        titulo_processado: doc.titulo_processado,
+        total_secoes: doc.total_secoes || 0,
+        total_fragmentos: doc.total_fragmentos || 0,
+        total_palavras: doc.total_palavras || 0,
+        total_tokens_estimado: doc.total_tokens_estimado || 0,
+        estado_publicacao: doc.estado_publicacao || "ativo",
+        publicado_em: doc.publicado_em || doc.criado_em,
+        criado_em: doc.criado_em,
+        atualizado_em: doc.atualizado_em,
+        obra_id: obraInfo?.id || "",
+        obra_titulo: obraInfo?.titulo || doc.titulo_processado,
+        obra_tipo: obraInfo?.tipo || "livro",
+        autoria: obraInfo?.natureza || "autoral",
+        papel_cerebro: obraInfo?.participa_cerebro ? "nucleo_autoral" : "referencia_externa",
+        autor_nome: obraInfo?.autor_nome || "Você",
+      });
+    }
+
+    return resultado;
+  } catch (erro) {
+    console.error("Erro crítico ao obter lista de documentos processados:", erro);
     return [];
   }
-
-  return (data || []).map((doc: any) => {
-    const obra = doc.versoes_obras?.obras;
-    return {
-      id: doc.id,
-      versao_obra_id: doc.versao_obra_id,
-      usuario_id: doc.usuario_id,
-      titulo_processado: doc.titulo_processado,
-      total_secoes: doc.total_secoes || 0,
-      total_fragmentos: doc.total_fragmentos || 0,
-      total_palavras: doc.total_palavras || 0,
-      total_tokens_estimado: doc.total_tokens_estimado || 0,
-      estado_publicacao: doc.estado_publicacao || "ativo",
-      publicado_em: doc.publicado_em || doc.criado_em,
-      criado_em: doc.criado_em,
-      atualizado_em: doc.atualizado_em,
-      obra_id: obra?.id || "",
-      obra_titulo: obra?.titulo || doc.titulo_processado,
-      obra_tipo: obra?.tipo || "livro",
-      autoria: obra?.autoria || "autoral",
-      papel_cerebro: obra?.papel_cerebro || "nucleo_autoral",
-      autor_nome: obra?.autor_nome || "Você",
-    };
-  });
 }
 
 /**
@@ -150,127 +198,163 @@ export async function obterListaDocumentosProcessados(): Promise<DocumentoProces
 export async function obterExtracaoCompletaDocumento(
   documentoIdOuVersaoId: string
 ): Promise<ExtracaoCompletaDocumento | null> {
-  const usuarioId = await obterUsuarioAtualId();
-  const admin = criarClienteAdmin();
+  try {
+    const usuarioId = await obterUsuarioAtualId();
+    const admin = criarClienteAdmin();
 
-  // 1. Busca o Documento Processado
-  const { data: doc } = await admin
-    .schema("processamento")
-    .from("documentos_processados")
-    .select("*")
-    .or(`id.eq.${documentoIdOuVersaoId},versao_obra_id.eq.${documentoIdOuVersaoId}`)
-    .eq("usuario_id", usuarioId)
-    .maybeSingle();
+    // 1. Busca o Documento Processado
+    const { data: doc, error: docError } = await admin
+      .schema("processamento")
+      .from("documentos_processados")
+      .select("*")
+      .or(`id.eq.${documentoIdOuVersaoId},versao_obra_id.eq.${documentoIdOuVersaoId}`)
+      .eq("usuario_id", usuarioId)
+      .maybeSingle();
 
-  if (!doc) {
+    if (docError || !doc) {
+      console.warn("Documento processado não localizado:", docError?.message);
+      return null;
+    }
+
+    // 2. Busca Obra vinculada
+    let obra: any = null;
+    if (doc.versao_obra_id) {
+      const { data: versaoObra } = await admin
+        .schema("biblioteca")
+        .from("versoes_obras")
+        .select("obra_id")
+        .eq("id", doc.versao_obra_id)
+        .maybeSingle();
+
+      if (versaoObra?.obra_id) {
+        const { data: obraData } = await admin
+          .schema("biblioteca")
+          .from("obras")
+          .select("*")
+          .eq("id", versaoObra.obra_id)
+          .maybeSingle();
+
+        obra = obraData;
+      }
+    }
+
+    // 3. Busca Seções
+    const { data: secoes } = await admin
+      .schema("processamento")
+      .from("secoes")
+      .select("*")
+      .eq("documento_processado_id", doc.id)
+      .eq("usuario_id", usuarioId)
+      .order("ordem", { ascending: true });
+
+    // 4. Busca Sínteses
+    const { data: sinteses } = await admin
+      .schema("processamento")
+      .from("sinteses_secoes")
+      .select("*")
+      .eq("documento_processado_id", doc.id)
+      .eq("usuario_id", usuarioId)
+      .order("criado_em", { ascending: true });
+
+    // 5. Busca Fragmentos Textuais
+    const { data: fragmentos } = await admin
+      .schema("processamento")
+      .from("fragmentos")
+      .select("*")
+      .eq("documento_processado_id", doc.id)
+      .eq("usuario_id", usuarioId)
+      .order("ordem", { ascending: true });
+
+    // 6. Busca Conceitos Vinculados aos Fragmentos
+    const fragmentosIds = (fragmentos || []).map((f: any) => f.id);
+    let conceitosVinculados: any[] = [];
+
+    if (fragmentosIds.length > 0) {
+      try {
+        const { data: conceitosData } = await admin
+          .schema("taxonomia")
+          .from("conceitos_fragmentos")
+          .select("conceito_id, fragmento_id, relevancia")
+          .in("fragmento_id", fragmentosIds.slice(0, 100))
+          .eq("usuario_id", usuarioId);
+
+        if (conceitosData && conceitosData.length > 0) {
+          const conceitosIds = [...new Set(conceitosData.map((c: any) => c.conceito_id))];
+          const { data: nomesConceitos } = await admin
+            .schema("taxonomia")
+            .from("conceitos")
+            .select("id, nome")
+            .in("id", conceitosIds);
+
+          const mapaNomes: Record<string, string> = {};
+          (nomesConceitos || []).forEach((nc: any) => {
+            mapaNomes[nc.id] = nc.nome;
+          });
+
+          conceitosVinculados = conceitosData.map((c: any) => ({
+            conceito_id: c.conceito_id,
+            conceito_nome: mapaNomes[c.conceito_id] || "Conceito Ontológico",
+            relevancia: Number(c.relevancia) || 0.85,
+            fragmento_id: c.fragmento_id,
+          }));
+        }
+      } catch (errConceitos) {
+        console.warn("Erro não impeditivo ao carregar conceitos:", errConceitos);
+      }
+    }
+
+    const listaSecoes = secoes || [];
+    const listaSinteses = sinteses || [];
+    const listaFragmentos = fragmentos || [];
+
+    return {
+      documento: doc as DocumentoProcessado,
+      obra: obra as ObraDetalhada,
+      secoes: listaSecoes.map((s: any) => ({
+        id: s.id,
+        secao_pai_id: s.secao_pai_id,
+        nivel: s.nivel,
+        ordem: s.ordem,
+        titulo: s.titulo,
+        tipo_secao: s.tipo_secao,
+        resumo_secao: s.resumo_secao,
+      })),
+      sinteses: listaSinteses.map((st: any) => ({
+        id: st.id,
+        secao_id: st.secao_id,
+        tipo_sintese: st.tipo_sintese,
+        conteudo: st.conteudo,
+        tese_principal: st.tese_principal,
+        conceitos_chave: st.conceitos_chave || [],
+        argumentos_principais: st.argumentos_principais || [],
+      })),
+      fragmentos: listaFragmentos.map((f: any) => ({
+        id: f.id,
+        secao_id: f.secao_id,
+        ordem: f.ordem,
+        conteudo: f.conteudo,
+        total_palavras: f.total_palavras || 0,
+        total_caracteres: f.total_caracteres || 0,
+        total_tokens_estimado: f.total_tokens_estimado || 0,
+        pagina_inicio: f.pagina_inicio,
+        pagina_fim: f.pagina_fim,
+        posicao_inicio_char: f.posicao_inicio_char,
+        posicao_fim_char: f.posicao_fim_char,
+      })),
+      conceitosVinculados,
+      estatisticas: {
+        totalSecoes: listaSecoes.length,
+        totalFragmentos: listaFragmentos.length,
+        totalPalavras: doc.total_palavras || listaFragmentos.reduce((acc: number, f: any) => acc + (f.total_palavras || 0), 0),
+        totalTokens: doc.total_tokens_estimado || 0,
+        totalSinteses: listaSinteses.length,
+        totalConceitos: conceitosVinculados.length,
+      },
+    };
+  } catch (erroGlobal) {
+    console.error("Erro crítico ao obter extração completa do documento:", erroGlobal);
     return null;
   }
-
-  // 2. Busca Obra vinculada
-  const { data: versaoObra } = await admin
-    .schema("biblioteca")
-    .from("versoes_obras")
-    .select("*, obras:obra_id(*)")
-    .eq("id", doc.versao_obra_id)
-    .single();
-
-  const obra = (versaoObra?.obras as any) || null;
-
-  // 3. Busca Seções
-  const { data: secoes } = await admin
-    .schema("processamento")
-    .from("secoes")
-    .select("*")
-    .eq("documento_processado_id", doc.id)
-    .eq("usuario_id", usuarioId)
-    .order("ordem", { ascending: true });
-
-  // 4. Busca Sínteses
-  const { data: sinteses } = await admin
-    .schema("processamento")
-    .from("sinteses_secoes")
-    .select("*")
-    .eq("documento_processado_id", doc.id)
-    .eq("usuario_id", usuarioId)
-    .order("criado_em", { ascending: true });
-
-  // 5. Busca Fragmentos Textuais
-  const { data: fragmentos } = await admin
-    .schema("processamento")
-    .from("fragmentos")
-    .select("*")
-    .eq("documento_processado_id", doc.id)
-    .eq("usuario_id", usuarioId)
-    .order("ordem", { ascending: true });
-
-  // 6. Busca Conceitos Vinculados aos Fragmentos
-  const fragmentosIds = (fragmentos || []).map((f: any) => f.id);
-  let conceitosVinculados: any[] = [];
-
-  if (fragmentosIds.length > 0) {
-    const { data: conceitosData } = await admin
-      .schema("taxonomia")
-      .from("conceitos_fragmentos")
-      .select("*, conceitos:conceito_id(nome)")
-      .in("fragmento_id", fragmentosIds.slice(0, 100))
-      .eq("usuario_id", usuarioId);
-
-    conceitosVinculados = (conceitosData || []).map((c: any) => ({
-      conceito_id: c.conceito_id,
-      conceito_nome: c.conceitos?.nome || "Conceito",
-      relevancia: Number(c.relevancia) || 0.85,
-      fragmento_id: c.fragmento_id,
-    }));
-  }
-
-  const listaSecoes = secoes || [];
-  const listaSinteses = sinteses || [];
-  const listaFragmentos = fragmentos || [];
-
-  return {
-    documento: doc as DocumentoProcessado,
-    obra: obra as ObraDetalhada,
-    secoes: listaSecoes.map((s: any) => ({
-      id: s.id,
-      secao_pai_id: s.secao_pai_id,
-      nivel: s.nivel,
-      ordem: s.ordem,
-      titulo: s.titulo,
-      tipo_secao: s.tipo_secao,
-      resumo_secao: s.resumo_secao,
-    })),
-    sinteses: listaSinteses.map((st: any) => ({
-      id: st.id,
-      secao_id: st.secao_id,
-      tipo_sintese: st.tipo_sintese,
-      conteudo: st.conteudo,
-      tese_principal: st.tese_principal,
-      conceitos_chave: st.conceitos_chave || [],
-      argumentos_principais: st.argumentos_principais || [],
-    })),
-    fragmentos: listaFragmentos.map((f: any) => ({
-      id: f.id,
-      secao_id: f.secao_id,
-      ordem: f.ordem,
-      conteudo: f.conteudo,
-      total_palavras: f.total_palavras || 0,
-      total_caracteres: f.total_caracteres || 0,
-      total_tokens_estimado: f.total_tokens_estimado || 0,
-      pagina_inicio: f.pagina_inicio,
-      pagina_fim: f.pagina_fim,
-      posicao_inicio_char: f.posicao_inicio_char,
-      posicao_fim_char: f.posicao_fim_char,
-    })),
-    conceitosVinculados,
-    estatisticas: {
-      totalSecoes: listaSecoes.length,
-      totalFragmentos: listaFragmentos.length,
-      totalPalavras: doc.total_palavras || listaFragmentos.reduce((acc: number, f: any) => acc + (f.total_palavras || 0), 0),
-      totalTokens: doc.total_tokens_estimado || 0,
-      totalSinteses: listaSinteses.length,
-      totalConceitos: conceitosVinculados.length,
-    },
-  };
 }
 
 /**
@@ -307,22 +391,34 @@ export async function iniciarProcessamentoObra(versaoObraId: string) {
 export async function obterDocumentoProcessado(
   versaoObraId: string
 ): Promise<DocumentoProcessado | null> {
-  const usuarioId = await obterUsuarioAtualId();
-  const admin = criarClienteAdmin();
+  try {
+    const usuarioId = await obterUsuarioAtualId();
+    const admin = criarClienteAdmin();
 
-  const { data, error } = await admin
-    .from("v_documentos_processados")
-    .select("*")
-    .eq("versao_obra_id", versaoObraId)
-    .eq("usuario_id", usuarioId)
-    .maybeSingle();
+    const { data, error } = await admin
+      .from("v_documentos_processados")
+      .select("*")
+      .eq("versao_obra_id", versaoObraId)
+      .eq("usuario_id", usuarioId)
+      .maybeSingle();
 
-  if (error) {
-    console.error("Erro ao obter documento processado:", error);
+    if (error || !data) {
+      const { data: baseData } = await admin
+        .schema("processamento")
+        .from("documentos_processados")
+        .select("*")
+        .eq("versao_obra_id", versaoObraId)
+        .eq("usuario_id", usuarioId)
+        .maybeSingle();
+
+      return (baseData as DocumentoProcessado) || null;
+    }
+
+    return (data as DocumentoProcessado) || null;
+  } catch (err) {
+    console.error("Erro ao obter documento processado:", err);
     return null;
   }
-
-  return (data as DocumentoProcessado) || null;
 }
 
 /**
@@ -333,23 +429,36 @@ export async function obterFragmentosDocumento(
   limite: number = 50,
   offset: number = 0
 ): Promise<FragmentoTextual[]> {
-  const usuarioId = await obterUsuarioAtualId();
-  const admin = criarClienteAdmin();
+  try {
+    const usuarioId = await obterUsuarioAtualId();
+    const admin = criarClienteAdmin();
 
-  const { data, error } = await admin
-    .from("v_fragmentos_detalhados")
-    .select("*")
-    .eq("documento_processado_id", documentoProcessadoId)
-    .eq("usuario_id", usuarioId)
-    .order("ordem", { ascending: true })
-    .range(offset, offset + limite - 1);
+    const { data, error } = await admin
+      .from("v_fragmentos_detalhados")
+      .select("*")
+      .eq("documento_processado_id", documentoProcessadoId)
+      .eq("usuario_id", usuarioId)
+      .order("ordem", { ascending: true })
+      .range(offset, offset + limite - 1);
 
-  if (error) {
-    console.error("Erro ao listar fragmentos do documento:", error);
+    if (error || !data) {
+      const { data: baseData } = await admin
+        .schema("processamento")
+        .from("fragmentos")
+        .select("*")
+        .eq("documento_processado_id", documentoProcessadoId)
+        .eq("usuario_id", usuarioId)
+        .order("ordem", { ascending: true })
+        .range(offset, offset + limite - 1);
+
+      return (baseData as FragmentoTextual[]) || [];
+    }
+
+    return (data as FragmentoTextual[]) || [];
+  } catch (err) {
+    console.error("Erro ao listar fragmentos do documento:", err);
     return [];
   }
-
-  return (data as FragmentoTextual[]) || [];
 }
 
 /**
@@ -398,26 +507,34 @@ export async function buscarFragmentosHibrido(
  * Obtém o status da execução e suas etapas para monitoramento de observabilidade.
  */
 export async function obterStatusExecucao(execucaoId: string) {
-  const usuarioId = await obterUsuarioAtualId();
-  const admin = criarClienteAdmin();
+  try {
+    const usuarioId = await obterUsuarioAtualId();
+    const admin = criarClienteAdmin();
 
-  const [execResult, etapasResult] = await Promise.all([
-    admin
-      .from("v_execucoes_processamento")
-      .select("*")
-      .eq("id", execucaoId)
-      .eq("usuario_id", usuarioId)
-      .single(),
-    admin
-      .schema("processamento")
-      .from("etapas_execucao")
-      .select("*")
-      .eq("execucao_id", execucaoId)
-      .order("criado_em", { ascending: true }),
-  ]);
+    const [execResult, etapasResult] = await Promise.all([
+      admin
+        .from("v_execucoes_processamento")
+        .select("*")
+        .eq("id", execucaoId)
+        .eq("usuario_id", usuarioId)
+        .maybeSingle(),
+      admin
+        .schema("processamento")
+        .from("etapas_execucao")
+        .select("*")
+        .eq("execucao_id", execucaoId)
+        .order("criado_em", { ascending: true }),
+    ]);
 
-  return {
-    execucao: execResult.data as ExecucaoProcessamento | null,
-    etapas: (etapasResult.data as EtapaExecucao[]) || [],
-  };
+    return {
+      execucao: (execResult?.data as ExecucaoProcessamento) || null,
+      etapas: (etapasResult?.data as EtapaExecucao[]) || [],
+    };
+  } catch (err) {
+    console.error("Erro ao obter status da execução:", err);
+    return {
+      execucao: null,
+      etapas: [],
+    };
+  }
 }
