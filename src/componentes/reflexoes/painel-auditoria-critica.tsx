@@ -238,7 +238,7 @@ export function PainelAuditoriaCritica({
               >
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-rose-900">
-                    Regra: "{rv.enunciado}"
+                    Regra: “{rv.enunciado}”
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-bold uppercase">
                     Gravidade: {rv.gravidade}
@@ -246,7 +246,7 @@ export function PainelAuditoriaCritica({
                 </div>
                 <p className="text-slate-800">
                   <strong className="text-slate-500">Trecho infrator:</strong>{" "}
-                  <span className="italic">"{rv.trecho_infrator}"</span>
+                  <span className="italic">“{rv.trecho_infrator}”</span>
                 </p>
                 <p className="text-slate-600 text-[11px]">{rv.motivo}</p>
               </div>
@@ -270,7 +270,7 @@ export function PainelAuditoriaCritica({
                 className="p-3.5 rounded-2xl bg-white border border-amber-200 text-xs space-y-1 shadow-xs"
               >
                 <p className="text-amber-900 font-medium italic">
-                  "{ra.trecho_afirmacao}"
+                  “{ra.trecho_afirmacao}”
                 </p>
                 <p className="text-slate-600 text-[11px]">{ra.explicacao}</p>
               </div>
