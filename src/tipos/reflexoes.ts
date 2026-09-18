@@ -92,6 +92,7 @@ export interface ConflitoDetectado {
   posicao_externa: string;
   posicao_autoral: string;
   impacto_reflexao: string;
+  considerado_no_plano?: boolean;
 }
 
 export interface DossieItemFragmento {
