@@ -170,6 +170,90 @@ export async function extrairFonteDocumentoTemporaria({
   };
 }
 
+/**
+ * Prepara uma obra da Biblioteca como fonte principal de uma nova reflexão.
+ * A obra é preservada por referência canônica (obraId); para a análise inicial,
+ * montamos uma amostra representativa e distribuída dos fragmentos já processados.
+ */
+export async function prepararFonteBibliotecaTemporaria(obraId: string): Promise<FonteReflexaoPreparada> {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  const { data: obra, error: erroObra } = await admin
+    .from("v_obras_detalhadas")
+    .select("id, titulo, autor_nome, estado_processamento, total_paginas")
+    .eq("id", obraId)
+    .eq("usuario_id", usuarioId)
+    .maybeSingle();
+
+  if (erroObra || !obra) {
+    throw new Error("A obra selecionada não foi encontrada na sua Biblioteca.");
+  }
+
+  if (obra.estado_processamento !== "processado") {
+    throw new Error("Esta obra precisa estar processada antes de ser usada como fonte de reflexão.");
+  }
+
+  const { data: fragmentos, error: erroFragmentos } = await admin
+    .from("v_fragmentos_detalhados")
+    .select("id, ordem, conteudo, secao_titulo")
+    .eq("obra_id", obraId)
+    .eq("usuario_id", usuarioId)
+    .order("ordem", { ascending: true });
+
+  if (erroFragmentos) {
+    throw new Error(`Não foi possível preparar os fragmentos da obra: ${erroFragmentos.message}`);
+  }
+
+  if (!fragmentos?.length) {
+    throw new Error("A obra está processada, mas ainda não possui fragmentos disponíveis.");
+  }
+
+  const limiteAmostra = Math.min(12, fragmentos.length);
+  const indices =
+    limiteAmostra === 1
+      ? [0]
+      : Array.from({ length: limiteAmostra }, (_, indice) =>
+          Math.round((indice * (fragmentos.length - 1)) / (limiteAmostra - 1))
+        );
+
+  const selecionados = Array.from(new Set(indices))
+    .map((indice) => fragmentos[indice])
+    .filter(Boolean);
+
+  const cabecalho = [
+    `Obra selecionada da Biblioteca: ${obra.titulo}`,
+    obra.autor_nome ? `Autor: ${obra.autor_nome}` : null,
+    `Fragmentos processados na obra: ${fragmentos.length}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const corpo = selecionados
+    .map((fragmento, indice) => {
+      const secao = fragmento.secao_titulo ? ` · ${fragmento.secao_titulo}` : "";
+      return `[Trecho representativo ${indice + 1}${secao}]\n${fragmento.conteudo}`;
+    })
+    .join("\n\n---\n\n");
+
+  const conteudoRepresentativo = `${cabecalho}\n\n${corpo}`.slice(0, 24_000);
+
+  return {
+    tipo: "biblioteca",
+    titulo: obra.titulo,
+    autorNome: obra.autor_nome || undefined,
+    obraId: obra.id,
+    conteudoExtraido: conteudoRepresentativo,
+    conteudoConfirmado: conteudoRepresentativo,
+    metadados: {
+      totalPaginas: obra.total_paginas || null,
+      totalFragmentos: fragmentos.length,
+      fragmentosAmostrados: selecionados.length,
+      estrategiaContexto: "amostragem_uniforme_de_fragmentos_processados",
+    },
+  };
+}
+
 function enderecoEhPrivadoOuReservado(endereco: string): boolean {
   const versao = net.isIP(endereco);
 
