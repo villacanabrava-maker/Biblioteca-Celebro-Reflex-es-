@@ -37,6 +37,9 @@ jobs:
       - name: Lint de código
         run: npm run lint
 
+      - name: Testes automatizados
+        run: npm test
+
       - name: Build de verificação da aplicação
         run: npm run build
         env:

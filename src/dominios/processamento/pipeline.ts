@@ -60,6 +60,34 @@ export async function executarPipelineProcessamento({
     throw new Error("Nenhum perfil de embedding ativo configurado no sistema.");
   }
 
+  // Se a tentativa anterior falhou, remove artefatos parciais antes de reprocessar.
+  // Unidades são removidas primeiro para acionar cascatas de seções, fragmentos e vetores.
+  if (versao.estado_processamento === "falha") {
+    const { data: unidadesParciais } = await admin
+      .schema("processamento")
+      .from("unidades_conhecimento")
+      .select("id")
+      .eq("versao_obra_id", versaoObraId)
+      .eq("usuario_id", usuarioId);
+
+    const idsUnidades = (unidadesParciais || []).map((unidade) => unidade.id);
+    if (idsUnidades.length > 0) {
+      await admin
+        .schema("processamento")
+        .from("unidades_conhecimento")
+        .delete()
+        .in("id", idsUnidades)
+        .eq("usuario_id", usuarioId);
+    }
+
+    await admin
+      .schema("processamento")
+      .from("documentos_processados")
+      .delete()
+      .eq("versao_obra_id", versaoObraId)
+      .eq("usuario_id", usuarioId);
+  }
+
   // 3. Registrar execução do pipeline
   const { data: execucao, error: errExecucao } = await admin
     .schema("processamento")
@@ -98,6 +126,7 @@ export async function executarPipelineProcessamento({
       versaoObraId,
       "extrair",
       versao.hash_sha256,
+      execucao.id,
     ]);
 
     const inicioExtrair = Date.now();
@@ -168,6 +197,7 @@ export async function executarPipelineProcessamento({
       "chunking",
       versao.hash_sha256,
       "v1",
+      execucao.id,
     ]);
 
     const inicioChunking = Date.now();
@@ -315,6 +345,7 @@ export async function executarPipelineProcessamento({
       "vetorizar",
       perfilEmbedding.id,
       `${fragmentosCriados.length}`,
+      execucao.id,
     ]);
 
     const inicioVetorizar = Date.now();
