@@ -80,12 +80,21 @@ A implementação `72d909943bcb3dbdc0b28ac345c1f79f9ad730c0` fechou a curadoria 
 - navegação com página atual e foco visível;
 - reflow dos modais em telas pequenas.
 
-## Ordem de execução a partir daqui
+## Encerramento desta etapa
 
-1. revisar responsividade e regressão visual das páginas/cards restantes;
-2. preparar E2E autenticado sem credenciais no código;
-3. medir performance e observabilidade antes de alterações estruturais;
-4. proteção formal da branch `main` quando houver acesso administrativo compatível.
+As frentes derivadas do relato original foram reconciliadas e encerradas para esta fase. O inventário completo, riscos residuais e ponto de partida da próxima etapa estão em `docs/RELATORIO_ENCERRAMENTO_ETAPA_2026-09-18.md`.
+
+O limite de documento da Biblioteca foi alinhado em 50 MB no navegador, servidor e bucket pela migration `0029_limite_upload_biblioteca_50mb`.
+
+O advisor também revelou seis tabelas do schema `sistema` sem RLS. Como as políticas variam entre catálogos globais e configuração por usuário, esse hardening foi conscientemente separado para a próxima etapa, em vez de aplicar RLS cegamente.
+
+## Ordem de execução da próxima etapa
+
+1. receber os novos requisitos do autor;
+2. tratar o hardening do schema `sistema` dentro da nova etapa;
+3. preparar E2E autenticado real quando houver sessão/credencial operacional apropriada;
+4. medir performance por latência e volume reais antes de novas migrations;
+5. proteção formal da branch `main` quando houver suporte administrativo no conector.
 
 ## Guardrails
 
