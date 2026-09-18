@@ -38,7 +38,9 @@ function segmentarBlocos(texto: string): string[] {
     .filter(Boolean);
 
   if (paragrafos.length > 1 && paragrafos.length <= MAX_BLOCOS) {
-    return paragrafos;
+    return paragrafos.map((paragrafo, indice) =>
+      indice < paragrafos.length - 1 ? `${paragrafo}\n\n` : paragrafo
+    );
   }
 
   const palavras = texto.trim().split(/\s+/u).filter(Boolean);
@@ -46,7 +48,9 @@ function segmentarBlocos(texto: string): string[] {
   const tamanhoBloco = 80;
 
   for (let indice = 0; indice < palavras.length; indice += tamanhoBloco) {
-    blocos.push(palavras.slice(indice, indice + tamanhoBloco).join(" "));
+    const trecho = palavras.slice(indice, indice + tamanhoBloco).join(" ");
+    const temProximo = indice + tamanhoBloco < palavras.length;
+    blocos.push(temProximo ? `${trecho} ` : trecho);
     if (blocos.length >= MAX_BLOCOS) break;
   }
 
@@ -116,17 +120,47 @@ function diferenciarUnidades(antes: string[], depois: string[]): TrechoDiff[] {
   return trechos;
 }
 
-function normalizarTrechosPorBloco(trechos: TrechoDiff[]): TrechoDiff[] {
-  return trechos.map((trecho) => {
-    if (trecho.tipo === "mantido") {
-      return { ...trecho, texto: trecho.texto };
+function refinarTrechosDeBloco(trechos: TrechoDiff[]): TrechoDiff[] {
+  const refinados: TrechoDiff[] = [];
+  let removido = "";
+  let adicionado = "";
+
+  function finalizarAlteracao() {
+    if (!removido && !adicionado) return;
+
+    const tokensRemovidos = tokenizarPalavras(removido);
+    const tokensAdicionados = tokenizarPalavras(adicionado);
+
+    if (
+      tokensRemovidos.length <= MAX_UNIDADES_DETALHADAS &&
+      tokensAdicionados.length <= MAX_UNIDADES_DETALHADAS
+    ) {
+      const locais = diferenciarUnidades(tokensRemovidos, tokensAdicionados);
+      for (const trecho of locais) {
+        juntarTrechoAnterior(refinados, trecho.tipo, trecho.texto);
+      }
+    } else {
+      juntarTrechoAnterior(refinados, "removido", removido);
+      juntarTrechoAnterior(refinados, "adicionado", adicionado);
     }
 
-    return {
-      ...trecho,
-      texto: trecho.texto.trim(),
-    };
-  });
+    removido = "";
+    adicionado = "";
+  }
+
+  for (const trecho of trechos) {
+    if (trecho.tipo === "mantido") {
+      finalizarAlteracao();
+      juntarTrechoAnterior(refinados, "mantido", trecho.texto);
+    } else if (trecho.tipo === "removido") {
+      removido += trecho.texto;
+    } else {
+      adicionado += trecho.texto;
+    }
+  }
+
+  finalizarAlteracao();
+  return refinados;
 }
 
 function consolidarAlteracoes(trechos: TrechoDiff[]): AlteracaoEdicaoAutor[] {
@@ -199,7 +233,7 @@ export function calcularDiffEdicaoAutor({
     estrategia = "bloco";
     const blocosAntes = segmentarBlocos(antes);
     const blocosDepois = segmentarBlocos(depois);
-    trechos = normalizarTrechosPorBloco(
+    trechos = refinarTrechosDeBloco(
       diferenciarUnidades(blocosAntes, blocosDepois)
     );
   }
