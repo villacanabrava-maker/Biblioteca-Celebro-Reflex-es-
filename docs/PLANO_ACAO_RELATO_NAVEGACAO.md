@@ -37,7 +37,7 @@ A implementação `89bdf1f3fc859d3039daa060b808e09a3a38867d` consolidou integrid
 | Memórias / “Incluir todas” | Concluído | Curadoria individual + seleção em massa. |
 | Conflitos | Concluído nesta branch | O autor pode considerar/ignorar tensões no plano; o histórico completo permanece salvo. |
 | Ordem Auditoria → Texto | Concluído | Estúdio prioriza auditoria antes da edição final. |
-| Edição da reflexão | Concluído parcialmente | IA e edição humana são versões distintas; falta diff estruturado. |
+| Edição da reflexão | Concluído nesta branch | IA e edição humana permanecem versões distintas e a edição autoral ganha diff estruturado, métricas e comparação com a versão-base. |
 | Aprendizado autoral | Aberto | Falta transformar diferenças de edição em sinais/regras verificáveis. |
 | Aprovação soberana | Concluído | Bloco de aprovação ganhou destaque e conclui a reflexão. |
 | Pós-aprovação | Concluído | Redireciona para Minhas Reflexões. |
