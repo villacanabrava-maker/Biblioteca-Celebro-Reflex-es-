@@ -29,7 +29,6 @@ export function WizardCriarReflexao() {
   // Identificadores da esteira persistidos no backend
   const [entradaId, setEntradaId] = useState<string | null>(null);
   const [planoId, setPlanoId] = useState<string | null>(null);
-  const [versaoId, setVersaoId] = useState<string | null>(null);
 
   // Etapa 1: Reflexão Externa
   const [modoExterno, setModoExterno] = useState<"colar" | "arquivo" | "link">("colar");
@@ -48,15 +47,10 @@ export function WizardCriarReflexao() {
   const [conflitos, setConflitos] = useState<ConflitoDetectado[]>([]);
 
   // Etapa 5: Plano da Reflexão
-  const [formato, setFormato] = useState<FormatoReflexao>("ensaio");
+  const formato: FormatoReflexao = "ensaio";
   const [planoGerado, setPlanoGerado] = useState<PlanoReflexao | null>(null);
 
   // Etapa 6 & 7: Texto Gerado e Revisão Final
-  const [textoGerado, setTextoGerado] = useState("");
-  const [sumarioExecutivo, setSumarioExecutivo] = useState("");
-  const [textoFinalRevisado, setTextoFinalRevisado] = useState("");
-  const [incorporado, setIncorporado] = useState(false);
-  const [obraIdGerada, setObraIdGerada] = useState<string | null>(null);
 
   const etapas = [
     { num: 1, rotulo: "Externa" },
@@ -172,8 +166,6 @@ export function WizardCriarReflexao() {
         entradaId,
         planoId,
       });
-
-      setVersaoId(res.versaoId);
 
       // Redirecionar para o estúdio completo da reflexão gerada onde o autor tem toda a esteira
       router.push(`/reflexoes/${entradaId}`);
