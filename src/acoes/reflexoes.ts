@@ -12,6 +12,7 @@ import { gerarPlanoReflexao } from "@/dominios/reflexoes/planejador-reflexao";
 import { redigirReflexao } from "@/dominios/reflexoes/redator-reflexao";
 import { auditarVersaoReflexao } from "@/dominios/auditoria/auditor-independente";
 import { extrairTextoDeBuffer } from "@/dominios/processamento/extrator-texto";
+import { obterClienteOpenAI } from "@/ia/cliente";
 import type {
   ResumoReflexao,
   EntradaReflexao,
@@ -251,6 +252,71 @@ export async function prepararFonteBibliotecaTemporaria(obraId: string): Promise
       fragmentosAmostrados: selecionados.length,
       estrategiaContexto: "amostragem_uniforme_de_fragmentos_processados",
     },
+  };
+}
+
+/**
+ * Transcreve um áudio já enviado ao bucket privado de fontes de Reflexões.
+ * O arquivo original permanece preservado no Storage; apenas a transcrição
+ * retorna para revisão pelo autor.
+ */
+export async function transcreverFonteAudioTemporaria({
+  storageCaminho,
+  arquivoNomeOriginal,
+  arquivoMimeType,
+}: {
+  storageCaminho: string;
+  arquivoNomeOriginal: string;
+  arquivoMimeType: string;
+}) {
+  const usuarioId = await obterUsuarioAtualId();
+  const admin = criarClienteAdmin();
+
+  if (!storageCaminho.startsWith(`${usuarioId}/`)) {
+    throw new Error("Fonte de áudio inválida para o usuário autenticado.");
+  }
+
+  if (!arquivoMimeType.toLowerCase().startsWith("audio/")) {
+    throw new Error("O arquivo informado não é um áudio compatível.");
+  }
+
+  const { data, error } = await admin.storage
+    .from("fontes-reflexoes")
+    .download(storageCaminho);
+
+  if (error || !data) {
+    throw new Error(`Não foi possível ler o áudio enviado: ${error?.message || "arquivo indisponível"}`);
+  }
+
+  const limiteTranscricao = 25 * 1024 * 1024;
+  if (data.size > limiteTranscricao) {
+    throw new Error("A gravação excede o limite de 25 MB da transcrição. Grave um trecho menor.");
+  }
+
+  const buffer = Buffer.from(await data.arrayBuffer());
+  const arquivo = new File([buffer], arquivoNomeOriginal, {
+    type: arquivoMimeType || "audio/webm",
+  });
+
+  const openai = obterClienteOpenAI();
+
+  const resposta = await (openai.audio.transcriptions.create as any)({
+    file: arquivo,
+    model: "gpt-transcribe",
+    prompt:
+      "Transcreva fielmente a fala. Preserve nomes próprios, termos conceituais e pontuação natural. Não resuma e não acrescente conteúdo.",
+  });
+
+  const texto = String(resposta?.text || "").trim();
+  if (!texto) {
+    throw new Error("O áudio foi recebido, mas nenhuma fala pôde ser transcrita.");
+  }
+
+  return {
+    texto,
+    idiomas: Array.isArray(resposta?.languages) ? resposta.languages : [],
+    totalCaracteres: texto.length,
+    totalPalavras: texto.split(/\s+/).filter(Boolean).length,
   };
 }
 
