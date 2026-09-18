@@ -181,9 +181,13 @@ export function CardObra({
           )}
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400 mt-1.5">
-            <span>{obra.ano_publicacao || "2026"}</span>
-            <span>•</span>
-            <span>{totalPaginas} págs</span>
+            <span>{obra.ano_publicacao || "Ano não informado"}</span>
+            {totalPaginas !== null && (
+              <>
+                <span>•</span>
+                <span>{totalPaginas} págs</span>
+              </>
+            )}
             <span>•</span>
             <span>{formatarBytes(obra.arquivo_tamanho_bytes)}</span>
           </div>
