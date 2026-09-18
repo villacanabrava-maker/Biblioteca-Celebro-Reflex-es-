@@ -25,7 +25,7 @@ export function LeitorVersaoReflexao({
           Nenhuma Versão Redigida Ainda
         </h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-          Acesse a aba "2. Plano Cognitivo" e clique em "Aprovar Plano e Redigir Reflexão" para produzir o ensaio.
+          Acesse a aba “2. Plano Cognitivo” e clique em “Aprovar Plano e Redigir Reflexão” para produzir o ensaio.
         </p>
       </div>
     );
@@ -84,7 +84,7 @@ export function LeitorVersaoReflexao({
               Síntese Executiva
             </span>
             <p className="text-xs text-slate-700 leading-relaxed italic font-serif">
-              "{versaoAtual.sumario_executivo}"
+              “{versaoAtual.sumario_executivo}”
             </p>
           </div>
         )}
@@ -133,7 +133,7 @@ export function LeitorVersaoReflexao({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
-                        Evidência {idx + 1} • Obra: "{cit.obra_titulo || "Acervo Autoral"}"
+                        Evidência {idx + 1} • Obra: “{cit.obra_titulo || "Acervo Autoral"}”
                       </span>
 
                       {cit.grau_aderencia !== null && cit.grau_aderencia !== undefined && (
@@ -149,7 +149,7 @@ export function LeitorVersaoReflexao({
                         No texto da reflexão:
                       </span>
                       <p className="text-xs text-slate-800 font-medium mt-0.5">
-                        "{cit.trecho_afirmacao_gerada}"
+                        “{cit.trecho_afirmacao_gerada}”
                       </p>
                     </div>
 
@@ -159,7 +159,7 @@ export function LeitorVersaoReflexao({
                         Trecho no corpus autoral:
                       </span>
                       <p className="text-xs text-slate-600 italic mt-0.5 font-serif">
-                        "{cit.trecho_original_citado}"
+                        “{cit.trecho_original_citado}”
                       </p>
                     </div>
                   </div>

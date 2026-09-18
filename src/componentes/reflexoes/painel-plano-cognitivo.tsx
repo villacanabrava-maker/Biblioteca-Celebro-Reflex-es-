@@ -66,7 +66,7 @@ export function PainelPlanoCognitivo({
           <span>Tese Central do Cérebro Autoral</span>
         </div>
         <p className="font-serif text-xl sm:text-2xl font-bold text-slate-900 leading-relaxed">
-          "{plano.tese_central}"
+          “{plano.tese_central}”
         </p>
       </div>
 
@@ -148,7 +148,7 @@ export function PainelPlanoCognitivo({
                     Objeção Provável:
                   </span>
                   <p className="text-xs text-slate-800 italic">
-                    "{ca.objecao}"
+                    “{ca.objecao}”
                   </p>
                 </div>
                 <div className="pt-2 border-t border-slate-100">

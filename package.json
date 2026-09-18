@@ -1,8 +1,8 @@
 {
-  "name": "memoria-reflexiva-cerebro-autoral",
+  "name": "rflex01",
   "version": "1.0.0",
   "private": true,
-  "description": "Plataforma pessoal de inteligência autoral e memória reflexiva.",
+  "description": "Rflex01 — plataforma pessoal de inteligência autoral e memória reflexiva.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

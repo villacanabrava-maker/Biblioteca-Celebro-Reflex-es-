@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Memória Reflexiva — Seu acervo. Sua inteligência. Novas reflexões.",
-  description: "Plataforma pessoal de inteligência autoral baseada no Cérebro Autoral.",
+  title: "Rflex01 — Memória Reflexiva",
+  description: "Rflex01 — plataforma pessoal de inteligência autoral baseada no Cérebro Autoral.",
 };
 
 export default function RootLayout({
