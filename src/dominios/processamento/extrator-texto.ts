@@ -1,6 +1,7 @@
 import zlib from "zlib";
 
 // Importação resiliente de módulo CJS no ecossistema Next.js
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require("pdf-parse");
 
 export interface ResultadoExtracaoTexto {
