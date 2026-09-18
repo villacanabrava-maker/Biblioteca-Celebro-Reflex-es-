@@ -77,7 +77,7 @@ export default async function PaginaInicial() {
             {saudacao}, {primeiroNome}! 👋
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Painel operacional da sua memória, acervo e inteligência autoral.
+            Acompanhe seu acervo, continue processamentos e transforme memória em novas reflexões.
           </p>
         </div>
 
@@ -88,7 +88,7 @@ export default async function PaginaInicial() {
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm transition-all active:scale-95"
           >
             <Upload className="w-3.5 h-3.5 text-blue-600" />
-            <span>+ Adicionar Documento</span>
+            <span>Adicionar arquivo</span>
           </Link>
 
           <Link
@@ -96,7 +96,7 @@ export default async function PaginaInicial() {
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all active:scale-95"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>+ Criar Reflexão</span>
+            <span>Criar reflexão</span>
           </Link>
         </div>
       </div>
@@ -110,7 +110,7 @@ export default async function PaginaInicial() {
           <div className="max-w-xl space-y-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-xs font-medium backdrop-blur-sm">
               <BrainCircuit className="w-3.5 h-3.5 text-blue-300" />
-              Cérebro Autoral Ativo &middot; Versão Canônica v1.0
+              Rflex01 &middot; Cérebro Autoral
             </span>
             <blockquote className="font-serif text-xl md:text-2xl italic font-medium leading-snug pt-1">
               &ldquo;Toda grande reflexão começa com uma pergunta.&rdquo;
