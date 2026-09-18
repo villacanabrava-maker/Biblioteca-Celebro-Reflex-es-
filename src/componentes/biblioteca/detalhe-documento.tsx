@@ -417,7 +417,7 @@ export function DetalheDocumentoComponente({
               <div className="flex items-start gap-2.5">
                 <Calendar className="w-4 h-4 text-slate-400 mt-0.5" />
                 <div>
-                  <span className="text-slate-400 block text-[11px]">Data de upload</span>
+                  <span className="text-slate-400 block text-[11px]">Data de entrada na Biblioteca</span>
                   <span className="font-semibold text-slate-800">
                     {new Date(obra.criado_em).toLocaleDateString("pt-BR")}
                   </span>
