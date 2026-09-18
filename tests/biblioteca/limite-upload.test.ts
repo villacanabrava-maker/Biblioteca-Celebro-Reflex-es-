@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  cadastrarObraSchema,
-  LIMITE_ARQUIVO_BIBLIOTECA_BYTES,
-} from "@/lib/validacoes/biblioteca";
+import { cadastrarObraSchema } from "@/lib/validacoes/biblioteca";
+import { LIMITE_ARQUIVO_BIBLIOTECA_BYTES } from "@/lib/limites-upload";
 
 const base = {
   titulo: "Documento de teste",
