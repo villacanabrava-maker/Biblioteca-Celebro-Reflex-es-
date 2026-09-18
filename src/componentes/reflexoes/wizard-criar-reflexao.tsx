@@ -237,6 +237,8 @@ export function WizardCriarReflexao() {
   }
 
   async function prepararAudioComoFonte(file: File | null) {
+    await descartarFonteTemporaria(fontePreparada);
+
     setArquivoAudioFonte(file);
     setFontePreparada(null);
     setTextoExterno("");
@@ -250,6 +252,8 @@ export function WizardCriarReflexao() {
       return;
     }
 
+    let caminhoUpload: string | null = null;
+
     try {
       setProcessandoFonte(true);
       setErro(null);
@@ -260,6 +264,7 @@ export function WizardCriarReflexao() {
       const timestamp = Date.now();
       const nomeSanitizado = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const caminho = `${auth.usuarioId}/${timestamp}/audio/${nomeSanitizado}`;
+      caminhoUpload = caminho;
 
       await new Promise<void>((resolve, reject) => {
         iniciarUploadTus({
@@ -279,7 +284,8 @@ export function WizardCriarReflexao() {
         arquivoMimeType: file.type || "audio/webm",
       });
 
-      const tituloSugerido = tituloFonte.trim() || `Gravação de ${new Date().toLocaleDateString("pt-BR")}`;
+      const tituloSugerido =
+        tituloFonte.trim() || `Gravação de ${new Date().toLocaleDateString("pt-BR")}`;
 
       setTituloFonte(tituloSugerido);
       setTipoOrigem("audio_transcricao");
@@ -304,17 +310,29 @@ export function WizardCriarReflexao() {
         },
       });
     } catch (err: unknown) {
+      if (caminhoUpload) {
+        try {
+          await removerFontesTemporariasReflexao([caminhoUpload]);
+        } catch (erroLimpeza) {
+          console.error("Falha ao compensar upload de áudio temporário:", erroLimpeza);
+        }
+      }
+
       const mensagem = err instanceof Error ? err.message : "Falha ao preparar a gravação.";
       console.error("Erro ao preparar fonte de áudio:", err);
       setErro(mensagem);
+      setArquivoAudioFonte(null);
       setFontePreparada(null);
       setTextoExterno("");
+      setProgressoFonte(0);
     } finally {
       setProcessandoFonte(false);
     }
   }
 
   async function prepararAudioComentario(file: File | null) {
+    await descartarFonteTemporaria(fonteComentarioAudio);
+
     setFonteComentarioAudio(null);
     if (!file) return;
 
@@ -323,6 +341,8 @@ export function WizardCriarReflexao() {
       setErro("O comentário gravado excedeu 24 MB. Grave um trecho menor.");
       return;
     }
+
+    let caminhoUpload: string | null = null;
 
     try {
       setProcessandoComentarioAudio(true);
@@ -334,6 +354,7 @@ export function WizardCriarReflexao() {
       const timestamp = Date.now();
       const nomeSanitizado = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const caminho = `${auth.usuarioId}/${timestamp}/comentario/${nomeSanitizado}`;
+      caminhoUpload = caminho;
 
       await new Promise<void>((resolve, reject) => {
         iniciarUploadTus({
@@ -374,10 +395,19 @@ export function WizardCriarReflexao() {
         },
       });
     } catch (err: unknown) {
+      if (caminhoUpload) {
+        try {
+          await removerFontesTemporariasReflexao([caminhoUpload]);
+        } catch (erroLimpeza) {
+          console.error("Falha ao compensar áudio temporário do comentário:", erroLimpeza);
+        }
+      }
+
       const mensagem = err instanceof Error ? err.message : "Falha ao transcrever o comentário.";
       console.error("Erro ao preparar comentário em áudio:", err);
       setErro(mensagem);
       setFonteComentarioAudio(null);
+      setProgressoComentarioAudio(0);
     } finally {
       setProcessandoComentarioAudio(false);
     }
@@ -495,6 +525,27 @@ export function WizardCriarReflexao() {
       setEtapaAtual(3);
     } catch (err: any) {
       console.error("Erro ao iniciar esteira:", err);
+
+      const caminhosTemporarios = [
+        fontePreparada?.storageCaminho,
+        fonteComentarioAudio?.storageCaminho,
+      ].filter((caminho): caminho is string => Boolean(caminho));
+
+      if (caminhosTemporarios.length > 0) {
+        try {
+          await removerFontesTemporariasReflexao(caminhosTemporarios);
+        } catch (erroLimpeza) {
+          console.error("Falha ao limpar fontes após erro na esteira:", erroLimpeza);
+        }
+
+        setFontePreparada(null);
+        setFonteComentarioAudio(null);
+        setArquivoFonte(null);
+        setArquivoAudioFonte(null);
+        setProgressoFonte(0);
+        setProgressoComentarioAudio(0);
+      }
+
       setErro(err.message || "Falha ao analisar estímulo e memórias.");
     } finally {
       setCarregando(false);
