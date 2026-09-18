@@ -110,6 +110,10 @@ export async function obterListaDocumentosProcessados(): Promise<DocumentoProces
       .eq("usuario_id", usuarioId)
       .order("criado_em", { ascending: false });
 
+    if (docsError) {
+      console.warn("Falha ao consultar documentos processados; usando fallback da Biblioteca.", docsError.message);
+    }
+
     // 2. Busca as obras da biblioteca
     const { data: obras } = await admin
       .from("v_obras_detalhadas")
