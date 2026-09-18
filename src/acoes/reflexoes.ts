@@ -9,6 +9,7 @@ import { obterUsuarioAtualId } from "@/infraestrutura/auth/usuario-atual";
 import { detectarConflitosEMontarDossie } from "@/dominios/reflexoes/detector-conflitos";
 import { gerarPlanoReflexao } from "@/dominios/reflexoes/planejador-reflexao";
 import { redigirReflexao } from "@/dominios/reflexoes/redator-reflexao";
+import { calcularDiffEdicaoAutor } from "@/dominios/reflexoes/diff-edicao";
 import { auditarVersaoReflexao } from "@/dominios/auditoria/auditor-independente";
 import { extrairTextoDeBuffer } from "@/dominios/processamento/extrator-texto";
 import { transcreverAudioBuffer } from "@/dominios/audio/transcritor";
@@ -93,6 +94,9 @@ export async function obterReflexaoCompleta(entradaId: string): Promise<{
     .order("numero_versao", { ascending: false });
 
   const versoesCompletas = [];
+  const mapaVersoes = new Map(
+    (versoes || []).map((versao) => [versao.id, versao])
+  );
 
   for (const v of versoes || []) {
     // Citações da versão
@@ -112,8 +116,23 @@ export async function obterReflexaoCompleta(entradaId: string): Promise<{
       .limit(1)
       .maybeSingle();
 
+    const versaoBase =
+      v.origem_versao === "edicao_autor" && v.versao_base_id
+        ? mapaVersoes.get(v.versao_base_id)
+        : null;
+
+    const diffEdicao = versaoBase
+      ? calcularDiffEdicaoAutor({
+          versaoBaseId: versaoBase.id,
+          versaoEditadaId: v.id,
+          antes: versaoBase.conteudo_markdown,
+          depois: v.conteudo_markdown,
+        })
+      : null;
+
     versoesCompletas.push({
       ...v,
+      diff_edicao: diffEdicao,
       citacoes: citacoes || [],
       auditoria: relatorio || null,
     });
