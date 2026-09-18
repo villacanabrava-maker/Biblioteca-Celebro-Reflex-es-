@@ -6,7 +6,6 @@
  * Projeto: Cérebro Autoral / Memória Reflexiva
  */
 
-import { OpenAI } from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { obterClienteOpenAI } from "./cliente";
