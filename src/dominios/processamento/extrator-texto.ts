@@ -16,47 +16,81 @@ export interface ResultadoExtracaoTexto {
  * Extrai texto limpo de arquivo Word .docx (ZIP contendo word/document.xml).
  */
 function extrairTextoDeDocx(buffer: Buffer): string {
+  const TAMANHO_CABECALHO_LOCAL = 30;
+  const ASSINATURA_ARQUIVO_LOCAL = 0x04034b50;
   let offset = 0;
-  while (offset < buffer.length - 4) {
-    if (buffer.readUInt32LE(offset) === 0x04034b50) {
-      const compressionMethod = buffer.readUInt16LE(offset + 8);
-      const compressedSize = buffer.readUInt32LE(offset + 18);
-      const fileNameLength = buffer.readUInt16LE(offset + 26);
-      const extraFieldLength = buffer.readUInt16LE(offset + 28);
-      
-      const fileNameStart = offset + 30;
-      const fileName = buffer.subarray(fileNameStart, fileNameStart + fileNameLength).toString("utf-8");
-      const fileDataStart = fileNameStart + fileNameLength + extraFieldLength;
-      
-      if (fileName === "word/document.xml") {
-        const compressedData = buffer.subarray(fileDataStart, fileDataStart + compressedSize);
-        let xml = "";
-        if (compressionMethod === 8) {
-          xml = zlib.inflateRawSync(compressedData).toString("utf-8");
-        } else if (compressionMethod === 0) {
-          xml = compressedData.toString("utf-8");
-        }
-        
-        const paragrafos = xml.split(/<\/w:p>/);
-        const linhas: string[] = [];
-        for (const p of paragrafos) {
-          const textos = p.match(/<w:t[^>]*>(.*?)<\/w:t>/g);
-          if (textos) {
-            const linha = textos
-              .map((t) => t.replace(/<w:t[^>]*>/, "").replace(/<\/w:t>/, ""))
-              .join("");
-            if (linha.trim()) {
-              linhas.push(linha.trim());
-            }
+
+  while (offset + 4 <= buffer.length) {
+    if (buffer.readUInt32LE(offset) !== ASSINATURA_ARQUIVO_LOCAL) {
+      offset++;
+      continue;
+    }
+
+    // Um cabeçalho ZIP local completo ocupa 30 bytes. Validar antes de ler
+    // campos em offsets fixos evita RangeError: "offset is out of bounds"
+    // em DOCX truncados, incompletos ou com estrutura ZIP inesperada.
+    if (offset + TAMANHO_CABECALHO_LOCAL > buffer.length) {
+      break;
+    }
+
+    const compressionMethod = buffer.readUInt16LE(offset + 8);
+    const compressedSize = buffer.readUInt32LE(offset + 18);
+    const fileNameLength = buffer.readUInt16LE(offset + 26);
+    const extraFieldLength = buffer.readUInt16LE(offset + 28);
+
+    const fileNameStart = offset + TAMANHO_CABECALHO_LOCAL;
+    const fileNameEnd = fileNameStart + fileNameLength;
+    const fileDataStart = fileNameEnd + extraFieldLength;
+    const fileDataEnd = fileDataStart + compressedSize;
+
+    if (
+      fileNameEnd > buffer.length ||
+      fileDataStart > buffer.length ||
+      fileDataEnd > buffer.length ||
+      fileDataEnd < fileDataStart
+    ) {
+      // Cabeçalho inválido ou entrada truncada. Avança um byte para procurar
+      // a próxima assinatura em vez de tentar ler fora do buffer.
+      offset++;
+      continue;
+    }
+
+    const fileName = buffer.subarray(fileNameStart, fileNameEnd).toString("utf-8");
+
+    if (fileName === "word/document.xml") {
+      const compressedData = buffer.subarray(fileDataStart, fileDataEnd);
+      let xml = "";
+
+      if (compressionMethod === 8) {
+        xml = zlib.inflateRawSync(compressedData).toString("utf-8");
+      } else if (compressionMethod === 0) {
+        xml = compressedData.toString("utf-8");
+      } else {
+        throw new Error(`Método de compressão DOCX não suportado: ${compressionMethod}`);
+      }
+
+      const paragrafos = xml.split(/<\/w:p>/);
+      const linhas: string[] = [];
+
+      for (const p of paragrafos) {
+        const textos = p.match(/<w:t[^>]*>(.*?)<\/w:t>/g);
+        if (textos) {
+          const linha = textos
+            .map((t) => t.replace(/<w:t[^>]*>/, "").replace(/<\/w:t>/, ""))
+            .join("");
+
+          if (linha.trim()) {
+            linhas.push(linha.trim());
           }
         }
-        return linhas.join("\n\n");
       }
-      offset = fileDataStart + compressedSize;
-    } else {
-      offset++;
+
+      return linhas.join("\n\n");
     }
+
+    offset = fileDataEnd > offset ? fileDataEnd : offset + 1;
   }
+
   return "";
 }
 
