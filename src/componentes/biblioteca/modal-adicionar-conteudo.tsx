@@ -537,7 +537,7 @@ export function ModalAdicionarConteudo({
   const emProcesso = etapa !== "formulario";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
       <div
         ref={dialogRef}
         role="dialog"
